@@ -1,0 +1,21 @@
+MyPlanner:
+  pre_n: 15 # 向前检查的路径点数
+  Kp: 2.0 # yaw调整控制比例参数
+  Ki: 0.01 # 控制积分参数
+  Kd: 3.0 # 控制微分参数
+  trans_x_factor: 1.5 # 平移控制比例参数
+  trans_y_factor: 1.5 # 平移控制比例参数
+  target_dist: 0.2 # 跟踪目标距离阈值（m）
+
+
+  max_vel_trans: 1.0 # 最大平移速度（m/s） （！未使用）
+  max_vel_rot: 0.9 # 最大旋转速度（rad/s）（！）
+  acc_scale_trans: 1.5 # 平移加速度（m/s^2）（！）
+  acc_scale_rot: 0.5 # 旋转加速度（rad/s^2）（！）
+
+  adjust_r_factor: 1.0 # 目标点姿态调整比例参数
+  goal_dist_tolerance: 0.1 # 目标距离容忍度（m）
+  goal_yaw_tolerance: 0.05 # 目标角度容忍度（rad）
+  scan_topic: /scan
+  base_frame_id: base_footprint
+  odom_frame_id: odom_combined

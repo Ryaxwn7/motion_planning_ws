@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<launch>
+    <include file="$(find turn_on_wheeltec_robot)/launch/turn_on_wheeltec_robot.launch" />
+    <include file="$(find turn_on_wheeltec_robot)/launch/wheeltec_lidar.launch" />
+    <arg name="map_file" default="$(find turn_on_wheeltec_robot)/map/exp_fdu.yaml"/>
+ <node name="map_server_for_test" pkg="map_server" type="map_server" args="$(arg map_file)">
+ </node>
+<!--node name="map_server" pkg="map_server" type="map_server" args="your_map" /-->
+
+    <!--Use tf package to perform coordinate system transformation, if neccessary-->
+    <!--node pkg="tf" type="" name="" args="" /-->
+
+    <!-- AMCL -->
+     <include file="$(find turn_on_wheeltec_robot)/launch/include/amcl.launch" />
+
+    <!-- MoveBase-->
+    <include file="$(find sim_env)/launch/include/navigation/move_base.launch.xml">
+        <arg name="robot" value="nanocar" />
+        <arg name="global_planner" value="fm2" />
+        <arg name="local_planner" value="dwa" />
+    </include>
+
+</launch>

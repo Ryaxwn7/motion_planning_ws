@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="map_started" default="false" /> <!--启动第一个机器人时，可以不指定该参数，之后的机器人指定为true,避免map再次启动 9.14-->
+    <arg name="agent_number" default="6" /><!--修改机器人数量 9.14-->
+    <arg name="agent_id" default="6" /><!--修改机器人编号 9.14-->
+    <arg name="start_ns" default="true" /><!--多机器人启用命名空间,各节点在对应命名空间下 9.14-->
+    <arg name="robot_namespace" default="robot$(arg agent_id)" />
+    <arg name="global_planner" default="fm2"/>
+    <arg name="local_planner" default="dwa"/>
+    <arg name="robot" default="nanocar"/>
+    <arg name="map_file" default="$(find turn_on_wheeltec_robot)/map/map_marker.yaml"/>
+  <group ns="$(arg robot_namespace)" if="$(arg start_ns)">
+    <!-- MoveBase-->
+    <include file="$(find sim_env)/launch/include/navigation/move_base.launch.xml">
+        <arg name="robot" value="$(arg robot)" />
+        <arg name="robot_namespace" value="$(arg robot_namespace)" />
+        <arg name="global_planner" value="$(arg global_planner)" />
+        <arg name="local_planner" value="$(arg local_planner)" />
+        <arg name="agent_number" value="$(arg agent_number)" />
+        <arg name="agent_id" value="$(arg agent_id)" />
+        <arg name="start_ns" value="$(arg start_ns)"/>
+    </include>
+  </group>
+</launch>

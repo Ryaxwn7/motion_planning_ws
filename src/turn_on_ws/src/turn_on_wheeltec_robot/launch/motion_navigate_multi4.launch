@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="map_started" default="false" /> <!--启动第一个机器人时，可以不指定该参数，之后的机器人指定为true,避免map再次启动 9.14-->
+    <arg name="agent_number" default="6" /><!--修改机器人数量 9.14-->
+    <arg name="agent_id" default="4" /><!--修改机器人编号 9.14-->
+    <arg name="start_ns" default="true" /><!--多机器人启用命名空间,各节点在对应命名空间下 9.14-->
+    <arg name="robot_namespace" default="robot$(arg agent_id)" />
+    <arg name="global_planner" default="fm2"/>
+    <arg name="local_planner" default="my"/>
+    <arg name="robot" default="mini_mec"/>
+    <arg name="map_file" default="$(find turn_on_wheeltec_robot)/map/exp_d2.yaml"/>
+
+<!--map_server节点启动一次，之后的机器人不再启动-->
+<node unless="$(arg map_started)" name="map_server_for_test" pkg="map_server" type="map_server" args="$(arg map_file)">
+</node>
+
+<group ns="$(arg robot_namespace)" if="$(arg start_ns)">
+    <!--开启底层节点-->
+    <include file="$(find turn_on_wheeltec_robot)/launch/turn_on_wheeltec_robot_multi.launch" >
+        <arg name="namespace" value="$(arg robot_namespace)"/>
+    </include>
+    
+    <!--开启雷达-->
+    <include file="$(find turn_on_wheeltec_robot)/launch/wheeltec_lidar.launch">
+        <arg name="rplidar_mode" value="ls_M10P_uart_multi"/>
+        <arg name="namespace" value="$(arg robot_namespace)"/>
+    </include>
+
+    <!--Use tf package to perform coordinate system transformation, if neccessary-->
+    <!--node pkg="tf" type="" name="" args="" /-->
+
+    <!-- AMCL -->
+    <include file="$(find turn_on_wheeltec_robot)/launch/include/amcl_multi.launch" >
+        <arg name="robot_namespace" value="$(arg robot_namespace)" />
+        <arg name="use_map_topic" value="true" />
+        <!--arg name="tf_prefix" value="$(arg robot_namespace)"/-->
+        <!--arg name="scan_topic" value="$(arg robot_namespace)/scan" /-->
+        <!--arg name="odom_frame_id" value="$(arg robot_namespace)/odom_combined"/-->
+    </include>
+
+    <!-- MoveBase-->
+    <include file="$(find sim_env)/launch/include/navigation/move_base.launch.xml">
+        <arg name="robot" value="$(arg robot)" />
+        <arg name="robot_namespace" value="$(arg robot_namespace)" />
+        <arg name="global_planner" value="$(arg global_planner)" />
+        <arg name="local_planner" value="$(arg local_planner)" />
+        <arg name="agent_number" value="$(arg agent_number)" />
+        <arg name="agent_id" value="$(arg agent_id)" />
+        <arg name="start_ns" value="$(arg start_ns)"/>
+    </include>
+  </group>
+</launch>

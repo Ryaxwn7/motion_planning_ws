@@ -1,0 +1,7 @@
+image: /home/wheeltec/motion_planning_ws/src/turn_on_ws/src/turn_on_wheeltec_robot/map/map_marker.pgm
+resolution: 0.050000
+origin: [-13.983632, -12.056009, 0.000000]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
+

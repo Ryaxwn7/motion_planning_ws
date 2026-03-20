@@ -1,0 +1,17 @@
+MyPlanner:
+  pre_n: 100
+  Kp: 1.4
+  Ki: 0.01
+  Kd: 1.0
+  trans_x_factor: 1.5
+  trans_y_factor: 1.5
+  adjust_r_factor: 1.0
+  max_vel_trans: 1.0
+  max_vel_rot: 0.9
+  acc_scale_trans: 1.5
+  acc_scale_rot: 0.5
+  target_dist: 0.2
+  goal_dist_tolerance: 0.1
+  goal_yaw_tolerance: 0.05
+  scan_topic: /scan
+  base_frame_id: base

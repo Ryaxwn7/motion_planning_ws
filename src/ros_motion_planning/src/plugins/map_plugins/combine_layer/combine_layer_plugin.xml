@@ -1,0 +1,9 @@
+<class_libraries>
+  <library path="lib/libcombine_layer">
+    <class 
+    type="costmap_2d::CombineLayer" 
+    base_class_type="costmap_2d::Layer">
+      <description>A costmap plugin for combine layer.</description>
+    </class>
+  </library>
+</class_libraries>
