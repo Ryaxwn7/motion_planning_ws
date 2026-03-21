@@ -5,6 +5,7 @@ MyPlanner:
   Kd: 3.0 # 控制微分参数
   trans_x_factor: 1.5 # 平移控制比例参数
   trans_y_factor: 1.5 # 平移控制比例参数
+  trans_factor: 1.0 # 保持与旧版线速度幅值接近
   target_dist: 0.2 # 跟踪目标距离阈值（m）
 
 
@@ -16,6 +17,7 @@ MyPlanner:
   adjust_r_factor: 1.0 # 目标点姿态调整比例参数
   goal_dist_tolerance: 0.1 # 目标距离容忍度（m）
   goal_yaw_tolerance: 0.05 # 目标角度容忍度（rad）
+  debug_print: false # 终端调试打印开关
   scan_topic: /scan
   base_frame_id: base_footprint
   odom_frame_id: odom_combined

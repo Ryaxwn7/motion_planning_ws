@@ -1,8 +1,17 @@
 #include "my_planner.h"
 #include <pluginlib/class_list_macros.h>
 
+// MyPlanner 规划器， 版本v0.2 , 8.24
 
 PLUGINLIB_EXPORT_CLASS(my_planner::MyPlanner, nav_core::BaseLocalPlanner)
+
+#define MY_PLANNER_DEBUG_LOG(fmt, ...) \
+    do {                               \
+        if (debug_print_)              \
+        {                              \
+            ROS_WARN(fmt, ##__VA_ARGS__); \
+        }                              \
+    } while (0)
 
 
 //PID控制变量
@@ -11,6 +20,22 @@ double error_sum = 0.0;
 double last_error = 0.0;
 double error_diff = 0.0;
 double output = 0.0;
+
+double x_error = 0.0;
+double x_error_sum = 0.0;
+double x_last_error = 0.0;
+double x_error_diff = 0.0;
+double x_adjust = 0.0;
+double x_output = 0.0;
+
+double y_error = 0.0;
+double y_error_sum = 0.0;
+double y_last_error = 0.0;
+double y_error_diff = 0.0;
+double y_adjust = 0.0;
+double y_output = 0.0;
+
+
 
 namespace my_planner
 {
@@ -42,39 +67,49 @@ namespace my_planner
         dyn_server_ = new dynamic_reconfigure::Server<my_planner::MyPlannerConfig>(nh_planner);
         dyn_cb_ = boost::bind(&MyPlanner::reconfigureCB, this, _1, _2);
         dyn_server_->setCallback(dyn_cb_);
+        target_pose_pub_ = nh_planner.advertise<geometry_msgs::PoseStamped>("target_pose", 1);
         // Load parameters
-        nh_planner.param("pre_n", pre_n, 10);
-        nh_planner.param("Kp", Kp, 1.4);
-        nh_planner.param("Ki", Ki, 0.0);
-        nh_planner.param("Kd", Kd, 1.1);
+        nh_planner.param("pre_n", pre_n, 15);
+        nh_planner.param("Kp", Kp, 2.0);
+        nh_planner.param("Ki", Ki, 0.01);
+        nh_planner.param("Kd", Kd, 3.0);
+        nh_planner.param("Kp_x", Kp_x, 2.0);
+        nh_planner.param("Ki_x", Ki_x, 0.0);
+        nh_planner.param("Kd_x", Kd_x, 3.0);
+        nh_planner.param("Kp_y", Kp_y, 2.0);
+        nh_planner.param("Ki_y", Ki_y, 0.0);
+        nh_planner.param("Kd_y", Kd_y, 3.0);
+
         nh_planner.param("trans_x_factor", trans_x_factor, 1.5);
         nh_planner.param("trans_y_factor", trans_y_factor, 1.5);
+        nh_planner.param("trans_factor", trans_factor, 1.0);
         nh_planner.param("adjust_r_factor", adjust_r_factor, 1.0);
         nh_planner.param("max_vel_trans", m_max_vel_trans, 1.0);
         nh_planner.param("max_vel_rot", m_max_vel_rot, 0.9);
         nh_planner.param("acc_scale_trans", m_acc_scale_trans, 1.5);
         nh_planner.param("acc_scale_rot", m_acc_scale_rot, 0.5);
-        nh_planner.param("target_dist", m_target_dist, 1.0);
+        nh_planner.param("target_dist", m_target_dist, 0.2);
         nh_planner.param("goal_dist_tolerance", m_goal_dist_tolerance, 0.1);
-        nh_planner.param("goal_yaw_tolerance", m_goal_yaw_tolerance, 0.1);
+        nh_planner.param("goal_yaw_tolerance", m_goal_yaw_tolerance, 0.05);
         nh_planner.param("scan_topic", m_scan_topic, std::string("/scan"));
-        nh_planner.param("base_frame_id", m_base_frame_id, std::string("base_link"));
-        nh_planner.param("odom_frame_id", m_odom_frame_id, std::string("odom"));
+        nh_planner.param("base_frame_id", m_base_frame_id, std::string("base_footprint"));
+        nh_planner.param("odom_frame_id", m_odom_frame_id, std::string("odom_combined"));
+        nh_planner.param("debug_print", debug_print_, false);
 
-        ROS_WARN("%s initialized", name.c_str());
-        ROS_WARN("pre_n: %d", pre_n);
-        ROS_WARN("Kp: %f", Kp);
-        ROS_WARN("Ki: %f", Ki);
-        ROS_WARN("Kd: %f", Kd);
-        ROS_WARN("max_vel_trans: %f", m_max_vel_trans);
-        ROS_WARN("max_vel_rot: %f", m_max_vel_rot);
-        ROS_WARN("acc_scale_trans: %f", m_acc_scale_trans);
-        ROS_WARN("acc_scale_rot: %f", m_acc_scale_rot);
-        ROS_WARN("goal_dist_tolerance: %f", m_goal_dist_tolerance);
-        ROS_WARN("goal_yaw_tolerance: %f", m_goal_yaw_tolerance);
-        ROS_WARN("scan_topic: %s", m_scan_topic.c_str());
-        ROS_WARN("base_frame_id: %s", m_base_frame_id.c_str());
-        ROS_WARN("odom_frame_id: %s", m_odom_frame_id.c_str());
+        MY_PLANNER_DEBUG_LOG("%s initialized", name.c_str());
+        MY_PLANNER_DEBUG_LOG("pre_n: %d", pre_n);
+        MY_PLANNER_DEBUG_LOG("Kp: %f", Kp);
+        MY_PLANNER_DEBUG_LOG("Ki: %f", Ki);
+        MY_PLANNER_DEBUG_LOG("Kd: %f", Kd);
+        MY_PLANNER_DEBUG_LOG("max_vel_trans: %f", m_max_vel_trans);
+        MY_PLANNER_DEBUG_LOG("max_vel_rot: %f", m_max_vel_rot);
+        MY_PLANNER_DEBUG_LOG("acc_scale_trans: %f", m_acc_scale_trans);
+        MY_PLANNER_DEBUG_LOG("acc_scale_rot: %f", m_acc_scale_rot);
+        MY_PLANNER_DEBUG_LOG("goal_dist_tolerance: %f", m_goal_dist_tolerance);
+        MY_PLANNER_DEBUG_LOG("goal_yaw_tolerance: %f", m_goal_yaw_tolerance);
+        MY_PLANNER_DEBUG_LOG("scan_topic: %s", m_scan_topic.c_str());
+        MY_PLANNER_DEBUG_LOG("base_frame_id: %s", m_base_frame_id.c_str());
+        MY_PLANNER_DEBUG_LOG("odom_frame_id: %s", m_odom_frame_id.c_str());
     }
 
     void MyPlanner::reconfigureCB(my_planner::MyPlannerConfig& config, uint32_t level)
@@ -89,12 +124,14 @@ namespace my_planner
         else if(setup_ && config.restore_defaults)
         {
             config = default_config_;
-            ROS_WARN("Restore default parameters");
+            debug_print_ = config.debug_print;
+            MY_PLANNER_DEBUG_LOG("Restore default parameters");
             return;
         }
         pre_n = config.pre_n;
         trans_x_factor = config.trans_x_factor;
         trans_y_factor = config.trans_y_factor;
+        trans_factor = config.trans_factor;
         adjust_r_factor = config.adjust_r_factor;
         Kp = config.Kp;
         Ki = config.Ki;
@@ -106,8 +143,12 @@ namespace my_planner
         m_acc_scale_rot = config.acc_scale_rot;
         m_goal_dist_tolerance = config.goal_dist_tolerance;
         m_goal_yaw_tolerance = config.goal_yaw_tolerance;
+        debug_print_ = config.debug_print;
 
-        ROS_WARN("Reconfigure Request: Kp=%f, Ki=%f, Kd=%f, max_vel_trans=%f, max_vel_rot=%f, acc_scale_trans=%f, acc_scale_rot=%f, goal_dist_tolerance=%f, goal_yaw_tolerance=%f", Kp, Ki, Kd, m_max_vel_trans, m_max_vel_rot, m_acc_scale_trans, m_acc_scale_rot, m_goal_dist_tolerance, m_goal_yaw_tolerance);
+        MY_PLANNER_DEBUG_LOG(
+            "Reconfigure Request: Kp=%f, Ki=%f, Kd=%f, max_vel_trans=%f, max_vel_rot=%f, acc_scale_trans=%f, acc_scale_rot=%f, goal_dist_tolerance=%f, goal_yaw_tolerance=%f, debug_print=%s",
+            Kp, Ki, Kd, m_max_vel_trans, m_max_vel_rot, m_acc_scale_trans, m_acc_scale_rot, m_goal_dist_tolerance, m_goal_yaw_tolerance,
+            debug_print_ ? "true" : "false");
     }
 
     std::vector<geometry_msgs::PoseStamped> global_plan_;
@@ -117,11 +158,14 @@ namespace my_planner
 
     bool MyPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& plan)
     { 
-        ROS_WARN("Setting plan");
+        MY_PLANNER_DEBUG_LOG("Setting plan");
         global_plan_ = plan;
         target_index_ = 0;
         pose_adjusting_ = false;
         goal_reached_ = false;
+        has_last_cmd_ = false;
+        last_cmd_time_ = ros::Time(0);
+        last_cmd_ = geometry_msgs::Twist();
         angular_error = 0.0;
         error_sum = 0.0;
         last_error = 0.0;
@@ -132,7 +176,7 @@ namespace my_planner
 
     bool MyPlanner::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     {
-        ROS_WARN("Computing velocity commands");
+        MY_PLANNER_DEBUG_LOG("Computing velocity commands");
         costmap_2d::Costmap2D* costmap = costmap_ros_->getCostmap(); // 获取costmap
         if(!costmap)
         {
@@ -198,7 +242,7 @@ namespace my_planner
                 unsigned char cost = map[map_index]; // 获取该点的代价值
                 if(cost >= 253) //障碍物
                 {
-                    ROS_WARN("检测到障碍物");
+                    MY_PLANNER_DEBUG_LOG("检测到障碍物");
                     return false;
                 }
 
@@ -240,7 +284,7 @@ namespace my_planner
         if(pose_adjusting_==true)
         {
             double final_yaw = tf2::getYaw(pose_final.pose.orientation);
-            ROS_WARN("调整目标姿态,final_yaw=%f", final_yaw);
+            MY_PLANNER_DEBUG_LOG("调整目标姿态,final_yaw=%f", final_yaw);
             cmd_vel.linear.x = pose_final.pose.position.x*trans_x_factor;
             cmd_vel.linear.y = pose_final.pose.position.y*trans_y_factor;
             cmd_vel.angular.z = final_yaw* adjust_r_factor;
@@ -248,19 +292,24 @@ namespace my_planner
             if(abs(final_yaw) < m_goal_yaw_tolerance)
             {
                 goal_reached_ = true;
-                ROS_WARN("到达目标点");
+                MY_PLANNER_DEBUG_LOG("到达目标点");
                 cmd_vel.linear.x = 0;
                 cmd_vel.angular.z = 0;
             }
+            applyAccelerationLimits(cmd_vel);
             return true;
         }
 
-        geometry_msgs::PoseStamped target_pose;
+        geometry_msgs::PoseStamped target_pose; //跟踪目标点，用于计算
+        geometry_msgs::PoseStamped target_pose_global; //用于发布的map坐标系下的跟踪目标点
+        double desired_trans_vel = 0.0; //期望的平移速度
         for(int i = target_index_; i < global_plan_.size(); i++)
         {
-            geometry_msgs::PoseStamped pose_base;
+            geometry_msgs::PoseStamped pose_base; //机器人坐标系下的路径点
             global_plan_[i].header.stamp = ros::Time(0);
+            
             //路径点转换到机器人坐标系
+            target_pose_global = global_plan_[i]; //用于发布的map坐标系下的跟踪目标点
             try
             {
                 // tf_listener_->waitForTransform(m_base_frame_id, global_plan_[i].header.frame_id, global_plan_[i].header.stamp, ros::Duration(1.0));
@@ -278,22 +327,57 @@ namespace my_planner
             if(dist > m_target_dist)
             {
                 target_pose = pose_base;
+                desired_trans_vel = global_plan_[i].pose.position.z; //期望速度由z存储
                 target_index_ = i;
-                ROS_WARN("选择第%d 个点作为目标点，位置(%f, %f)", i, target_pose.pose.position.x, target_pose.pose.position.y);
+                MY_PLANNER_DEBUG_LOG("选择第%d 个点作为目标点，位置(%f, %f)", i, target_pose.pose.position.x, target_pose.pose.position.y);
                 break;
             }
 
             if(i == global_plan_.size()-1)
             {
                 target_pose = pose_base;
+                desired_trans_vel = 0.0; // 最后一个点，速度为0
                 target_index_ = i;
                 break;
             }
         }
         //路线追踪计算速度指令
-        cmd_vel.linear.x = target_pose.pose.position.x*trans_x_factor;
-        cmd_vel.linear.y = target_pose.pose.position.y*trans_y_factor;
-        // 误差
+        // double dx = target_pose.pose.position.x*trans_x_factor;
+        // double dy = target_pose.pose.position.y*trans_y_factor;
+        // double dist = sqrt(dx*dx + dy*dy);
+        // if(dist != 0)
+        // {
+        //     double trans_vel_factor = desired_trans_vel / dist;
+        //     ROS_INFO("trans_vel_factor=%f, dist=%f", trans_vel_factor, dist);
+        //     if(trans_vel_factor == 0)
+        //     {
+        //         cmd_vel.linear.x = target_pose.pose.position.x*trans_x_factor*trans_factor;
+        //         cmd_vel.linear.y = target_pose.pose.position.y*trans_y_factor*trans_factor;
+        //     }
+        //     else
+        //     {
+        //         cmd_vel.linear.x = dx * trans_vel_factor;
+        //         cmd_vel.linear.y = dy * trans_vel_factor;
+        //     }
+        // }
+        
+        double v_x = target_pose.pose.position.x*trans_x_factor*trans_factor;
+        double v_y = target_pose.pose.position.y*trans_y_factor*trans_factor;
+        double v_trans = sqrt(v_x*v_x + v_y*v_y);
+
+        if(v_trans > m_max_vel_trans)// 限速
+        {
+            v_x = m_max_vel_trans * v_x / v_trans;
+            v_y = m_max_vel_trans * v_y / v_trans;
+            MY_PLANNER_DEBUG_LOG("限速, v_trans=%f", v_trans);
+        }
+        MY_PLANNER_DEBUG_LOG("v_x=%f, v_y=%f", v_x, v_y);
+    
+        cmd_vel.linear.x = v_x;
+        cmd_vel.linear.y = v_y;
+        
+
+        // 朝向误差通过目标点在机器人坐标系的y偏移量矫正
         angular_error = target_pose.pose.position.y; 
         // 误差积分
         error_sum += angular_error;
@@ -305,10 +389,10 @@ namespace my_planner
         error_diff = angular_error - last_error;
         //PID控制
         output = Kp * angular_error + Ki * error_sum + Kd * error_diff;
-        ROS_WARN("Kp=%f, Ki=%f, Kd=%f, angular_error=%f, error_sum=%f, error_diff=%f, output=%f", Kp, Ki, Kd, angular_error, error_sum, error_diff, output);
-        // 限制输出
+        MY_PLANNER_DEBUG_LOG("Kp=%f, Ki=%f, Kd=%f, angular_error=%f, error_sum=%f, error_diff=%f, output=%f", Kp, Ki, Kd, angular_error, error_sum, error_diff, output);
+        // TODO：限制输出
         cmd_vel.angular.z = output;
-        ROS_WARN("angular_error=%f, output=%f", angular_error, output);
+        MY_PLANNER_DEBUG_LOG("angular_error=%f, output=%f", angular_error, output);
         // 保存上一次的误差
         last_error = angular_error;
 
@@ -362,7 +446,9 @@ namespace my_planner
         // cv::waitKey(1);
         // 《《《《《《《《《《《《《《《《《《《《《《《《《《《《《《《《《《《
 
+        target_pose_pub_.publish(target_pose_global); //发布跟踪目标点
 
+        applyAccelerationLimits(cmd_vel);
         return true;
     }
     bool MyPlanner::isGoalReached()
@@ -370,4 +456,54 @@ namespace my_planner
         return goal_reached_;
     }
 
+    void MyPlanner::applyAccelerationLimits(geometry_msgs::Twist& cmd_vel)
+    {
+        ros::Time now = ros::Time::now();
+        if (!has_last_cmd_)
+        {
+            last_cmd_ = cmd_vel;
+            last_cmd_time_ = now;
+            has_last_cmd_ = true;
+            return;
+        }
+
+        double dt = (now - last_cmd_time_).toSec();
+        if (dt <= 0.0)
+        {
+            dt = 1e-3;
+        }
+
+        if (m_acc_scale_trans > 0.0)
+        {
+            double dvx = cmd_vel.linear.x - last_cmd_.linear.x;
+            double dvy = cmd_vel.linear.y - last_cmd_.linear.y;
+            double dv = std::sqrt(dvx * dvx + dvy * dvy);
+            double max_dv = m_acc_scale_trans * dt;
+            if (dv > max_dv && dv > 0.0)
+            {
+                double scale = max_dv / dv;
+                dvx *= scale;
+                dvy *= scale;
+            }
+            cmd_vel.linear.x = last_cmd_.linear.x + dvx;
+            cmd_vel.linear.y = last_cmd_.linear.y + dvy;
+        }
+
+        if (m_acc_scale_rot > 0.0)
+        {
+            double dw = cmd_vel.angular.z - last_cmd_.angular.z;
+            double max_dw = m_acc_scale_rot * dt;
+            if (std::abs(dw) > max_dw)
+            {
+                dw = (dw > 0.0 ? max_dw : -max_dw);
+            }
+            cmd_vel.angular.z = last_cmd_.angular.z + dw;
+        }
+
+        last_cmd_ = cmd_vel;
+        last_cmd_time_ = now;
+    }
+
 }// namespace my_planner
+
+#undef MY_PLANNER_DEBUG_LOG

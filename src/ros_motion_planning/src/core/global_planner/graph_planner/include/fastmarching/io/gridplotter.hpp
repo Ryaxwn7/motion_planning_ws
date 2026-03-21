@@ -99,7 +99,7 @@ class GridPlotter {
                 cimg_forXY(img,x,y) { img(x,y) = grid[img.width()*y+x].getValue()/max_val*255; }	
                 
             img.map( CImg<float>::jet_LUT256() );
-            img.display("Grid values", false);	
+            img.display("Grid values", false);
         }
 
         /**
@@ -235,7 +235,7 @@ class GridPlotter {
           img.map( CImg<double>::jet_LUT256() );
 
 
-          img.display("Grid values", false);
+          img.display("Grid and Path values", false);
 
 
       }

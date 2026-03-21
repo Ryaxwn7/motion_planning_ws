@@ -75,18 +75,35 @@ template <class grid_t> class GradientDescent {
         //   std::cout <<"[gradient descent-75]current_point: " << current_point[0] << " " << current_point[1] << std::endl;
           std::array<double, ndims_> grads;
 
-          while(idx>= 0 && idx<ncells  && (idx+1)>=0 && (idx+1) < ncells  && grid[idx].getArrivalTime() != 0) 
+          // Guard against non-converging descents that can grow the path unbounded.
+          const int max_iters = std::max(1000, ncells * 2);
+          int iters = 0;
+
+          while(idx>=0 && idx<ncells  && (idx+1)>=0 && (idx+1) < ncells  ) 
           {
+            if (++iters > max_iters) {
+                std::cout << "[gradient descent] Max iterations reached, aborting." << std::endl;
+                return false;
+            }
+
+            const double arrival = grid[idx].getArrivalTime();
+            if (!std::isfinite(arrival)) {
+                std::cout << "[gradient descent] Arrival time is not finite, aborting." << std::endl;
+                return false;
+            }
+            if(arrival == 0)
+            {
+                break;
+            }
               // Every iteration the gradient is computed for all dimensions. If is infinite, we convert it to 1 (keeping the sign).
               // The static_cast are necessary because the conversion between coordinate (we check the value in coordinates) and points
               // (the path is composed by continuous points).
               // First dimension done apart.
             //   std::cout <<"[gradient descent-80]idx:" << idx << " grid[idx-1].getValue()/2 " << grid[idx-1].getValue()/2 << "grid[idx+1].getValue()/2 " << grid[idx+1].getValue()/2 << std::endl;
-            
+              
             if(idx==0)
                 {
-                  return false;
-                    // grads[0] = - grid[idx].getValue()/2 + grid[idx+1].getValue()/2;
+                    return false;
                 }
               else
                 {
@@ -97,11 +114,11 @@ template <class grid_t> class GradientDescent {
                     // std::cout << "[gradient descent-87]Gradient is infinite. Setting it to 1." << std::endl;
                     grads[0] = sgn<double>(grads[0]);
                     // std::cout << "[gradient descent-89]grads[0] " << grads[0] << std::endl;
-                 }
+                 } 
               double max_grad = std::abs(grads[0]);
             
               for (int i = 1; i < ndims_; ++i) {
-                  if(idx-d_[i-1]<0 || idx+d_[i-1]>ncells)
+                  if(idx-d_[i-1]<0 || idx-d_[i-1]>=ncells || idx+d_[i-1]<0 || idx+d_[i-1]>=ncells)
                   {
                     return false;
                   }
@@ -110,6 +127,11 @@ template <class grid_t> class GradientDescent {
                       grads[i] = sgn<double>(grads[i]);
                   if (std::abs(max_grad) < std::abs(grads[i]))
                       max_grad = grads[i];
+              }
+
+              if (!std::isfinite(max_grad) || std::abs(max_grad) < 1e-9) {
+                  std::cout << "[gradient descent] Gradient is invalid, aborting." << std::endl;
+                  return false;
               }
 
               // Updating points
@@ -122,17 +144,22 @@ template <class grid_t> class GradientDescent {
               }
               path.push_back(current_point);
               path_velocity.push_back(grid[idx].getVelocity());
+              const int prev_idx = idx;
               grid.coord2idx(current_coord,idx);
+              if (idx == prev_idx) {
+                  std::cout << "[gradient descent] Index did not change, aborting." << std::endl;
+                  return false;
+              }
               if(idx < 0 || idx >= grid.size())
               {
-                //   std::cout << "[In while loop]End of the path reached. The cell_id = " << idx << "is null." << std::endl;
-                //   std::cout << "[In while loop]The coords is: "  << current_coord[0] << " " << current_coord[1] << " "<< std::endl;
+                  std::cout << "[In while loop]End of the path reached. The cell_id = " << idx << "is null." << std::endl;
+                  std::cout << "[In while loop]The coords is: "  << current_coord[0] << " " << current_coord[1] << " "<< std::endl;
                   break;
               }
           }
-          if(idx-1 < 0 || idx > ncells  || (idx+1)<0 || (idx+1) >= ncells)
+          if(idx<0 || idx>ncells  || (idx+1)<0 || (idx+1) >= ncells)
             {
-                // std::cout << "[Out of while loop]End of the path reached. The cell_id = " << (idx+1) << " is null." << std::endl;
+                std::cout << "[Out of while loop]End of the path reached. The cell_id = " << (idx+1) << " is null." << std::endl;
                 return false;
             }
           //Adding exactly the last point at the end.
@@ -221,7 +248,7 @@ template <class grid_t> class GradientDescent {
               grid.coord2idx(current_coord,idx);
               if(idx < 0 || idx >= grid.size())
               {
-                //   std::cout << "End of the path reached. The cell_id = " << idx << " is null." << std::endl;
+                  std::cout << "End of the path reached. The cell_id = " << idx << " is null." << std::endl;
               }
           }
           //Adding exactly the last point at the end.

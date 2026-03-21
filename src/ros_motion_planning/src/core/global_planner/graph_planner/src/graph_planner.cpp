@@ -30,6 +30,7 @@
 #include "s_theta_star.h"
 #include "hybrid_a_star.h"
 #include "fm2_planner.h"
+#include "fm2star_planner.h"
 
 PLUGINLIB_EXPORT_CLASS(graph_planner::GraphPlanner, nav_core::BaseGlobalPlanner)
 
@@ -96,8 +97,10 @@ void GraphPlanner::initialize(std::string name)
       g_planner_ = std::make_shared<global_planner::AStar>(costmap);
     else if (planner_name_ == "a_star_my")
       g_planner_ = std::make_shared<global_planner::AStar_M>(costmap);
-    else if (planner_name_== "fm2")
-      g_planner_ = std::make_shared<global_planner::FM2_Planner>(costmap_ros_, costmap);
+    else if (planner_name_ == "fm2")
+      g_planner_ = std::make_shared<global_planner::FM2_Planner>(costmap_ros_, costmap, private_nh);
+    else if (planner_name_ == "fm2star")
+      g_planner_ = std::make_shared<global_planner::FM2Star_Planner>(costmap_ros_, costmap, private_nh);
     else if (planner_name_ == "dijkstra")
       g_planner_ = std::make_shared<global_planner::AStar>(costmap, true);
     else if (planner_name_ == "gbfs")
@@ -272,6 +275,13 @@ bool GraphPlanner::makePlan(const geometry_msgs::PoseStamped& start, const geome
     auto costmap = costmap_ros_->getCostmap();
     path_found = std::dynamic_pointer_cast<global_planner::FM2_Planner>(g_planner_)->plan(costmap, start_node, goal_node, path, expand);
 
+  }
+  else if (planner_name_ == "fm2star")
+  {
+    auto costmap = costmap_ros_->getCostmap();
+    path_found =
+        std::dynamic_pointer_cast<global_planner::FM2Star_Planner>(g_planner_)->plan(costmap, start_node, goal_node,
+                                                                                      path, expand);
   }
 
   else

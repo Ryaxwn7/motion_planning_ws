@@ -24,6 +24,7 @@
   <depend>voronoi_layer</depend>
   <depend>utils</depend>
   <depend>curve_generation</depend>
+  <depend>dynamic_reconfigure</depend>
 
   <export>
     <nav_core plugin="${prefix}/graph_planner_plugin.xml" />

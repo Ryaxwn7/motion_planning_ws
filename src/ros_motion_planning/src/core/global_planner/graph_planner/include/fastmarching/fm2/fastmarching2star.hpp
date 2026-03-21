@@ -56,7 +56,18 @@ template  <  class grid_t, class heap_t = FMDaryHeap <FMCell> >  class FastMarch
     public:
         typedef std::vector< std::array< double, grid_t::getNDims() > > path_t;
 
-        FastMarching2Star  < grid_t, heap_t> () {}
+        FastMarching2Star  < grid_t, heap_t> () {
+            goal_idx_ = -1;
+            velocity_scale_ = 1.0;
+            velocity_alpha_ = 0.2;
+            velocity_dmax_ = -1.0;
+            robot_radius_ = 0.0;
+            velocity_mode_ = 0;
+            velocity_sigmoid_k_ = 0.15;
+            velocity_sigmoid_b_ = 0.0;
+            maxDistance_ = -1.0;
+            distances = nullptr;
+        }
 
         virtual ~FastMarching2Star  < grid_t, heap_t> () {}
 
@@ -125,6 +136,65 @@ template  <  class grid_t, class heap_t = FMDaryHeap <FMCell> >  class FastMarch
             {
                 precomputeDistances();
                 init(true, true);
+            }
+        }
+
+        // Velocity profile parameters (match FastMarching2)
+        virtual void setVelocityScale(const double scale) {
+            if (scale > 0.0) {
+                velocity_scale_ = scale;
+            }
+        }
+
+        virtual void setVelocityProfile(const double alpha, const double dmax) {
+            velocity_alpha_ = alpha;
+            velocity_dmax_ = dmax;
+        }
+
+        virtual void setRobotRadius(const double radius) {
+            if (radius >= 0.0) {
+                robot_radius_ = radius;
+            }
+        }
+
+        // 速度映射模式：0=线性，1=Sigmoid
+        virtual void setVelocityMode(const int mode) {
+            velocity_mode_ = (mode == 1) ? 1 : 0;
+        }
+
+        // Sigmoid 速度映射参数
+        virtual void setVelocitySigmoid(const double k, const double b) {
+            velocity_sigmoid_k_ = k;
+            velocity_sigmoid_b_ = b;
+        }
+
+        // 兼容旧接口：近似映射到新参数。
+        virtual void setVelocityMappingParams(const double v_min,
+                                              const double v_max,
+                                              const double d0) {
+            if (v_max > 0.0) {
+                setVelocityScale(v_max);
+                const double alpha = (v_min >= 0.0) ? (v_min / v_max) : velocity_alpha_;
+                setVelocityProfile(alpha, d0);
+            }
+        }
+
+        virtual std::vector<double> getVelocityMap() const {
+            std::vector<double> velocities;
+            if (!grid_) return velocities;
+
+            velocities.reserve(grid_->size());
+            for (int i = 0; i < grid_->size(); ++i) {
+                velocities.push_back(grid_->getCell(i).getVelocity());
+            }
+            return velocities;
+        }
+
+        virtual void setVelocityMap(const std::vector<double>& velocityMap) {
+            if (!grid_ || velocityMap.size() != grid_->size()) return;
+
+            for (int i = 0; i < velocityMap.size(); ++i) {
+                grid_->getCell(i).setVelocity(velocityMap[i]);
             }
         }
 
@@ -339,7 +409,7 @@ template  <  class grid_t, class heap_t = FMDaryHeap <FMCell> >  class FastMarch
          * @see setInitialPoints()
          */
         virtual void computeFM2Star
-        (const float maxDistance = -1) {
+        (const float maxDistance = -1, const bool use_star = true) {
             maxDistance_ = maxDistance;
             if (maxDistance != -1) {
                 computeVelocitiesMap(true);
@@ -350,7 +420,17 @@ template  <  class grid_t, class heap_t = FMDaryHeap <FMCell> >  class FastMarch
             std::vector <int> wave_init;
             wave_init.push_back(goal_idx_);
             setInitialPoints(wave_init);
-            computeFM(true, true);
+            computeFM(true, use_star);
+        }
+
+        // 使用外部速度图执行 FM2* 第二次波前传播（不重算速度场）。
+        virtual void computeFM2Star_v
+        (const std::vector<double>& velocityMap, const bool use_star = true) {
+            setVelocityMap(velocityMap);
+            std::vector<int> wave_init;
+            wave_init.push_back(goal_idx_);
+            setInitialPoints(wave_init);
+            computeFM(true, use_star);
         }
 
         /**
@@ -387,30 +467,77 @@ template  <  class grid_t, class heap_t = FMDaryHeap <FMCell> >  class FastMarch
          */
         void computeVelocitiesMap
         (bool saturate = false) {
-            setInitialPoints(fmm2_sources_);
-            computeFM(false, false);
+            FastMarching< grid_t, heap_t> fmm;
 
-            //Rescaling and saturating to relative velocities: [0-1]
-            double maxValue = grid_->getMaxValue();
-            double maxVelocity = 0;
+            fmm.setEnvironment(grid_);
+            fmm.setInitialPoints(fmm2_sources_);
+            fmm.computeFM();
 
-            if (saturate)
-                maxVelocity = maxDistance_ / grid_->getLeafSize(); // Calculate max velocity using the max distance and the leaf size of the cell
+            const double vmax = (velocity_scale_ > 0.0) ? velocity_scale_ : 1.0;
+            const double dr = (robot_radius_ > 0.0) ? robot_radius_ : 0.0;
+
+            double dmax = velocity_dmax_;
+            if (saturate && maxDistance_ > 0.0) {
+                dmax = maxDistance_;
+            }
+            if (dmax <= 0.0) {
+                dmax = 0.0;
+                for (int i = 0; i < grid_->size(); ++i) {
+                    if (!grid_->getCell(i).getOccupancy()) {
+                        continue;
+                    }
+                    const double dist = grid_->getCell(i).getValue();
+                    if (std::isfinite(dist) && dist > dmax) {
+                        dmax = dist;
+                    }
+                }
+            }
+            if (dmax <= dr) {
+                const double leaf = grid_->getLeafSize();
+                dmax = dr + ((leaf > 0.0) ? leaf : 1.0);
+            }
+
+            double alpha = velocity_alpha_;
+            if (alpha < 0.0) {
+                alpha = 0.0;
+            } else if (alpha > 1.0) {
+                alpha = 1.0;
+            }
+            const double v_min = alpha * vmax;
 
             for (int i = 0; i < grid_->size(); i++) {
-                double vel = grid_->getCell(i).getValue() / maxValue;
+                if (!grid_->getCell(i).getOccupancy()) {
+                    grid_->getCell(i).setVelocity(0.0);
+                } else {
+                    const double dist = grid_->getCell(i).getValue();
+                    if (!std::isfinite(dist) || dist <= dr) {
+                        grid_->getCell(i).setVelocity(0.0);
+                    } else if (dist < dmax) {
+                        if (velocity_mode_ == 1) {
+                            const double k = velocity_sigmoid_k_;
+                            const double b = velocity_sigmoid_b_;
+                            const double e = 1.0 + std::exp(-k * (dist - dr) + b);
+                            grid_->getCell(i).setVelocity(vmax / e);
+                        } else {
+                            const double ratio = (dist - dr) / (dmax - dr);
+                            const double vel = v_min + (vmax - v_min) * ratio;
+                            grid_->getCell(i).setVelocity(vel);
+                        }
+                    } else {
+                        if (velocity_mode_ == 1) {
+                            const double k = velocity_sigmoid_k_;
+                            const double b = velocity_sigmoid_b_;
+                            const double e = 1.0 + std::exp(-k * (dist - dr) + b);
+                            grid_->getCell(i).setVelocity(vmax / e);
+                        } else {
+                            grid_->getCell(i).setVelocity(vmax);
+                        }
+                    }
+                }
 
-                if (saturate)
-                    if (vel < maxVelocity)
-                        grid_->getCell(i).setVelocity(vel / maxVelocity);
-                    else
-                        grid_->getCell(i).setVelocity(1);
-                else
-                    grid_->getCell(i).setVelocity(vel);
-
-              // Restarting grid values for second wave expasion.
-              grid_->getCell(i).setValue(std::numeric_limits<double>::infinity());
-              grid_->getCell(i).setState(FMState::OPEN);
+                // Restarting grid values for second wave expasion.
+                grid_->getCell(i).setValue(std::numeric_limits<double>::infinity());
+                grid_->getCell(i).setState(FMState::OPEN);
             }
         }
 
@@ -424,6 +551,13 @@ template  <  class grid_t, class heap_t = FMDaryHeap <FMCell> >  class FastMarch
         std::array <int,grid_t::getNDims()> goal; /*! <  Goal coord for the Fast Marching Square Star. */
         double *distances; /*! <  Auxiliar container of euclidean distances for the Fast Marching Square Star heuristic. */
         double maxDistance_; /*!< Distance value to saturate the first potential. */
+        double velocity_scale_;
+        double velocity_alpha_;
+        double velocity_dmax_;
+        double robot_radius_;
+        int velocity_mode_;
+        double velocity_sigmoid_k_;
+        double velocity_sigmoid_b_;
 };
 
 #endif /* FASTMARCHING2STAR_H_*/

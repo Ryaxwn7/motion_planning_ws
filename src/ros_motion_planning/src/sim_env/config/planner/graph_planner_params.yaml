@@ -11,3 +11,31 @@ GraphPlanner:
   expand_zone: true
   # whether to store Voronoi map or not
   voronoi_map: false
+  # fm2 / fm2star planner params
+  fm2:
+    v_max: 1.0
+    velocity_alpha: 0.2
+    velocity_dmax: 0.5
+    robot_radius: 0.25
+    velocity_mode: 1
+    velocity_sigmoid_k: 1.5
+    velocity_sigmoid_b: 0.0
+    use_gather_style: true
+    use_star_heuristic: true
+    use_dynamic_obstacle_uncertainty: true
+    use_dynamic_obstacle_cluster_tracking: false
+    force_full_occupancy_refresh: false
+    dynamic_obstacle_threshold: 253
+    dynamic_obstacle_unknown_is_obstacle: false
+    dynamic_obstacle_inflation_radius: 0.25
+    dynamic_obstacle_uncertainty_radius: 0.60
+    dynamic_obstacle_stride: 1
+    dynamic_obstacle_cluster_min_cells: 2
+    dynamic_obstacle_track_match_radius: 0.50
+    dynamic_obstacle_track_ttl: 0.60
+    static_obstacle_noise_reject_cells: 4
+    dynamic_obstacle_max_samples: 800
+    debug_velocity_path: /tmp/fm2_velocity.csv
+    debug_dump_velocity: false
+    debug_visualize: false
+    debug_log: false

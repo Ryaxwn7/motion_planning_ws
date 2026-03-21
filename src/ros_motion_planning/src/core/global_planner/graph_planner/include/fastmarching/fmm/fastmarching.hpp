@@ -53,6 +53,7 @@
 
 #include "fmdata/fmcell.h"
 #include "fmdata/fmdaryheap.hpp"
+#include "fmdata/fmpriorityqueue.hpp"
 #include "../ndgridmap/ndgridmap.hpp"
 #include "../console/console.h"
 #include "../thirdparty/CImg.h"
@@ -260,7 +261,7 @@ template < class grid_t, class heap_t = FMDaryHeap<FMCell> >  class FastMarching
             double quad_term = b*b - 4*a*c;
             if (quad_term < 0) {
                 double minT = *(std::min_element(Tvalues.begin(), Tvalues.end()));
-                updatedT = 1/(grid_->getCell(idx).getVelocity()*grid_->getCell(idx).getVelocity()) + minT; // leafsize not taken into account here.
+                updatedT = grid_->getLeafSize()/(grid_->getCell(idx).getVelocity()*grid_->getCell(idx).getVelocity()) + minT; // leafsize not taken into account here.
             }
             else
                 updatedT = (-b + sqrt(quad_term))/(2*a);

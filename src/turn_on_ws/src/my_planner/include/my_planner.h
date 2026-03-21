@@ -25,20 +25,30 @@ namespace my_planner
             bool computeVelocityCommands(geometry_msgs::Twist& cmd_vel);
             void reconfigureCB(MyPlannerConfig& config, uint32_t level);
             bool isGoalReached();
+            void applyAccelerationLimits(geometry_msgs::Twist& cmd_vel);
 
             dynamic_reconfigure::Server<my_planner::MyPlannerConfig>* dyn_server_; //定义动态参数服务器
             dynamic_reconfigure::Server<my_planner::MyPlannerConfig>::CallbackType dyn_cb_; //定义动态参数回调函数
-
+            ros::Publisher target_pose_pub_;
 
             bool setup_ = false;
             MyPlannerConfig default_config_;
+            bool debug_print_ = true;
 
             int pre_n;
             double Ki;
             double Kp;
             double Kd;
+            double Kp_x;
+            double Ki_x;
+            double Kd_x;
+            double Kp_y;
+            double Ki_y;
+            double Kd_y;
+
             double trans_x_factor;
             double trans_y_factor;
+            double trans_factor;
             double adjust_r_factor;
             double m_target_dist;
             double m_max_vel_trans;
@@ -51,6 +61,9 @@ namespace my_planner
             std::string m_base_frame_id;
             std::string m_odom_frame_id;
 
+            geometry_msgs::Twist last_cmd_;
+            ros::Time last_cmd_time_;
+            bool has_last_cmd_ = false;
             
 
 

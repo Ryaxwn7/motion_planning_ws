@@ -57,6 +57,13 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
 
         FastMarching2 <grid_t, heap_t> () {
             goal_idx_ = -1;
+            velocity_scale_ = 1.0;
+            velocity_alpha_ = 0.2;
+            velocity_dmax_ = -1.0;
+            robot_radius_ = 0.0;
+            velocity_mode_ = 0;
+            velocity_sigmoid_k_ = 0.15;
+            velocity_sigmoid_b_ = 0.0;
         };
 
         virtual ~FastMarching2 <grid_t, heap_t> () {};
@@ -107,26 +114,96 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
          * @see init()
          */
         virtual void setInitialPoints
-        (const std::vector<int> & init_points, const std::vector<int> & fmm2_sources) 
-        {
+        (const std::vector<int> & init_points, const std::vector<int> & fmm2_sources) {
             setInitialAndGoalPoints(init_points, fmm2_sources, goal_idx_);
+        }
+
+        // 与 fm2_gather_ws 一致的速度场参数接口。
+        virtual void setVelocityScale(const double scale) {
+            if (scale > 0.0) {
+                velocity_scale_ = scale;
+            }
+        }
+
+        virtual void setVelocityProfile(const double alpha, const double dmax) {
+            velocity_alpha_ = alpha;
+            velocity_dmax_ = dmax;
+        }
+
+        virtual void setRobotRadius(const double radius) {
+            if (radius >= 0.0) {
+                robot_radius_ = radius;
+            }
+        }
+
+        // 速度映射模式：0=线性，1=Sigmoid
+        virtual void setVelocityMode(const int mode) {
+            velocity_mode_ = (mode == 1) ? 1 : 0;
+        }
+
+        // Sigmoid 速度映射参数
+        virtual void setVelocitySigmoid(const double k, const double b) {
+            velocity_sigmoid_k_ = k;
+            velocity_sigmoid_b_ = b;
+        }
+
+        // 兼容旧接口：近似映射到新参数。
+        virtual void setVelocityMappingParams(const double v_min,
+                                              const double v_max,
+                                              const double d0) {
+            if (v_max > 0.0) {
+                setVelocityScale(v_max);
+                const double alpha = (v_min >= 0.0) ? (v_min / v_max) : velocity_alpha_;
+                setVelocityProfile(alpha, d0);
+            }
+        }
+
+        virtual std::vector<double> getVelocityMap() const {
+            std::vector<double> velocities;
+            if (!grid_) return velocities;
+            
+            velocities.reserve(grid_->size());
+            for (int i = 0; i < grid_->size(); ++i) {
+                velocities.push_back(grid_->getCell(i).getVelocity());
+            }
+            return velocities;
+        }
+
+        /**
+         * Sets velocity map values to the grid.
+         * @param velocityMap vector of velocity values matching grid size.
+         * @note The input vector size must exactly match grid size.
+         */
+        virtual void setVelocityMap(const std::vector<double>& velocityMap) {
+            if (!grid_ || velocityMap.size() != grid_->size()) return;
+            
+            for (int i = 0; i < velocityMap.size(); ++i) {
+                grid_->getCell(i).setVelocity(velocityMap[i]);
+            }
         }
 
         /**
          * Main Fast Marching Square Function with velocity saturation. It requires to call first the setInitialAndGoalPoints() function.
-         * 
+         *
          * @param maxDistance saturation distance (relative, where 1 means maximum distance). If this value is -1 (default) the velocities map is not saturated.
-         * 
+         *
          * @see setInitialPoints()
          */
-        virtual void computeFM2
+
+        /**
+         * Main Fast Marching Square Function with velocity saturation. It requires to call first the setInitialAndGoalPoints() function.
+         *
+         * @param maxDistance saturation distance (relative, where 1 means maximum distance). If this value is -1 (default) the velocities map is not saturated.
+         *
+         * @see setInitialPoints()
+         */
+        virtual void computeFM2 //有目标点的传统fm2路径规划
         (const float maxDistance = -1) {
             maxDistance_ = maxDistance;
             if (maxDistance != -1)
                 computeVelocitiesMap(true);
             else
                 computeVelocitiesMap();
-            // std::cout << "[fastmarching2.hpp- computeFM2]Computed Velocities "<<std::endl;
             // According to the theoretical basis the wave is expanded from the goal point to the initial point.
             std::vector <int> wave_init;
             wave_init.push_back(goal_idx_);
@@ -138,6 +215,62 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
             fmm.computeFM();
         }
 
+        // 使用外部速度图执行第二次波前传播（不重算速度场）。
+        virtual void computeFM2_v
+        (const std::vector<double>& velocityMap, const float maxDistance = -1) {
+            maxDistance_ = maxDistance;
+            setVelocityMap(velocityMap);
+
+            std::vector<int> wave_init;
+            wave_init.push_back(goal_idx_);
+            int wave_goal = initial_point_[0];
+
+            FastMarching< grid_t, heap_t> fmm;
+            fmm.setEnvironment(grid_);
+            fmm.setInitialAndGoalPoints(wave_init, wave_goal);
+            fmm.computeFM();
+        }
+
+        //添加机器人初始位置，计算机器人时间图, 没有目标点
+        virtual void computeFM2_gather 
+        (const std::vector<int> init_points, const float maxDistance = -1) {
+            maxDistance_ = maxDistance;
+            if (maxDistance != -1)
+                computeVelocitiesMap(true);
+            else
+                computeVelocitiesMap();
+
+
+            FastMarching< grid_t, heap_t> fmm;
+            fmm.setEnvironment(grid_);
+            fmm.setInitialPoints(init_points);
+            fmm.computeFM();
+        }
+
+        virtual void computeFM2_gather_v 
+        (const std::vector<int> init_points, const std::vector<double>& velocityMap,const float maxDistance = -1 ) {
+            maxDistance_ = maxDistance;
+            // if (maxDistance != -1)
+            //     computeVelocitiesMap(true);
+            // else
+            //     computeVelocitiesMap();
+            setVelocityMap(velocityMap);
+            // According to the theoretical basis the wave is expanded from the goal point to the initial point.
+
+            FastMarching< grid_t, heap_t> fmm;
+            fmm.setEnvironment(grid_);
+            fmm.setInitialPoints(init_points);
+            fmm.computeFM();
+        }
+
+        virtual void computeFM2_velocity   
+        (const float maxDistance = -1) {
+            maxDistance_ = maxDistance;
+            if (maxDistance != -1)
+                computeVelocitiesMap(true);
+            else
+                computeVelocitiesMap();
+        }
         /**
          * Computes the path from the previous given goal index to the minimum
          * of the times of arrival map. According to the theoretical basis the 
@@ -156,11 +289,9 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
         (path_t * p, std::vector <double> * path_velocity) {
             path_t* path_ = p;
             constexpr int ndims = 2;
-            bool found = false;
+
             GradientDescent< nDGridMap<FMCell, ndims> > grad;
-            // std::cout << "[fastmarching2.hpp- computePath]initial point: " << initial_point_[0] << std::endl;
-            found = grad.apply(*grid_, initial_point_[0],*path_, *path_velocity);
-            return found;
+            return grad.apply(*grid_,initial_point_[0],*path_, *path_velocity);
         }
 
         /**
@@ -181,10 +312,9 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
         (path_t * p, std::vector <double> * path_velocity, int goal_idx) {
             path_t* path_ = p;
             constexpr int ndims = 2;
-            bool found = false;
+
             GradientDescent< nDGridMap<FMCell, ndims> > grad;
-            found = grad.apply(*grid_,goal_idx,*path_, *path_velocity);
-            return found;
+            return grad.apply(*grid_,goal_idx,*path_, *path_velocity);
         }
 
     private:
@@ -202,40 +332,68 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
             fmm.setInitialPoints(fmm2_sources_);
             fmm.computeFM();
 
-            // Rescaling and saturating to relative velocities: [0,1]
-            double maxValue = grid_->getMaxValue();
-            // double r = maxDistance_ * grid_->getLeafSize();
-            double maxVel = 1.0;
-            // std::cout << "[fastmarching2.hpp- ComputeVelocitiesMap]maxValue: " << maxValue << std::endl;
-            double maxVelocity = 0;
+            const double vmax = (velocity_scale_ > 0.0) ? velocity_scale_ : 1.0;
+            const double dr = (robot_radius_ > 0.0) ? robot_radius_ : 0.0;
 
-            if (saturate)
-                {
-                    maxVelocity = maxDistance_ ;
+            double dmax = velocity_dmax_;
+            if (saturate && maxDistance_ > 0.0) {
+                dmax = maxDistance_;
+            }
+            if (dmax <= 0.0) {
+                dmax = 0.0;
+                for (int i = 0; i < grid_->size(); ++i) {
+                    if (!grid_->getCell(i).getOccupancy()) {
+                        continue;
+                    }
+                    const double dist = grid_->getCell(i).getValue();
+                    if (std::isfinite(dist) && dist > dmax) {
+                        dmax = dist;
+                    }
                 }
+            }
+            if (dmax <= dr) {
+                const double leaf = grid_->getLeafSize();
+                dmax = dr + ((leaf > 0.0) ? leaf : 1.0);
+            }
+
+            double alpha = velocity_alpha_;
+            if (alpha < 0.0) {
+                alpha = 0.0;
+            } else if (alpha > 1.0) {
+                alpha = 1.0;
+            }
+            const double v_min = alpha * vmax;
 
             for (int i = 0; i < grid_->size(); i++) {
-                double vel = grid_->getCell(i).getValue() / maxValue; // 距离归一化作为速度比例 , 最远距离的点 速度最大 1
-                // double dist = grid_->getCell(i).getValue(); //距离是double 类型
-
-                if (saturate)
-                {
-                    if (vel < maxVelocity)
-                    {
-                        if(vel < 0.03)
-                            {
-                                vel=0;
-                            }
-                        grid_->getCell(i).setVelocity(vel / maxVelocity);
+                if (!grid_->getCell(i).getOccupancy()) {
+                    grid_->getCell(i).setVelocity(0.0);
+                } else {
+                    const double dist = grid_->getCell(i).getValue();
+                    if (!std::isfinite(dist) || dist <= dr) {
+                        grid_->getCell(i).setVelocity(0.0);
+                    } else if (dist < dmax) {
+                        if (velocity_mode_ == 1) {
+                            const double k = velocity_sigmoid_k_;
+                            const double b = velocity_sigmoid_b_;
+                            const double e = 1.0 + std::exp(-k * (dist - dr) + b);
+                            grid_->getCell(i).setVelocity(vmax / e);
+                        } else {
+                            const double ratio = (dist - dr) / (dmax - dr);
+                            const double vel = v_min + (vmax - v_min) * ratio;
+                            grid_->getCell(i).setVelocity(vel);
+                        }
+                    } else {
+                        if (velocity_mode_ == 1) {
+                            const double k = velocity_sigmoid_k_;
+                            const double b = velocity_sigmoid_b_;
+                            const double e = 1.0 + std::exp(-k * (dist - dr) + b);
+                            grid_->getCell(i).setVelocity(vmax / e);
+                        } else {
+                            grid_->getCell(i).setVelocity(vmax);
+                        }
                     }
-                    else{
-                        grid_->getCell(i).setVelocity(1);
-                        // std::cout << "[fastmarching2.hpp- ComputeVelocitiesMap] Cell " << i << "Saturated with value: " << vel/maxVelocity << " maxVelocity: " << maxVelocity << std::endl;
-                    }
-                   
                 }
-                else
-                    grid_->getCell(i).setVelocity(vel);
+
 
                 // Restarting grid values for second wave expasion.
                 grid_->getCell(i).setValue(std::numeric_limits<double>::infinity());
@@ -251,6 +409,13 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
         int goal_idx_; /*!< Goal point for the Fast Marching Square. */
 
         double maxDistance_; /*!< Distance value to saturate the first potential. */
+        double velocity_scale_;
+        double velocity_alpha_;
+        double velocity_dmax_;
+        double robot_radius_;
+        int velocity_mode_;
+        double velocity_sigmoid_k_;
+        double velocity_sigmoid_b_;
 };
 
 #endif /* FASTMARCHING2_H_*/

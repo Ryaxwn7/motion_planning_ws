@@ -39,6 +39,7 @@
               or arg('global_planner')=='s_theta_star'
               or arg('global_planner')=='hybrid_a_star'
               or arg('global_planner')=='fm2'
+              or arg('global_planner')=='fm2star'
           )" />
     <param name="GraphPlanner/planner_name" value="$(arg global_planner)"
       if="$(eval arg('global_planner')=='a_star'
@@ -54,6 +55,7 @@
               or arg('global_planner')=='s_theta_star'
               or arg('global_planner')=='hybrid_a_star'
               or arg('global_planner')=='fm2'
+              or arg('global_planner')=='fm2star'
           )" />
     <rosparam file="$(find sim_env)/config/planner/graph_planner_params.yaml" command="load"
       if="$(eval arg('global_planner')=='a_star'
@@ -69,6 +71,7 @@
               or arg('global_planner')=='s_theta_star'
               or arg('global_planner')=='hybrid_a_star'
               or arg('global_planner')=='fm2'
+              or arg('global_planner')=='fm2star'
           )" />
 
     <!-- sample search -->
