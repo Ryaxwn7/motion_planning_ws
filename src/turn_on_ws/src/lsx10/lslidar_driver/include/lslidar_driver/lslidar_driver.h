@@ -37,7 +37,13 @@
 #include <pcl_ros/point_cloud.h>
 #include <pcl/point_types.h>
 
+#if __has_include(<lslidar_msgs/LslidarPacket.h>)
 #include <lslidar_msgs/LslidarPacket.h>
+#elif __has_include(<lslidar_msgs/msg/LslidarPacket.h>)
+#include <lslidar_msgs/msg/LslidarPacket.h>
+#else
+#error "Unable to find LslidarPacket header in lslidar_msgs"
+#endif
 #include <std_msgs/Byte.h>
 namespace lslidar_driver {
 

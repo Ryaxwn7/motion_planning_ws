@@ -7,14 +7,16 @@
 
 This workspace now supports a mixed navigation/formation pipeline:
 
-1. Host publishes a shared shape center on `/shape_assembly/center_goal_cmd`.
-2. Host-side `fm2_gather` mirrors that center to `/gather_center`.
+1. Host publishes `/gather_signal` with `std_msgs/UInt8(data=2)` to request a new gather-center computation.
+2. Host-side `fm2_gather` computes the gather center from the current robot poses and publishes it on `/gather_center`.
 3. Host chooses `shape_heading` automatically from available map space and publishes it in `ShapeTask`.
 4. Each robot receives only the shared `ShapeTask`, then computes its own local staging goal from the task geometry.
 5. Each robot keeps using its own local `move_base` until it enters the target shape neighborhood.
 6. After entry, the local distributed `shape_assembly` agent cancels that robot's `move_base` and takes over `cmd_vel`.
 7. When a new center is published, each robot re-evaluates whether it is still inside the new shape.
 8. Robots outside the new shape automatically release back to `move_base`; robots still inside remain in shape mode.
+
+`/shape_assembly/center_goal_cmd` is still supported as an optional external center override, but it is no longer the default way to start a gather run.
 
 
 ## Shape Image Storage
@@ -35,11 +37,12 @@ Both host and every robot must store a local `shape_images` directory.
 
 Responsibilities:
 
-- Accept a new shared center goal from `/shape_assembly/center_goal_cmd`
+- Accept a gather-start signal on `/gather_signal` and compute the shared gather center
 - Publish the active reference center to `/gather_center`
 - Publish the shared `ShapeTask` with `center + shape_type + shape_heading + shape_scale`
 - Monitor navigation and trigger gather-center recompute when replanning is needed
 - Avoid assigning control authority; high-frequency execution stays on the robots
+- Optionally accept a manual center override from `/shape_assembly/center_goal_cmd`
 
 ### Robot
 
@@ -64,11 +67,23 @@ Responsibilities:
 
 ### Host -> Robot
 
+- `/gather_signal`
+  - Type: `std_msgs/UInt8`
+  - Producer: host UI / operator / helper script / host monitor
+  - Consumer: `fm2_gather`
+  - Meaning: request gather-center computation; `data=2` starts or recomputes gather-center selection
+
+- `/gather_started`
+  - Type: `std_msgs/UInt8`
+  - Producer: `fm2_gather`
+  - Consumer: host monitor / tools
+  - Meaning: gather execution state; `0` means idle or recomputing, `1` means current gather task is active
+
 - `/shape_assembly/center_goal_cmd`
   - Type: `geometry_msgs/PoseStamped`
   - Producer: host UI / operator / upper-level task node
   - Consumer: `fm2_gather`
-  - Meaning: new target center for the next formation task
+  - Meaning: optional external center override for the next formation task
 
 - `/gather_center`
   - Type: `geometry_msgs/PoseStamped`
@@ -186,10 +201,22 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
   agent_number:=4 agent_id:=1 enable_shape_assembly:=true launch_shape_assembly_host:=true
 ```
 
-### Publish a new shared center
+### Trigger gather-center computation
 
 ```bash
-rostopic pub /shape_assembly/center_goal_cmd geometry_msgs/PoseStamped \
+rosrun move_base_client start_gather.py --wait-started 5.0
+```
+
+Equivalent raw topic command:
+
+```bash
+rostopic pub -1 /gather_signal std_msgs/UInt8 '{data: 2}'
+```
+
+### Optional: override the center manually
+
+```bash
+rostopic pub -1 /shape_assembly/center_goal_cmd geometry_msgs/PoseStamped \
   '{header: {frame_id: "map"}, pose: {position: {x: 1.0, y: 2.0, z: 0.0}, orientation: {w: 1.0}}}'
 ```
 

@@ -99,7 +99,7 @@
 - `robot_namespace_prefix:=robot`
 - `robot_detect_topic_suffix:=/odom_combined`
 - `robot_odom_topic_suffix:=/odom_combined`
-- `external_center_goal_topic:=/shape_assembly/center_goal_cmd`
+- `external_center_goal_topic:=/shape_assembly/center_goal_cmd`（仅在需要手动覆盖中心时使用）
 - `external_center_sync_wait:=0.5`
 - `replan_mode:=event`
 - `periodic_interval:=5.0`
@@ -556,7 +556,7 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
   use_center_as_goal:=false
 ```
 
-### 11.5 主机终端 4：发布一次实验目标
+### 11.5 主机终端 4：触发一次聚集中心计算
 
 ```bash
 export ROS_MASTER_URI=http://<HOST_IP>:11311
@@ -565,6 +565,18 @@ source /opt/ros/noetic/setup.bash
 cd /home/yxw/motion_planning_ws
 source devel/setup.bash
 
+rosrun move_base_client start_gather.py --wait-started 5.0
+```
+
+等价的底层话题命令：
+
+```bash
+rostopic pub -1 /gather_signal std_msgs/UInt8 '{data: 2}'
+```
+
+如果你这次实验明确要人为指定中心，而不是让 `fm2_gather` 自己算，才使用：
+
+```bash
 rostopic pub -1 /shape_assembly/center_goal_cmd geometry_msgs/PoseStamped \
 '{header: {frame_id: "map"}, pose: {position: {x: 1.0, y: 2.0, z: 0.0}, orientation: {w: 1.0}}}'
 ```
@@ -587,8 +599,8 @@ rostopic echo /robot1/shape_assembly/status
 
 ### 11.7 预期运行流程
 
-- 主机接收 `/shape_assembly/center_goal_cmd`
-- `fm2_gather` 生成或确认聚集中心
+- 主机发布 `/gather_signal`，请求开始聚集中心计算
+- `fm2_gather` 根据当前机器人位姿计算聚集中心
 - 主机自动选择 `shape_heading`
 - 主机发布 `/shape_assembly/task`
 - 每台机器人本机 `move_base` 导航到自己的 `staging goal`
@@ -609,5 +621,12 @@ rostopic echo /robot1/shape_assembly/status
 如果你要测试“直接导航到聚集中心”模式，把机器人侧启动参数改成：
 
 - `use_center_as_goal:=true`
+
+如果你要测试“人为指定聚集中心覆盖 `fm2_gather` 自动计算”的模式，则额外发布：
+
+```bash
+rostopic pub -1 /shape_assembly/center_goal_cmd geometry_msgs/PoseStamped \
+'{header: {frame_id: "map"}, pose: {position: {x: 1.0, y: 2.0, z: 0.0}, orientation: {w: 1.0}}}'
+```
 
 其它参数先保持不变即可。

@@ -44,6 +44,11 @@ add_library(lslidar_input
   src/input.cc
 )
 
+add_dependencies(lslidar_input
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS}
+)
+
 add_library(lslidar_serial
   src/lsiosr.cpp
 )
