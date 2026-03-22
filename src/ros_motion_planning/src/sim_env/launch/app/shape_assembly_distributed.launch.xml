@@ -1,0 +1,964 @@
+<?xml version='1.0' encoding='utf-8'?>
+<launch>
+  <arg name="agent_number" default="0" />
+  <arg name="namespace_prefix" default="robot" />
+
+  <arg name="enabled" default="USE_YAML_SENTINEL" />
+  <arg name="auto_detect" default="USE_YAML_SENTINEL" />
+  <arg name="shape_source" default="USE_YAML_SENTINEL" />
+  <arg name="shape_type" default="USE_YAML_SENTINEL" />
+  <arg name="shape_resolution" default="USE_YAML_SENTINEL" />
+  <arg name="ring_inner_ratio" default="USE_YAML_SENTINEL" />
+  <arg name="ring_outer_ratio" default="USE_YAML_SENTINEL" />
+  <arg name="gray_width" default="USE_YAML_SENTINEL" />
+  <arg name="shape_mat_path" default="USE_YAML_SENTINEL" />
+  <arg name="shape_library_root" default="USE_YAML_SENTINEL" />
+  <arg name="reference_center_topic" default="USE_YAML_SENTINEL" />
+  <arg name="reference_center_wait" default="USE_YAML_SENTINEL" />
+  <arg name="reference_center_use_topic_heading" default="USE_YAML_SENTINEL" />
+  <arg name="control_strategy" default="USE_YAML_SENTINEL" />
+  <arg name="shape_target_mode" default="USE_YAML_SENTINEL" />
+  <arg name="shape_marker_mode" default="USE_YAML_SENTINEL" />
+  <arg name="control_hz" default="USE_YAML_SENTINEL" />
+  <arg name="control_dt" default="USE_YAML_SENTINEL" />
+  <arg name="sim_dt" default="USE_YAML_SENTINEL" />
+  <arg name="vel_max" default="USE_YAML_SENTINEL" />
+  <arg name="leader_fraction" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_enter" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_explore_1" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_explore_2" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_avoid" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_hard_avoid" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_consensus" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_conse_pos" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_track_pos" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_conse_head" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_track_head" default="USE_YAML_SENTINEL" />
+  <arg name="alpha" default="USE_YAML_SENTINEL" />
+  <arg name="hvel_max" default="USE_YAML_SENTINEL" />
+  <arg name="cmd_smooth_ratio" default="USE_YAML_SENTINEL" />
+  <arg name="cmd_scale" default="USE_YAML_SENTINEL" />
+  <arg name="shape_vel_max" default="USE_YAML_SENTINEL" />
+  <arg name="switch_gray_threshold" default="USE_YAML_SENTINEL" />
+  <arg name="cancel_move_base_on_switch" default="USE_YAML_SENTINEL" />
+  <arg name="switch_use_reference_shape" default="USE_YAML_SENTINEL" />
+  <arg name="switch_reference_radius_enable" default="USE_YAML_SENTINEL" />
+  <arg name="switch_reference_radius_margin" default="USE_YAML_SENTINEL" />
+  <arg name="switch_reference_radius_min" default="USE_YAML_SENTINEL" />
+  <arg name="use_local_costmap_avoid" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_topic_suffix" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_obstacle_threshold" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_unknown_is_obstacle" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_avoid_radius" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_avoid_gain" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_hard_radius" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_hard_gain" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_stride" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_max_samples" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_timeout" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_self_ignore_radius" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_skip_on_frame_mismatch" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_map_topic" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_angle_step_deg" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_update_interval" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_obstacle_threshold" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_unknown_is_obstacle" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_shape_stride" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_min_improve" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_yaw_bias" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_oob_is_obstacle" default="USE_YAML_SENTINEL" />
+  <arg name="publish_markers" default="USE_YAML_SENTINEL" />
+  <arg name="debug_log" default="USE_YAML_SENTINEL" />
+  <arg name="distributed_marker_owner" default="USE_YAML_SENTINEL" />
+
+  <include if="$(eval int(arg('agent_number')) >= 1)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_1" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '1')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="$(arg publish_markers)" />
+    <arg name="debug_log" value="$(arg debug_log)" />
+  </include><include if="$(eval int(arg('agent_number')) >= 2)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_2" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '2')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="false" />
+    <arg name="debug_log" value="false" />
+  </include><include if="$(eval int(arg('agent_number')) >= 3)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_3" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '3')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="false" />
+    <arg name="debug_log" value="false" />
+  </include><include if="$(eval int(arg('agent_number')) >= 4)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_4" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '4')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="false" />
+    <arg name="debug_log" value="false" />
+  </include><include if="$(eval int(arg('agent_number')) >= 5)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_5" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '5')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="false" />
+    <arg name="debug_log" value="false" />
+  </include><include if="$(eval int(arg('agent_number')) >= 6)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_6" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '6')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="false" />
+    <arg name="debug_log" value="false" />
+  </include><include if="$(eval int(arg('agent_number')) >= 7)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_7" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '7')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="false" />
+    <arg name="debug_log" value="false" />
+  </include><include if="$(eval int(arg('agent_number')) >= 8)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_8" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '8')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="false" />
+    <arg name="debug_log" value="false" />
+  </include><include if="$(eval int(arg('agent_number')) >= 9)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_9" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '9')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="false" />
+    <arg name="debug_log" value="false" />
+  </include><include if="$(eval int(arg('agent_number')) >= 10)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_10" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '10')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="false" />
+    <arg name="debug_log" value="false" />
+  </include><include if="$(eval int(arg('agent_number')) >= 11)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_11" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '11')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="false" />
+    <arg name="debug_log" value="false" />
+  </include><include if="$(eval int(arg('agent_number')) >= 12)" file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_agent_12" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(eval arg('namespace_prefix') + '12')" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="enabled" value="$(arg enabled)" />
+    <arg name="auto_detect" value="$(arg auto_detect)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <arg name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <arg name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <arg name="control_strategy" value="$(arg control_strategy)" />
+    <arg name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <arg name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+    <arg name="control_hz" value="$(arg control_hz)" />
+    <arg name="control_dt" value="$(arg control_dt)" />
+    <arg name="sim_dt" value="$(arg sim_dt)" />
+    <arg name="vel_max" value="$(arg vel_max)" />
+    <arg name="leader_fraction" value="$(arg leader_fraction)" />
+    <arg name="kappa_enter" value="$(arg kappa_enter)" />
+    <arg name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <arg name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <arg name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <arg name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <arg name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <arg name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <arg name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <arg name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <arg name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <arg name="alpha" value="$(arg alpha)" />
+    <arg name="hvel_max" value="$(arg hvel_max)" />
+    <arg name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <arg name="cmd_scale" value="$(arg cmd_scale)" />
+    <arg name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <arg name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <arg name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <arg name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <arg name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <arg name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <arg name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+    <arg name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <arg name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <arg name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <arg name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <arg name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <arg name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <arg name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <arg name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <arg name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <arg name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <arg name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <arg name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <arg name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <arg name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <arg name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <arg name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <arg name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <arg name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <arg name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <arg name="publish_markers" value="false" />
+    <arg name="debug_log" value="false" />
+  </include>
+</launch>

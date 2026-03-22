@@ -9,10 +9,29 @@
     <arg name="local_planner" default="my"/>
     <arg name="robot" default="mini_mec"/>
     <arg name="map_file" default="$(find turn_on_wheeltec_robot)/map/exp_d2.yaml"/>
+    <arg name="enable_shape_assembly" default="false" />
+    <arg name="launch_shape_assembly_host" default="false" />
+    <arg name="shape_source" default="mat" />
+    <arg name="shape_type" default="rectangle" />
+    <arg name="shape_heading" default="0.0" />
+    <arg name="shape_scale" default="1.0" />
+    <arg name="staging_radius" default="0.0" />
+    <arg name="auto_shape_heading" default="true" />
+    <arg name="use_center_as_goal" default="false" />
 
 <!--map_server节点启动一次，之后的机器人不再启动-->
 <node unless="$(arg map_started)" name="map_server_for_test" pkg="map_server" type="map_server" args="$(arg map_file)">
 </node>
+
+<include if="$(arg launch_shape_assembly_host)" file="$(find turn_on_wheeltec_robot)/launch/shape_assembly_host.launch">
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_heading" value="$(arg shape_heading)" />
+    <arg name="shape_scale" value="$(arg shape_scale)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="staging_radius" value="$(arg staging_radius)" />
+    <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+</include>
 
 <group ns="$(arg robot_namespace)" if="$(arg start_ns)">
     <!--开启底层节点-->
@@ -47,6 +66,15 @@
         <arg name="agent_number" value="$(arg agent_number)" />
         <arg name="agent_id" value="$(arg agent_id)" />
         <arg name="start_ns" value="$(arg start_ns)"/>
+    </include>
+
+    <include if="$(arg enable_shape_assembly)" file="$(find turn_on_wheeltec_robot)/launch/include/shape_assembly_agent.launch">
+        <arg name="robot_namespace" value="$(arg robot_namespace)" />
+        <arg name="agent_id" value="$(arg agent_id)" />
+        <arg name="agent_number" value="$(arg agent_number)" />
+        <arg name="shape_source" value="$(arg shape_source)" />
+        <arg name="shape_type" value="$(arg shape_type)" />
+        <arg name="use_center_as_goal" value="$(arg use_center_as_goal)" />
     </include>
   </group>
 </launch>

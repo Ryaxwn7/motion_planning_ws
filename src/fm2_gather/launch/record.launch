@@ -1,0 +1,128 @@
+<launch>
+<!-- 定义需要录制的话题列表 -->
+  <arg name="topics_to_record" value="
+    /rosout
+    /map
+    /map_updates
+    /robot1/move_base/DWAPlanner/local_plan
+    /robot1/move_base/GraphPlanner/plan
+    /robot1/move_base/global_costmap/costmap
+    /robot1/move_base/global_costmap/costmap_updates
+    /robot1/move_base/local_costmap/costmap
+    /robot1/move_base/local_costmap/costmap_updates
+    /robot1/path
+    /robot2/move_base/DWAPlanner/local_plan
+    /robot2/move_base/GraphPlanner/plan
+    /robot2/move_base/global_costmap/costmap
+    /robot2/move_base/global_costmap/costmap_updates
+    /robot2/move_base/local_costmap/costmap
+    /robot2/move_base/local_costmap/costmap_updates
+    /robot2/path
+    /robot3/move_base/DWAPlanner/local_plan
+    /robot3/move_base/GraphPlanner/plan
+    /robot3/move_base/global_costmap/costmap
+    /robot3/move_base/global_costmap/costmap_updates
+    /robot3/move_base/local_costmap/costmap
+    /robot3/move_base/local_costmap/costmap_updates
+    /robot3/path
+    /robot4/move_base/DWAPlanner/local_plan
+    /robot4/move_base/GraphPlanner/plan
+    /robot4/move_base/global_costmap/costmap
+    /robot4/move_base/global_costmap/costmap_updates
+    /robot4/move_base/local_costmap/costmap
+    /robot4/move_base/local_costmap/costmap_updates
+    /robot4/path
+    /robot5/move_base/GraphPlanner/plan
+    /robot5/move_base/global_costmap/costmap
+    /robot5/move_base/global_costmap/costmap_updates
+    /robot5/move_base/local_costmap/costmap
+    /robot5/move_base/local_costmap/costmap_updates
+    /robot5/scan
+    /robot6/move_base/GraphPlanner/plan
+    /robot6/move_base/global_costmap/costmap
+    /robot6/move_base/global_costmap/costmap_updates
+    /robot6/move_base/local_costmap/costmap
+    /robot6/move_base/local_costmap/costmap_updates
+    /seach_points
+    /seach_points_array
+    /tf
+    /tf_static
+
+
+  "/>
+
+  <!--     /vrpn_client_node/robot3/pose_throttle
+    /vrpn_client_node/robot3/twist
+    /vrpn_client_node/robot4/pose_throttle
+    /vrpn_client_node/robot4/twist
+    /vrpn_client_node/robot5/pose_throttle
+    /vrpn_client_node/robot5/twist
+    /vrpn_client_node/robot6/pose_throttle
+    /vrpn_client_node/robot6/twist -->
+<!-- 设置带时间戳的输出文件名 -->
+  <arg name="output_bag" default="/sda2/exp_bags/20260203/recording.bag"/>
+
+  <!-- 启动录制节点 -->
+  <node pkg="rosbag" type="record" name="rosbag_recorder" output="screen"
+        args="-O $(arg output_bag) $(arg topics_to_record)">
+    <!-- 
+     参数说明：
+     -O : 指定输出文件名
+     split : 按时间分割文件
+     duration=30m : 每30分钟分割一个文件
+    -->
+  </node>
+
+</launch>
+
+<!-- rosbag filter input.bag d2_fastest_colision.bag \
+"topic in (
+  '/map',
+  '/map_updates',
+  '/robot1/move_base/DWAPlanner/local_plan',
+  '/robot1/move_base/GraphPlanner/plan',
+  '/robot1/move_base/global_costmap/costmap',
+  '/robot1/move_base/global_costmap/costmap_updates',
+  '/robot1/move_base/local_costmap/costmap',
+  '/robot1/move_base/local_costmap/costmap_updates',
+  '/robot1/path',
+  '/robot2/move_base/DWAPlanner/local_plan',
+  '/robot2/move_base/GraphPlanner/plan',
+  '/robot2/move_base/global_costmap/costmap',
+  '/robot2/move_base/global_costmap/costmap_updates',
+  '/robot2/move_base/local_costmap/costmap',
+  '/robot2/move_base/local_costmap/costmap_updates',
+  '/robot2/path',
+  '/robot3/move_base/DWAPlanner/local_plan',
+  '/robot3/move_base/GraphPlanner/plan',
+  '/robot3/move_base/global_costmap/costmap',
+  '/robot3/move_base/global_costmap/costmap_updates',
+  '/robot3/move_base/local_costmap/costmap',
+  '/robot3/move_base/local_costmap/costmap_updates',
+  '/robot3/path',
+  '/robot4/move_base/DWAPlanner/local_plan',
+  '/robot4/move_base/GraphPlanner/plan',
+  '/robot4/move_base/global_costmap/costmap',
+  '/robot4/move_base/global_costmap/costmap_updates',
+  '/robot4/move_base/local_costmap/costmap',
+  '/robot4/move_base/local_costmap/costmap_updates',
+  '/robot4/path',
+  '/robot5/move_base/GraphPlanner/plan',
+  '/robot5/move_base/global_costmap/costmap',
+  '/robot5/move_base/global_costmap/costmap_updates',
+  '/robot5/move_base/local_costmap/costmap',
+  '/robot5/move_base/local_costmap/costmap_updates',
+  '/robot5/scan',
+  '/robot6/move_base/GraphPlanner/plan',
+  '/robot6/move_base/global_costmap/costmap',
+  '/robot6/move_base/global_costmap/costmap_updates',
+  '/robot6/move_base/local_costmap/costmap',
+  '/robot6/move_base/local_costmap/costmap_updates',
+  '/seach_points',
+  '/seach_points_array',
+  '/tf',
+  '/tf_static',
+  '/vrpn_client_node/Tracker0/pose',
+  '/vrpn_client_node/robot5/pose',
+  '/vrpn_client_node/robot6/pose'
+)" -->

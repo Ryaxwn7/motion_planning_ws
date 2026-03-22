@@ -1,0 +1,8 @@
+<launch>
+    <!-- 设置参数 -->
+    <param name="hypo" type="double" value="0.3" />
+    <param name="test_mode" type="bool" value="false" />
+    <param name="mission" type="string" value="fastest" />  <!-- mission: fastest, energy, space -->
+    <!-- 启动节点 -->
+    <node name="fm2_gather_node" pkg="fm2_gather" type="fm2_gather_node" output="screen" />
+</launch>

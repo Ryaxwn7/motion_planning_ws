@@ -1,0 +1,73 @@
+<launch>
+    <rosparam file="$(find fm2_gather)/config/gather_param.yaml" command="load" />
+    <arg name="num_robots" default="0" />
+    <arg name="publish_center_goal_only" default="false" />
+    <arg name="publish_goal" default="true" />
+    <arg name="gather_center_topic" default="/gather_center" />
+    <arg name="external_center_goal_topic" default="/shape_assembly/center_goal_cmd" />
+    <arg name="external_center_sync_wait" default="0.5" />
+    <arg name="auto_detect_robots" default="true" />
+    <arg name="robot_namespace_prefix" default="robot" />
+    <arg name="robot_detect_topic_suffix" default="/odom_combined" />
+    <arg name="robot_odom_topic_suffix" default="/odom_combined" />
+    <arg name="robot_detect_timeout" default="8.0" />
+    <arg name="enable_map_combine" default="false" />
+    <!-- replan monitor params -->
+    <arg name="replan_mode" default="event" /> <!-- off | event | periodic | hybrid -->
+    <arg name="periodic_interval" default="5.0" />
+    <arg name="cooldown" default="2.0" />
+    <arg name="per_robot_cooldown" default="1.5" />
+    <arg name="stable_len_epsilon" default="0.02" />
+    <arg name="stable_len_count" default="15" />
+    <arg name="stable_len_min" default="0.0" />
+    <arg name="stable_len_max" default="1.0" />
+    <arg name="max_len_growth_ratio" default="1.2" />
+    <arg name="long_path_replan_min_length" default="2.0" />
+    <arg name="format_radius" default="0.3" />
+    <arg name="enable_stable_len_replan" default="false" />
+    <arg name="use_goal_occupied_peer_fallback" default="false" />
+    <arg name="goal_occupied_radius" default="0.35" />
+    <arg name="loop_hz" default="10.0" />
+    <!-- 启动地图融合节点 -->
+    <node if="$(arg enable_map_combine)" name="fm2_map_combine_node" pkg="fm2_gather" type="fm2_map_combine_node" output="screen" />
+    <!-- 设置参数 -->
+    <param name="num_robots" value="$(arg num_robots)" />
+    <param name="publish_center_goal_only" value="$(arg publish_center_goal_only)" />
+    <param name="gather_center_topic" value="$(arg gather_center_topic)" />
+    <param name="external_center_goal_topic" value="$(arg external_center_goal_topic)" />
+    <param name="external_center_sync_wait" value="$(arg external_center_sync_wait)" />
+    <param name="auto_detect_robots" value="$(arg auto_detect_robots)" />
+    <param name="robot_namespace_prefix" value="$(arg robot_namespace_prefix)" />
+    <param name="robot_detect_topic_suffix" value="$(arg robot_detect_topic_suffix)" />
+    <param name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
+    <param name="robot_detect_timeout" value="$(arg robot_detect_timeout)" />
+    <param name="test_mode" type="bool" value="false" />
+    <!-- <param name="mission" type="string" value="fastest" />  mission: fastest, energy, space -->
+    <param name="publish_goal" type="bool" value="$(arg publish_goal)" />
+    <param name="reverse" type="bool" value="false" />
+    <param name="pub_once" type="bool" value="false" />
+    <param name="save_data" type="bool" value="true" />
+    <!-- 启动聚集节点 -->
+    <node name="fm2_gather_node" pkg="fm2_gather" type="fm2_gather_node" output="screen" /> <!-- launch-prefix="screen -m -S navi -d gdb -ex run -/-args" -->
+
+    <node name="c_plan_monitor" pkg="move_base_client" type="c_plan_monitor" output="screen"> <!-- launch-prefix="gnome-terminal - - -->
+        <param name="robot_namespace_prefix" value="$(arg robot_namespace_prefix)" />
+        <param name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
+        <param name="replan_mode" value="$(arg replan_mode)" />
+        <param name="periodic_interval" value="$(arg periodic_interval)" />
+        <param name="cooldown" value="$(arg cooldown)" />
+        <param name="per_robot_cooldown" value="$(arg per_robot_cooldown)" />
+        <param name="stable_len_epsilon" value="$(arg stable_len_epsilon)" />
+        <param name="stable_len_count" value="$(arg stable_len_count)" />
+        <param name="stable_len_min" value="$(arg stable_len_min)" />
+        <param name="stable_len_max" value="$(arg stable_len_max)" />
+        <param name="max_len_growth_ratio" value="$(arg max_len_growth_ratio)" />
+        <param name="long_path_replan_min_length" value="$(arg long_path_replan_min_length)" />
+        <param name="format_radius" value="$(arg format_radius)" />
+        <param name="enable_stable_len_replan" value="$(arg enable_stable_len_replan)" />
+        <param name="use_goal_occupied_peer_fallback" value="$(arg use_goal_occupied_peer_fallback)" />
+        <param name="goal_occupied_radius" value="$(arg goal_occupied_radius)" />
+        <param name="loop_hz" value="$(arg loop_hz)" />
+    </node>
+    
+</launch>

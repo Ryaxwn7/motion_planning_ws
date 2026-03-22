@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>formation_host</name>
+  <version>0.0.0</version>
+  <description>Host-side strategic formation orchestration.</description>
+
+  <maintainer email="bsrl@todo.todo">bsrl</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>formation_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>rospy</depend>
+  <depend>std_msgs</depend>
+</package>

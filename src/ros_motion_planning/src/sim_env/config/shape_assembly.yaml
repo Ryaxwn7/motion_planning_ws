@@ -1,0 +1,204 @@
+# Shape assembly swarm controller defaults
+# Parameter priority:
+# 1) command-line launch args (explicitly set)
+# 2) this YAML file
+# 3) launch built-in fallback defaults
+enabled: true
+
+# Robot discovery
+auto_detect: true
+namespace_prefix: robot
+agent_number: 4
+robot_namespaces: []
+distributed_mode: false
+distributed_agent_namespace: ""
+distributed_marker_owner: ""
+
+# Launch orchestration defaults (used by shape_assembly_with_main.launch + scripts)
+use_fm2_gather: true
+publish_center_goal_only: true
+gather_center_topic: /gather_center
+fm2_auto_detect_robots: true
+fm2_robot_detect_topic_suffix: /odom_combined
+fm2_robot_detect_timeout: 8.0
+replan_mode: event
+periodic_interval: 5.0
+cooldown: 0.5
+per_robot_cooldown: 0.5
+max_len_growth_ratio: 1.4
+long_path_replan_min_length: 3.0
+format_radius: 0.3
+enable_stable_len_replan: false
+use_goal_occupied_peer_fallback: true
+goal_occupied_radius: 0.35
+# Aliases matching fm2_gather/laun.launch include arg names.
+auto_detect_robots: true
+robot_namespace_prefix: robot
+robot_detect_topic_suffix: /odom_combined
+robot_odom_topic_suffix: /odom_combined
+robot_detect_timeout: 8.0
+num_robots: 4
+
+# Gazebo wrapper launch defaults (shape_assembly_gazebo.launch args)
+world: empty
+map: ""
+robot_number: 8
+rviz_file: ""
+use_rviz: false
+debug: false
+gui: false
+headless: true
+
+# Control timing
+control_hz: 10.0
+control_dt: 0.0
+sim_dt: 0.0
+
+# Swarm parameters
+r_body: 0.24
+r_safe: 0.30
+r_avoid: 0.35
+r_sense: 1.5
+vel_max: 0.7
+leader_fraction: 1.0  # use all informed robots for robust convergence in Gazebo
+
+# Negotiation gains
+kappa_conse_pos: 1.6
+kappa_track_pos: 3.0
+kappa_conse_head: 1.6
+kappa_track_head: 3.0
+alpha: 0.8
+hvel_max: 1.57079632679
+
+# Enter / explore / interact gains
+kappa_enter: 4.0
+kappa_explore_1: 1.0
+kappa_explore_2: 8.0
+kappa_avoid: 8.0
+kappa_hard_avoid: 10.0
+kappa_consensus: 1.2
+
+# Output shaping
+cmd_smooth_ratio: 0.32
+cmd_smooth_use_odom: true
+cmd_scale: 1.0
+shape_vel_max: 1.0
+
+# Shape source
+shape_source: mat   # analytic | mat
+shape_type: rectangle # sphere| ring | letter_o | letter_r | letter_b | starfish | snowflake | rectangle | triangle
+shape_resolution: 80
+ring_inner_ratio: 0.25
+ring_outer_ratio: 0.4
+gray_width: 4
+shape_mat_path: ""
+shape_library_root: ""
+formation_task_topic: /shape_assembly/task
+robot_status_topic: shape_assembly/status
+
+# Optional reference center override: [x, y]
+reference_center: [0.0, 0.0]
+reference_heading: 0.0
+reference_center_topic: /gather_center
+reference_center_wait: true           # wait topic center before shape init
+reference_center_use_topic_heading: false
+init_center_mode: robot  # robot | average | reference
+init_center_use_reference_only: false
+random_seed: 1
+control_strategy: move_base_then_shape  # shape_only | move_base_then_shape
+shape_target_mode: reference            # negotiated | reference
+switch_gray_threshold: 0.999         # gray < threshold -> switch to shape control
+cancel_move_base_on_switch: true
+cancel_grace_period: 0.35
+stop_path_planning_on_shape_takeover: false
+switch_use_reference_shape: true     # switch judged in reference shape frame
+switch_reference_radius_enable: true # allow switching when robot enters reference-shape neighborhood
+switch_reference_radius_margin: 0.25 # extra radius added outside reference shape
+switch_reference_radius_min: 0.0     # minimum radius, 0 uses auto shape bound + margin
+use_local_costmap_avoid: true
+local_costmap_topic_suffix: move_base/local_costmap/costmap
+local_costmap_obstacle_threshold: 80
+local_costmap_unknown_is_obstacle: false
+local_costmap_avoid_radius: 0.30
+local_costmap_avoid_gain: 7.0
+local_costmap_hard_radius: 0.25
+local_costmap_hard_gain: 9.0
+local_costmap_stride: 1
+local_costmap_max_samples: 500
+local_costmap_timeout: 1.0                  # stale costmap timeout (s), <=0 disables freshness check
+local_costmap_self_ignore_radius: 0.20      # ignore occupied cells too close to robot center
+local_costmap_skip_on_frame_mismatch: true  # skip costmap avoid when odom/costmap frame cannot be transformed
+# Auto-rotate reference shape heading to reduce overlap with occupied map cells.
+# Effective when shape_target_mode=reference.
+auto_shape_heading: false
+auto_shape_heading_map_topic: /map
+auto_shape_heading_angle_step_deg: 15.0
+auto_shape_heading_update_interval: 0.5
+auto_shape_heading_obstacle_threshold: 80
+auto_shape_heading_unknown_is_obstacle: true
+auto_shape_heading_shape_stride: 2
+auto_shape_heading_min_improve: 0.01
+auto_shape_heading_yaw_bias: 0.02
+auto_shape_heading_oob_is_obstacle: true
+
+# Visualization (RViz MarkerArray)
+publish_markers: false
+marker_topic: /shape_assembly/markers
+marker_frame: map
+shape_marker_mode: reference  # reference | negotiated
+shape_point_stride: 1
+shape_point_size: 0.05
+shape_color_mode: gradient     # gradient blends shape_black_color -> shape_gray_color
+shape_gradient_alpha: 0.9
+shape_black_threshold: 1.0e-6
+shape_black_color: [0.72, 0.94, 0.72]
+shape_black_alpha: 0.9
+shape_gray_color: [0.2, 0.8, 0.2]
+shape_gray_alpha: 0.6
+show_comm_range: true
+comm_range_radius: 0.0         # <=0 uses r_sense
+comm_range_line_width: 0.01
+comm_range_color: [0.1, 0.7, 1.0]
+comm_range_alpha: 0.25
+comm_range_segments: 48
+show_occupancy: true
+occupancy_radius: 0.0          # <=0 uses r_body
+occupancy_height: 0.02
+occupancy_color: [1.0, 0.6, 0.2]
+occupancy_alpha: 0.2
+publish_links: true
+link_color: [0.2, 0.6, 1.0]
+link_alpha: 0.5
+link_width: 0.02
+link_max_pairs: 0
+show_enter_targets: true
+enter_target_size: 0.08
+enter_target_line_width: 0.02
+enter_target_alpha: 0.85
+debug_log: false
+debug_log_hz: 0.5
+monitor_report_enabled: false
+monitor_report_interval: 5.0
+# Example: [0,1] logs robot1 and robot2 only
+debug_log_robot_indices: [1,2,3,4]
+debug_log_components: false
+debug_log_metric: false
+velocity_source: odom    # odom | cmd
+cmd_in_map_frame: true
+odom_twist_in_base: false
+velocity_scale: 1.0
+arrow_shaft_diameter: 0.04
+arrow_head_diameter: 0.08
+arrow_head_length: 0.12
+show_speed_text: true
+speed_text_z: 0.3
+speed_text_size: 0.2
+show_metric_text: true
+metric_text_z: 0.8
+metric_text_size: 0.16
+metric_text_color: [1.0, 1.0, 1.0]
+metric_text_alpha: 0.95
+converge_inside_rate: 0.80
+converge_enter_rate: 0.10
+converge_cover_rate: 0.80
+converge_hold_time: 3.0

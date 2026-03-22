@@ -1,0 +1,19 @@
+std_msgs/Header header
+uint32 task_id
+uint32 robot_id
+string robot_namespace
+uint8 phase
+uint8 move_base_state
+bool inside_shape
+bool shape_active
+bool converged
+geometry_msgs/Pose pose
+float64 distance_to_center
+string note
+
+uint8 PHASE_IDLE=0
+uint8 PHASE_NAVIGATE=1
+uint8 PHASE_STAGING=2
+uint8 PHASE_SHAPE_ACTIVE=3
+uint8 PHASE_CONVERGED=4
+uint8 PHASE_ERROR=5

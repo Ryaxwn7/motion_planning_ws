@@ -1,0 +1,29 @@
+<launch>
+  <arg name="robot_namespace" />
+  <arg name="agent_id" default="1" />
+  <arg name="agent_number" default="4" />
+  <arg name="namespace_prefix" default="robot" />
+  <arg name="distributed_marker_owner" default="robot1" />
+  <arg name="shape_source" default="mat" />
+  <arg name="shape_type" default="rectangle" />
+  <arg name="publish_markers" default="false" />
+  <arg name="debug_log" default="false" />
+  <arg name="shape_library_root" default="$(find sim_env)/shape_images" />
+  <arg name="task_topic" default="/shape_assembly/task" />
+  <arg name="use_center_as_goal" default="false" />
+
+  <include file="$(find formation_robot)/launch/formation_robot.launch">
+    <arg name="robot_namespace" value="$(arg robot_namespace)" />
+    <arg name="agent_id" value="$(arg agent_id)" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="publish_markers" value="$(arg publish_markers)" />
+    <arg name="debug_log" value="$(arg debug_log)" />
+    <arg name="task_topic" value="$(arg task_topic)" />
+    <arg name="use_center_as_goal" value="$(arg use_center_as_goal)" />
+  </include>
+</launch>

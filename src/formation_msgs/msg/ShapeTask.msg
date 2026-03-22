@@ -1,0 +1,10 @@
+std_msgs/Header header
+uint32 task_id
+uint32 agent_count
+geometry_msgs/Pose center
+string shape_type
+float64 shape_heading
+float64 shape_scale
+float64 staging_radius
+bool replan
+string source

@@ -1,0 +1,6 @@
+<launch>
+    <rosparam file="$(find move_base_client)/config/param.yaml" command="load" />
+    <!-- 启动地图融合节点 -->
+    <node name="vr_node" pkg="move_base_client" type="vr_path_transformer" output="screen" />
+
+</launch>

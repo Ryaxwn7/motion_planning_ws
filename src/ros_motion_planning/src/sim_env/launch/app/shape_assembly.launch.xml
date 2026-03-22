@@ -1,0 +1,229 @@
+<?xml version='1.0' encoding='utf-8'?>
+<launch>
+  <!-- Command-line override sentinel. Keep this value unchanged. -->
+  <arg name="node_name" default="shape_assembly_swarm" />
+  <arg name="enabled" default="USE_YAML_SENTINEL" />
+  <arg name="auto_detect" default="USE_YAML_SENTINEL" />
+  <arg name="namespace_prefix" default="USE_YAML_SENTINEL" />
+  <arg name="agent_number" default="USE_YAML_SENTINEL" />
+  <arg name="distributed_mode" default="USE_YAML_SENTINEL" />
+  <arg name="distributed_agent_namespace" default="USE_YAML_SENTINEL" />
+  <arg name="distributed_marker_owner" default="USE_YAML_SENTINEL" />
+  <arg name="robot_odom_topic_suffix" default="USE_YAML_SENTINEL" />
+  <arg name="marker_topic" default="USE_YAML_SENTINEL" />
+
+  <arg name="shape_source" default="USE_YAML_SENTINEL" />
+  <arg name="shape_type" default="USE_YAML_SENTINEL" />
+  <arg name="shape_resolution" default="USE_YAML_SENTINEL" />
+  <arg name="ring_inner_ratio" default="USE_YAML_SENTINEL" />
+  <arg name="ring_outer_ratio" default="USE_YAML_SENTINEL" />
+  <arg name="gray_width" default="USE_YAML_SENTINEL" />
+  <arg name="shape_mat_path" default="USE_YAML_SENTINEL" />
+  <arg name="shape_library_root" default="USE_YAML_SENTINEL" />
+  <arg name="formation_task_topic" default="USE_YAML_SENTINEL" />
+  <arg name="robot_status_topic" default="USE_YAML_SENTINEL" />
+
+  <arg name="reference_center_topic" default="USE_YAML_SENTINEL" />
+  <arg name="reference_center_wait" default="USE_YAML_SENTINEL" />
+  <arg name="reference_center_use_topic_heading" default="USE_YAML_SENTINEL" />
+  <arg name="control_strategy" default="USE_YAML_SENTINEL" />
+  <arg name="shape_target_mode" default="USE_YAML_SENTINEL" />
+  <arg name="shape_marker_mode" default="USE_YAML_SENTINEL" />
+
+  <arg name="control_hz" default="USE_YAML_SENTINEL" />
+  <arg name="control_dt" default="USE_YAML_SENTINEL" />
+  <arg name="sim_dt" default="USE_YAML_SENTINEL" />
+  <arg name="vel_max" default="USE_YAML_SENTINEL" />
+  <arg name="leader_fraction" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_enter" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_explore_1" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_explore_2" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_avoid" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_hard_avoid" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_consensus" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_conse_pos" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_track_pos" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_conse_head" default="USE_YAML_SENTINEL" />
+  <arg name="kappa_track_head" default="USE_YAML_SENTINEL" />
+  <arg name="alpha" default="USE_YAML_SENTINEL" />
+  <arg name="hvel_max" default="USE_YAML_SENTINEL" />
+  <arg name="cmd_smooth_ratio" default="USE_YAML_SENTINEL" />
+  <arg name="cmd_scale" default="USE_YAML_SENTINEL" />
+  <arg name="shape_vel_max" default="USE_YAML_SENTINEL" />
+
+  <arg name="switch_gray_threshold" default="USE_YAML_SENTINEL" />
+  <arg name="cancel_move_base_on_switch" default="USE_YAML_SENTINEL" />
+  <arg name="cancel_grace_period" default="USE_YAML_SENTINEL" />
+  <arg name="switch_use_reference_shape" default="USE_YAML_SENTINEL" />
+  <arg name="switch_reference_radius_enable" default="USE_YAML_SENTINEL" />
+  <arg name="switch_reference_radius_margin" default="USE_YAML_SENTINEL" />
+  <arg name="switch_reference_radius_min" default="USE_YAML_SENTINEL" />
+
+  <arg name="use_local_costmap_avoid" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_topic_suffix" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_obstacle_threshold" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_unknown_is_obstacle" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_avoid_radius" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_avoid_gain" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_hard_radius" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_hard_gain" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_stride" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_max_samples" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_timeout" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_self_ignore_radius" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_skip_on_frame_mismatch" default="USE_YAML_SENTINEL" />
+
+  <arg name="auto_shape_heading" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_map_topic" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_angle_step_deg" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_update_interval" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_obstacle_threshold" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_unknown_is_obstacle" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_shape_stride" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_min_improve" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_yaw_bias" default="USE_YAML_SENTINEL" />
+  <arg name="auto_shape_heading_oob_is_obstacle" default="USE_YAML_SENTINEL" />
+
+  <arg name="publish_markers" default="USE_YAML_SENTINEL" />
+  <arg name="debug_log" default="USE_YAML_SENTINEL" />
+
+  <node pkg="sim_env" type="shape_assembly_swarm.py" name="$(arg node_name)" output="screen">
+    <!-- Launch fallback defaults (lowest priority). -->
+    <rosparam>
+      enabled: true
+      auto_detect: true
+      namespace_prefix: robot
+      agent_number: 0
+      distributed_mode: false
+      distributed_agent_namespace: ""
+      distributed_marker_owner: ""
+      robot_odom_topic_suffix: /odom
+      shape_source: mat
+      shape_type: starfish
+      formation_task_topic: /shape_assembly/task
+      robot_status_topic: shape_assembly/status
+      control_hz: 50.0
+      control_dt: 0.0
+      vel_max: 0.5
+      control_strategy: shape_only
+      shape_target_mode: negotiated
+      shape_marker_mode: negotiated
+      marker_topic: /shape_assembly/markers
+      use_local_costmap_avoid: true
+      local_costmap_topic_suffix: move_base/local_costmap/costmap
+      local_costmap_obstacle_threshold: 80
+      local_costmap_unknown_is_obstacle: false
+      local_costmap_avoid_radius: 0.8
+      local_costmap_avoid_gain: 18.0
+      local_costmap_hard_radius: 0.5
+      local_costmap_hard_gain: 35.0
+      local_costmap_stride: 1
+      local_costmap_max_samples: 500
+      local_costmap_timeout: 1.0
+      local_costmap_self_ignore_radius: 0.28
+      local_costmap_skip_on_frame_mismatch: true
+      cancel_grace_period: 0.0
+      auto_shape_heading: false
+      auto_shape_heading_map_topic: /map
+      auto_shape_heading_angle_step_deg: 15.0
+      auto_shape_heading_update_interval: 0.5
+      auto_shape_heading_obstacle_threshold: 80
+      auto_shape_heading_unknown_is_obstacle: true
+      auto_shape_heading_shape_stride: 2
+      auto_shape_heading_min_improve: 0.01
+      auto_shape_heading_yaw_bias: 0.02
+      auto_shape_heading_oob_is_obstacle: true
+      publish_markers: true
+      debug_log: true
+    </rosparam>
+
+    <!-- YAML config (middle priority). -->
+    <rosparam file="$(find sim_env)/config/shape_assembly.yaml" command="load" />
+
+    <!-- Command-line overrides (highest priority). -->
+    <param if="$(eval arg('enabled') != 'USE_YAML_SENTINEL')" name="enabled" value="$(arg enabled)" />
+    <param if="$(eval arg('auto_detect') != 'USE_YAML_SENTINEL')" name="auto_detect" value="$(arg auto_detect)" />
+    <param if="$(eval arg('namespace_prefix') != 'USE_YAML_SENTINEL')" name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <param if="$(eval arg('agent_number') != 'USE_YAML_SENTINEL')" name="agent_number" value="$(arg agent_number)" />
+    <param if="$(eval arg('distributed_mode') != 'USE_YAML_SENTINEL')" name="distributed_mode" value="$(arg distributed_mode)" />
+    <param if="$(eval arg('distributed_agent_namespace') != 'USE_YAML_SENTINEL')" name="distributed_agent_namespace" value="$(arg distributed_agent_namespace)" />
+    <param if="$(eval arg('distributed_marker_owner') != 'USE_YAML_SENTINEL')" name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <param if="$(eval arg('robot_odom_topic_suffix') != 'USE_YAML_SENTINEL')" name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
+    <param if="$(eval arg('marker_topic') != 'USE_YAML_SENTINEL')" name="marker_topic" value="$(arg marker_topic)" />
+
+    <param if="$(eval arg('shape_source') != 'USE_YAML_SENTINEL')" name="shape_source" value="$(arg shape_source)" />
+    <param if="$(eval arg('shape_type') != 'USE_YAML_SENTINEL')" name="shape_type" value="$(arg shape_type)" />
+    <param if="$(eval arg('shape_resolution') != 'USE_YAML_SENTINEL')" name="shape_resolution" value="$(arg shape_resolution)" />
+    <param if="$(eval arg('ring_inner_ratio') != 'USE_YAML_SENTINEL')" name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <param if="$(eval arg('ring_outer_ratio') != 'USE_YAML_SENTINEL')" name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <param if="$(eval arg('gray_width') != 'USE_YAML_SENTINEL')" name="gray_width" value="$(arg gray_width)" />
+    <param if="$(eval arg('shape_mat_path') != 'USE_YAML_SENTINEL')" name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <param if="$(eval arg('shape_library_root') != 'USE_YAML_SENTINEL')" name="shape_library_root" value="$(arg shape_library_root)" />
+    <param if="$(eval arg('formation_task_topic') != 'USE_YAML_SENTINEL')" name="formation_task_topic" value="$(arg formation_task_topic)" />
+    <param if="$(eval arg('robot_status_topic') != 'USE_YAML_SENTINEL')" name="robot_status_topic" value="$(arg robot_status_topic)" />
+
+    <param if="$(eval arg('reference_center_topic') != 'USE_YAML_SENTINEL')" name="reference_center_topic" value="$(arg reference_center_topic)" />
+    <param if="$(eval arg('reference_center_wait') != 'USE_YAML_SENTINEL')" name="reference_center_wait" value="$(arg reference_center_wait)" />
+    <param if="$(eval arg('reference_center_use_topic_heading') != 'USE_YAML_SENTINEL')" name="reference_center_use_topic_heading" value="$(arg reference_center_use_topic_heading)" />
+    <param if="$(eval arg('control_strategy') != 'USE_YAML_SENTINEL')" name="control_strategy" value="$(arg control_strategy)" />
+    <param if="$(eval arg('shape_target_mode') != 'USE_YAML_SENTINEL')" name="shape_target_mode" value="$(arg shape_target_mode)" />
+    <param if="$(eval arg('shape_marker_mode') != 'USE_YAML_SENTINEL')" name="shape_marker_mode" value="$(arg shape_marker_mode)" />
+
+    <param if="$(eval arg('control_hz') != 'USE_YAML_SENTINEL')" name="control_hz" value="$(arg control_hz)" />
+    <param if="$(eval arg('control_dt') != 'USE_YAML_SENTINEL')" name="control_dt" value="$(arg control_dt)" />
+    <param if="$(eval arg('sim_dt') != 'USE_YAML_SENTINEL')" name="sim_dt" value="$(arg sim_dt)" />
+    <param if="$(eval arg('vel_max') != 'USE_YAML_SENTINEL')" name="vel_max" value="$(arg vel_max)" />
+    <param if="$(eval arg('leader_fraction') != 'USE_YAML_SENTINEL')" name="leader_fraction" value="$(arg leader_fraction)" />
+    <param if="$(eval arg('kappa_enter') != 'USE_YAML_SENTINEL')" name="kappa_enter" value="$(arg kappa_enter)" />
+    <param if="$(eval arg('kappa_explore_1') != 'USE_YAML_SENTINEL')" name="kappa_explore_1" value="$(arg kappa_explore_1)" />
+    <param if="$(eval arg('kappa_explore_2') != 'USE_YAML_SENTINEL')" name="kappa_explore_2" value="$(arg kappa_explore_2)" />
+    <param if="$(eval arg('kappa_avoid') != 'USE_YAML_SENTINEL')" name="kappa_avoid" value="$(arg kappa_avoid)" />
+    <param if="$(eval arg('kappa_hard_avoid') != 'USE_YAML_SENTINEL')" name="kappa_hard_avoid" value="$(arg kappa_hard_avoid)" />
+    <param if="$(eval arg('kappa_consensus') != 'USE_YAML_SENTINEL')" name="kappa_consensus" value="$(arg kappa_consensus)" />
+    <param if="$(eval arg('kappa_conse_pos') != 'USE_YAML_SENTINEL')" name="kappa_conse_pos" value="$(arg kappa_conse_pos)" />
+    <param if="$(eval arg('kappa_track_pos') != 'USE_YAML_SENTINEL')" name="kappa_track_pos" value="$(arg kappa_track_pos)" />
+    <param if="$(eval arg('kappa_conse_head') != 'USE_YAML_SENTINEL')" name="kappa_conse_head" value="$(arg kappa_conse_head)" />
+    <param if="$(eval arg('kappa_track_head') != 'USE_YAML_SENTINEL')" name="kappa_track_head" value="$(arg kappa_track_head)" />
+    <param if="$(eval arg('alpha') != 'USE_YAML_SENTINEL')" name="alpha" value="$(arg alpha)" />
+    <param if="$(eval arg('hvel_max') != 'USE_YAML_SENTINEL')" name="hvel_max" value="$(arg hvel_max)" />
+    <param if="$(eval arg('cmd_smooth_ratio') != 'USE_YAML_SENTINEL')" name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
+    <param if="$(eval arg('cmd_scale') != 'USE_YAML_SENTINEL')" name="cmd_scale" value="$(arg cmd_scale)" />
+    <param if="$(eval arg('shape_vel_max') != 'USE_YAML_SENTINEL')" name="shape_vel_max" value="$(arg shape_vel_max)" />
+
+    <param if="$(eval arg('switch_gray_threshold') != 'USE_YAML_SENTINEL')" name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
+    <param if="$(eval arg('cancel_move_base_on_switch') != 'USE_YAML_SENTINEL')" name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />
+    <param if="$(eval arg('cancel_grace_period') != 'USE_YAML_SENTINEL')" name="cancel_grace_period" value="$(arg cancel_grace_period)" />
+    <param if="$(eval arg('switch_use_reference_shape') != 'USE_YAML_SENTINEL')" name="switch_use_reference_shape" value="$(arg switch_use_reference_shape)" />
+    <param if="$(eval arg('switch_reference_radius_enable') != 'USE_YAML_SENTINEL')" name="switch_reference_radius_enable" value="$(arg switch_reference_radius_enable)" />
+    <param if="$(eval arg('switch_reference_radius_margin') != 'USE_YAML_SENTINEL')" name="switch_reference_radius_margin" value="$(arg switch_reference_radius_margin)" />
+    <param if="$(eval arg('switch_reference_radius_min') != 'USE_YAML_SENTINEL')" name="switch_reference_radius_min" value="$(arg switch_reference_radius_min)" />
+
+    <param if="$(eval arg('use_local_costmap_avoid') != 'USE_YAML_SENTINEL')" name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
+    <param if="$(eval arg('local_costmap_topic_suffix') != 'USE_YAML_SENTINEL')" name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <param if="$(eval arg('local_costmap_obstacle_threshold') != 'USE_YAML_SENTINEL')" name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
+    <param if="$(eval arg('local_costmap_unknown_is_obstacle') != 'USE_YAML_SENTINEL')" name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
+    <param if="$(eval arg('local_costmap_avoid_radius') != 'USE_YAML_SENTINEL')" name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />
+    <param if="$(eval arg('local_costmap_avoid_gain') != 'USE_YAML_SENTINEL')" name="local_costmap_avoid_gain" value="$(arg local_costmap_avoid_gain)" />
+    <param if="$(eval arg('local_costmap_hard_radius') != 'USE_YAML_SENTINEL')" name="local_costmap_hard_radius" value="$(arg local_costmap_hard_radius)" />
+    <param if="$(eval arg('local_costmap_hard_gain') != 'USE_YAML_SENTINEL')" name="local_costmap_hard_gain" value="$(arg local_costmap_hard_gain)" />
+    <param if="$(eval arg('local_costmap_stride') != 'USE_YAML_SENTINEL')" name="local_costmap_stride" value="$(arg local_costmap_stride)" />
+    <param if="$(eval arg('local_costmap_max_samples') != 'USE_YAML_SENTINEL')" name="local_costmap_max_samples" value="$(arg local_costmap_max_samples)" />
+    <param if="$(eval arg('local_costmap_timeout') != 'USE_YAML_SENTINEL')" name="local_costmap_timeout" value="$(arg local_costmap_timeout)" />
+    <param if="$(eval arg('local_costmap_self_ignore_radius') != 'USE_YAML_SENTINEL')" name="local_costmap_self_ignore_radius" value="$(arg local_costmap_self_ignore_radius)" />
+    <param if="$(eval arg('local_costmap_skip_on_frame_mismatch') != 'USE_YAML_SENTINEL')" name="local_costmap_skip_on_frame_mismatch" value="$(arg local_costmap_skip_on_frame_mismatch)" />
+
+    <param if="$(eval arg('auto_shape_heading') != 'USE_YAML_SENTINEL')" name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <param if="$(eval arg('auto_shape_heading_map_topic') != 'USE_YAML_SENTINEL')" name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <param if="$(eval arg('auto_shape_heading_angle_step_deg') != 'USE_YAML_SENTINEL')" name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <param if="$(eval arg('auto_shape_heading_update_interval') != 'USE_YAML_SENTINEL')" name="auto_shape_heading_update_interval" value="$(arg auto_shape_heading_update_interval)" />
+    <param if="$(eval arg('auto_shape_heading_obstacle_threshold') != 'USE_YAML_SENTINEL')" name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <param if="$(eval arg('auto_shape_heading_unknown_is_obstacle') != 'USE_YAML_SENTINEL')" name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <param if="$(eval arg('auto_shape_heading_shape_stride') != 'USE_YAML_SENTINEL')" name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <param if="$(eval arg('auto_shape_heading_min_improve') != 'USE_YAML_SENTINEL')" name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <param if="$(eval arg('auto_shape_heading_yaw_bias') != 'USE_YAML_SENTINEL')" name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <param if="$(eval arg('auto_shape_heading_oob_is_obstacle') != 'USE_YAML_SENTINEL')" name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+
+    <param if="$(eval arg('publish_markers') != 'USE_YAML_SENTINEL')" name="publish_markers" value="$(arg publish_markers)" />
+    <param if="$(eval arg('debug_log') != 'USE_YAML_SENTINEL')" name="debug_log" value="$(arg debug_log)" />
+  </node>
+</launch>

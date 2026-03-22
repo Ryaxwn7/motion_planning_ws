@@ -1,0 +1,84 @@
+<launch>
+  <arg name="agent_number" default="4" />
+  <arg name="shape_type" default="rectangle" />
+  <arg name="shape_heading" default="0.0" />
+  <arg name="shape_scale" default="1.0" />
+  <arg name="shape_source" default="mat" />
+  <arg name="shape_library_root" default="$(find sim_env)/shape_images" />
+  <arg name="staging_radius" default="0.0" />
+  <arg name="auto_shape_heading" default="true" />
+  <arg name="auto_shape_heading_map_topic" default="/map" />
+  <arg name="auto_shape_heading_angle_step_deg" default="15.0" />
+  <arg name="auto_shape_heading_obstacle_threshold" default="80" />
+  <arg name="auto_shape_heading_unknown_is_obstacle" default="true" />
+  <arg name="auto_shape_heading_shape_stride" default="2" />
+  <arg name="auto_shape_heading_min_improve" default="0.01" />
+  <arg name="auto_shape_heading_yaw_bias" default="0.02" />
+  <arg name="auto_shape_heading_oob_is_obstacle" default="true" />
+  <arg name="task_topic" default="/shape_assembly/task" />
+  <arg name="gather_center_topic" default="/gather_center" />
+  <arg name="publish_center_goal_only" default="true" />
+  <arg name="publish_goal" default="false" />
+  <arg name="robot_namespace_prefix" default="robot" />
+  <arg name="robot_detect_topic_suffix" default="/odom_combined" />
+  <arg name="robot_odom_topic_suffix" default="/odom_combined" />
+  <arg name="external_center_goal_topic" default="/shape_assembly/center_goal_cmd" />
+  <arg name="external_center_sync_wait" default="0.5" />
+  <arg name="replan_mode" default="event" />
+  <arg name="periodic_interval" default="5.0" />
+  <arg name="cooldown" default="0.5" />
+  <arg name="per_robot_cooldown" default="0.5" />
+  <arg name="max_len_growth_ratio" default="1.4" />
+  <arg name="long_path_replan_min_length" default="3.0" />
+  <arg name="format_radius" default="0.3" />
+  <arg name="enable_stable_len_replan" default="false" />
+  <arg name="use_goal_occupied_peer_fallback" default="true" />
+  <arg name="goal_occupied_radius" default="0.35" />
+  <arg name="loop_hz" default="10.0" />
+
+  <include file="$(find fm2_gather)/launch/laun.launch">
+    <arg name="num_robots" value="$(arg agent_number)" />
+    <arg name="publish_center_goal_only" value="$(arg publish_center_goal_only)" />
+    <arg name="publish_goal" value="$(arg publish_goal)" />
+    <arg name="gather_center_topic" value="$(arg gather_center_topic)" />
+    <arg name="external_center_goal_topic" value="$(arg external_center_goal_topic)" />
+    <arg name="external_center_sync_wait" value="$(arg external_center_sync_wait)" />
+    <arg name="auto_detect_robots" value="false" />
+    <arg name="robot_namespace_prefix" value="$(arg robot_namespace_prefix)" />
+    <arg name="robot_detect_topic_suffix" value="$(arg robot_detect_topic_suffix)" />
+    <arg name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
+    <arg name="enable_map_combine" value="false" />
+    <arg name="replan_mode" value="$(arg replan_mode)" />
+    <arg name="periodic_interval" value="$(arg periodic_interval)" />
+    <arg name="cooldown" value="$(arg cooldown)" />
+    <arg name="per_robot_cooldown" value="$(arg per_robot_cooldown)" />
+    <arg name="max_len_growth_ratio" value="$(arg max_len_growth_ratio)" />
+    <arg name="long_path_replan_min_length" value="$(arg long_path_replan_min_length)" />
+    <arg name="format_radius" value="$(arg format_radius)" />
+    <arg name="enable_stable_len_replan" value="$(arg enable_stable_len_replan)" />
+    <arg name="use_goal_occupied_peer_fallback" value="$(arg use_goal_occupied_peer_fallback)" />
+    <arg name="goal_occupied_radius" value="$(arg goal_occupied_radius)" />
+    <arg name="loop_hz" value="$(arg loop_hz)" />
+  </include>
+
+  <node pkg="formation_host" type="shape_task_supervisor.py" name="shape_task_supervisor" output="screen">
+    <param name="agent_count" value="$(arg agent_number)" />
+    <param name="task_topic" value="$(arg task_topic)" />
+    <param name="gather_center_topic" value="$(arg gather_center_topic)" />
+    <param name="shape_type" value="$(arg shape_type)" />
+    <param name="shape_heading" value="$(arg shape_heading)" />
+    <param name="shape_scale" value="$(arg shape_scale)" />
+    <param name="shape_source" value="$(arg shape_source)" />
+    <param name="shape_library_root" value="$(arg shape_library_root)" />
+    <param name="staging_radius" value="$(arg staging_radius)" />
+    <param name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <param name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />
+    <param name="auto_shape_heading_angle_step_deg" value="$(arg auto_shape_heading_angle_step_deg)" />
+    <param name="auto_shape_heading_obstacle_threshold" value="$(arg auto_shape_heading_obstacle_threshold)" />
+    <param name="auto_shape_heading_unknown_is_obstacle" value="$(arg auto_shape_heading_unknown_is_obstacle)" />
+    <param name="auto_shape_heading_shape_stride" value="$(arg auto_shape_heading_shape_stride)" />
+    <param name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
+    <param name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
+    <param name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+  </node>
+</launch>

@@ -1,0 +1,4 @@
+<launch>
+    <!-- 启动节点 -->
+    <node name="fm2_map_combine_node" pkg="fm2_gather" type="fm2_map_combine_node" output="screen" />
+</launch>

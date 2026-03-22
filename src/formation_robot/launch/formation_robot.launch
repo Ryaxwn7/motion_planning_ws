@@ -1,0 +1,64 @@
+<launch>
+  <arg name="robot_namespace" />
+  <arg name="agent_id" default="1" />
+  <arg name="agent_number" default="4" />
+  <arg name="namespace_prefix" default="robot" />
+  <arg name="distributed_marker_owner" default="robot1" />
+  <arg name="shape_source" default="mat" />
+  <arg name="shape_type" default="rectangle" />
+  <arg name="publish_markers" default="false" />
+  <arg name="debug_log" default="false" />
+  <arg name="shape_library_root" default="$(find sim_env)/shape_images" />
+  <arg name="shape_resolution" default="80" />
+  <arg name="ring_inner_ratio" default="0.25" />
+  <arg name="ring_outer_ratio" default="0.4" />
+  <arg name="gray_width" default="4" />
+  <arg name="use_center_as_goal" default="false" />
+  <arg name="task_topic" default="/shape_assembly/task" />
+  <arg name="robot_status_topic" default="shape_assembly/status" />
+
+  <include file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
+    <arg name="node_name" value="shape_assembly_swarm" />
+    <arg name="auto_detect" value="false" />
+    <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
+    <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="distributed_mode" value="true" />
+    <arg name="distributed_agent_namespace" value="$(arg robot_namespace)" />
+    <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
+    <arg name="robot_odom_topic_suffix" value="/odom_combined" />
+    <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="reference_center_topic" value="/gather_center" />
+    <arg name="reference_center_wait" value="true" />
+    <arg name="control_strategy" value="move_base_then_shape" />
+    <arg name="shape_target_mode" value="reference" />
+    <arg name="cancel_move_base_on_switch" value="true" />
+    <arg name="cancel_grace_period" value="0.35" />
+    <arg name="use_local_costmap_avoid" value="true" />
+    <arg name="local_costmap_topic_suffix" value="move_base/local_costmap/costmap" />
+    <arg name="auto_shape_heading" value="false" />
+    <arg name="publish_markers" value="$(arg publish_markers)" />
+    <arg name="marker_topic" value="/shape_assembly/markers" />
+    <arg name="debug_log" value="$(arg debug_log)" />
+    <arg name="formation_task_topic" value="$(arg task_topic)" />
+    <arg name="robot_status_topic" value="$(arg robot_status_topic)" />
+  </include>
+
+  <node pkg="formation_robot" type="shape_task_bridge.py" name="shape_task_bridge" output="screen">
+    <param name="robot_namespace" value="$(arg robot_namespace)" />
+    <param name="robot_id" value="$(arg agent_id)" />
+    <param name="agent_count" value="$(arg agent_number)" />
+    <param name="task_topic" value="$(arg task_topic)" />
+    <param name="move_base_action" value="/$(arg robot_namespace)/move_base" />
+    <param name="goal_topic" value="/$(arg robot_namespace)/shape_assembly/staging_goal" />
+    <param name="use_center_as_goal" value="$(arg use_center_as_goal)" />
+    <param name="shape_source" value="$(arg shape_source)" />
+    <param name="shape_library_root" value="$(arg shape_library_root)" />
+    <param name="shape_resolution" value="$(arg shape_resolution)" />
+    <param name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <param name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <param name="gray_width" value="$(arg gray_width)" />
+    <param name="debug_log" value="$(arg debug_log)" />
+  </node>
+</launch>

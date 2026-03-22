@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>formation_robot</name>
+  <version>0.0.0</version>
+  <description>Robot-side local formation execution bridge.</description>
+
+  <maintainer email="bsrl@todo.todo">bsrl</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>actionlib</depend>
+  <depend>formation_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>move_base_msgs</depend>
+  <depend>rospy</depend>
+  <depend>tf</depend>
+</package>
