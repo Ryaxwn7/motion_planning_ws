@@ -410,3 +410,204 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
 
 - [host_robot_code_split.md](/home/yxw/motion_planning_ws/host_robot_code_split.md)
 - [shape_assembly_real_robot_protocol.md](/home/yxw/motion_planning_ws/shape_assembly_real_robot_protocol.md)
+
+
+---
+
+## 11. 完整多机器人实验流程
+
+下面给出一套可直接执行的 `4` 机器人实验流程。
+
+约定：
+
+- ROS Master 在主机
+- 主机 IP 写作 `<HOST_IP>`
+- 机器人 IP 分别写作 `<ROBOT1_IP>`、`<ROBOT2_IP>`、`<ROBOT3_IP>`、`<ROBOT4_IP>`
+- 所有机器都已经完成编译并执行过 `source devel/setup.bash`
+
+### 11.1 主机终端 1：启动 `roscore`
+
+```bash
+export ROS_MASTER_URI=http://<HOST_IP>:11311
+export ROS_IP=<HOST_IP>
+source /opt/ros/noetic/setup.bash
+cd /home/yxw/motion_planning_ws
+source devel/setup.bash
+roscore
+```
+
+### 11.2 主机终端 2：启动地图
+
+```bash
+export ROS_MASTER_URI=http://<HOST_IP>:11311
+export ROS_IP=<HOST_IP>
+source /opt/ros/noetic/setup.bash
+cd /home/yxw/motion_planning_ws
+source devel/setup.bash
+rosrun map_server map_server $(rospack find turn_on_wheeltec_robot)/map/exp_d2.yaml
+```
+
+### 11.3 主机终端 3：启动主机战略层
+
+```bash
+export ROS_MASTER_URI=http://<HOST_IP>:11311
+export ROS_IP=<HOST_IP>
+source /opt/ros/noetic/setup.bash
+cd /home/yxw/motion_planning_ws
+source devel/setup.bash
+
+roslaunch turn_on_wheeltec_robot shape_assembly_host.launch \
+  agent_number:=4 \
+  shape_type:=rectangle \
+  shape_source:=mat \
+  shape_scale:=1.0 \
+  shape_library_root:=$(rospack find sim_env)/shape_images \
+  auto_shape_heading:=true \
+  replan_mode:=event
+```
+
+### 11.4 机器人终端：分别启动 `robot1` 到 `robot4`
+
+`robot1`：
+
+```bash
+export ROS_MASTER_URI=http://<HOST_IP>:11311
+export ROS_IP=<ROBOT1_IP>
+source /opt/ros/noetic/setup.bash
+cd /home/yxw/motion_planning_ws
+source devel/setup.bash
+
+roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
+  map_started:=true \
+  agent_number:=4 \
+  agent_id:=1 \
+  global_planner:=fm2 \
+  local_planner:=my \
+  robot:=mini_mec \
+  enable_shape_assembly:=true \
+  shape_source:=mat \
+  shape_type:=rectangle \
+  use_center_as_goal:=false
+```
+
+`robot2`：
+
+```bash
+export ROS_MASTER_URI=http://<HOST_IP>:11311
+export ROS_IP=<ROBOT2_IP>
+source /opt/ros/noetic/setup.bash
+cd /home/yxw/motion_planning_ws
+source devel/setup.bash
+
+roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
+  map_started:=true \
+  agent_number:=4 \
+  agent_id:=2 \
+  global_planner:=fm2 \
+  local_planner:=my \
+  robot:=mini_mec \
+  enable_shape_assembly:=true \
+  shape_source:=mat \
+  shape_type:=rectangle \
+  use_center_as_goal:=false
+```
+
+`robot3`：
+
+```bash
+export ROS_MASTER_URI=http://<HOST_IP>:11311
+export ROS_IP=<ROBOT3_IP>
+source /opt/ros/noetic/setup.bash
+cd /home/yxw/motion_planning_ws
+source devel/setup.bash
+
+roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
+  map_started:=true \
+  agent_number:=4 \
+  agent_id:=3 \
+  global_planner:=fm2 \
+  local_planner:=my \
+  robot:=mini_mec \
+  enable_shape_assembly:=true \
+  shape_source:=mat \
+  shape_type:=rectangle \
+  use_center_as_goal:=false
+```
+
+`robot4`：
+
+```bash
+export ROS_MASTER_URI=http://<HOST_IP>:11311
+export ROS_IP=<ROBOT4_IP>
+source /opt/ros/noetic/setup.bash
+cd /home/yxw/motion_planning_ws
+source devel/setup.bash
+
+roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
+  map_started:=true \
+  agent_number:=4 \
+  agent_id:=4 \
+  global_planner:=fm2 \
+  local_planner:=my \
+  robot:=mini_mec \
+  enable_shape_assembly:=true \
+  shape_source:=mat \
+  shape_type:=rectangle \
+  use_center_as_goal:=false
+```
+
+### 11.5 主机终端 4：发布一次实验目标
+
+```bash
+export ROS_MASTER_URI=http://<HOST_IP>:11311
+export ROS_IP=<HOST_IP>
+source /opt/ros/noetic/setup.bash
+cd /home/yxw/motion_planning_ws
+source devel/setup.bash
+
+rostopic pub -1 /shape_assembly/center_goal_cmd geometry_msgs/PoseStamped \
+'{header: {frame_id: "map"}, pose: {position: {x: 1.0, y: 2.0, z: 0.0}, orientation: {w: 1.0}}}'
+```
+
+### 11.6 实验过程中建议观察
+
+主机看：
+
+```bash
+rostopic echo /gather_center
+rostopic echo /shape_assembly/task
+```
+
+看 `robot1` 的本机状态：
+
+```bash
+rostopic echo /robot1/shape_assembly/staging_goal
+rostopic echo /robot1/shape_assembly/status
+```
+
+### 11.7 预期运行流程
+
+- 主机接收 `/shape_assembly/center_goal_cmd`
+- `fm2_gather` 生成或确认聚集中心
+- 主机自动选择 `shape_heading`
+- 主机发布 `/shape_assembly/task`
+- 每台机器人本机 `move_base` 导航到自己的 `staging goal`
+- 机器人靠近目标区域后，本机 `shape_assembly` 接管
+- 多机器人分布式完成最终队形形成
+
+### 11.8 结束实验
+
+建议按这个顺序停止：
+
+1. 先停所有机器人 launch
+2. 再停主机 `shape_assembly_host.launch`
+3. 再停 `map_server`
+4. 最后停 `roscore`
+
+### 11.9 可选对照实验
+
+如果你要测试“直接导航到聚集中心”模式，把机器人侧启动参数改成：
+
+- `use_center_as_goal:=true`
+
+其它参数先保持不变即可。
