@@ -14,7 +14,7 @@ global_costmap:
 
   ### Sensor management parameters ###
   obstacle_layer:
-    observation_sources: scan scan2 scan3
+    observation_sources: scan 
     scan:
       {
         topic: scan,
