@@ -116,28 +116,24 @@ bool resolveRobotConfig(ros::NodeHandle& nh, int& robot_num, std::vector<int>& r
         bool has_num_param = nh.getParam("num_robots", robot_num);
         nh.getParam("robot_ids", robot_ids);
 
-        if (has_num_param && robot_num > 0) {
-            if (robot_ids.size() != static_cast<std::size_t>(robot_num)) {
-                robot_ids.clear();
-                robot_ids.reserve(robot_num);
-                for (int i = 1; i <= robot_num; ++i) {
-                    robot_ids.push_back(i);
-                }
-                ROS_WARN("[Plan Monitor] robot_ids mismatched configured num_robots=%d, regenerate sequential IDs 1..%d",
-                         robot_num, robot_num);
+        if (!robot_ids.empty()) {
+            if (has_num_param && robot_num > 0 &&
+                robot_ids.size() != static_cast<std::size_t>(robot_num)) {
+                ROS_WARN("[Plan Monitor] robot_ids=%zu mismatches configured num_robots=%d, keep explicit robot_ids and override num_robots",
+                         robot_ids.size(), robot_num);
             }
+            robot_num = static_cast<int>(robot_ids.size());
+        } else if (has_num_param && robot_num > 0) {
+            robot_ids.reserve(robot_num);
+            for (int i = 1; i <= robot_num; ++i) {
+                robot_ids.push_back(i);
+            }
+            ROS_WARN("[Plan Monitor] robot_ids missing, fallback to sequential IDs 1..%d", robot_num);
         }
     }
 
     if (robot_num <= 0 && !robot_ids.empty()) {
         robot_num = static_cast<int>(robot_ids.size());
-    }
-    if (robot_ids.empty() && robot_num > 0) {
-        robot_ids.reserve(robot_num);
-        for (int i = 1; i <= robot_num; ++i) {
-            robot_ids.push_back(i);
-        }
-        ROS_WARN("[Plan Monitor] robot_ids missing, fallback to sequential IDs 1..%d", robot_num);
     }
     if (robot_num != static_cast<int>(robot_ids.size())) {
         ROS_WARN("[Plan Monitor] num_robots=%d mismatches robot_ids size=%zu, use robot_ids size",

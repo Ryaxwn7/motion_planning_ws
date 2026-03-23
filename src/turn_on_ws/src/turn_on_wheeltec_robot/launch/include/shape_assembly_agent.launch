@@ -2,6 +2,7 @@
   <arg name="robot_namespace" />
   <arg name="agent_id" default="1" />
   <arg name="agent_number" default="4" />
+  <arg name="robot_ids" default="USE_YAML_SENTINEL" />
   <arg name="namespace_prefix" default="robot" />
   <arg name="distributed_marker_owner" default="robot1" />
   <arg name="shape_source" default="mat" />
@@ -16,6 +17,7 @@
     <arg name="robot_namespace" value="$(arg robot_namespace)" />
     <arg name="agent_id" value="$(arg agent_id)" />
     <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="robot_ids" value="$(arg robot_ids)" />
     <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
     <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
     <arg name="shape_source" value="$(arg shape_source)" />

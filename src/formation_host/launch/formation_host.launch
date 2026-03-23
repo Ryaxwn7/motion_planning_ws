@@ -1,5 +1,6 @@
 <launch>
   <arg name="agent_number" default="4" />
+  <arg name="robot_ids" default="USE_YAML_SENTINEL" />
   <arg name="shape_type" default="rectangle" />
   <arg name="shape_heading" default="0.0" />
   <arg name="shape_scale" default="1.0" />
@@ -35,6 +36,8 @@
   <arg name="use_goal_occupied_peer_fallback" default="true" />
   <arg name="goal_occupied_radius" default="0.35" />
   <arg name="loop_hz" default="10.0" />
+
+  <rosparam if="$(eval arg('robot_ids') != 'USE_YAML_SENTINEL')" param="robot_ids" subst_value="true">$(arg robot_ids)</rosparam>
 
   <include file="$(find fm2_gather)/launch/laun.launch">
     <arg name="num_robots" value="$(arg agent_number)" />
@@ -80,5 +83,6 @@
     <param name="auto_shape_heading_min_improve" value="$(arg auto_shape_heading_min_improve)" />
     <param name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
     <param name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
+    <rosparam if="$(eval arg('robot_ids') != 'USE_YAML_SENTINEL')" param="robot_ids" subst_value="true">$(arg robot_ids)</rosparam>
   </node>
 </launch>

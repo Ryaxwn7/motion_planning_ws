@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import ast
 import math
 import os
 from dataclasses import dataclass
@@ -52,6 +53,38 @@ def _normalize_shape_type(shape_type: str) -> str:
         "sph": "sphere",
     }
     return alias.get(key, key)
+
+
+def _parse_positive_int_list(value) -> List[int]:
+    def _normalize(items) -> List[int]:
+        result: List[int] = []
+        seen = set()
+        for item in items:
+            try:
+                rid = int(item)
+            except (TypeError, ValueError):
+                continue
+            if rid <= 0 or rid in seen:
+                continue
+            seen.add(rid)
+            result.append(rid)
+        return result
+
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return _normalize(value)
+
+    text = str(value).strip()
+    if not text:
+        return []
+    try:
+        parsed = ast.literal_eval(text)
+    except (ValueError, SyntaxError):
+        parsed = [part.strip() for part in text.split(",")]
+    if isinstance(parsed, (list, tuple)):
+        return _normalize(parsed)
+    return _normalize([parsed])
 
 
 def _get_default_shape_dir() -> str:
@@ -221,6 +254,18 @@ class ShapeTaskSupervisor:
         self.gather_center_topic = rospy.get_param("~gather_center_topic", "/gather_center")
         self.frame_id = rospy.get_param("~frame_id", "map")
         self.agent_count = int(rospy.get_param("~agent_count", 0))
+        self.robot_ids = _parse_positive_int_list(
+            rospy.get_param("~robot_ids", rospy.get_param("/robot_ids", []))
+        )
+        if self.robot_ids:
+            if self.agent_count > 0 and self.agent_count != len(self.robot_ids):
+                rospy.logwarn(
+                    "ShapeTaskSupervisor: agent_count=%d mismatches robot_ids=%s, override agent_count with len(robot_ids)=%d",
+                    self.agent_count,
+                    str(self.robot_ids),
+                    len(self.robot_ids),
+                )
+            self.agent_count = len(self.robot_ids)
         self.source = rospy.get_param("~source", "fm2_gather")
         self.center_min_delta = max(0.0, float(rospy.get_param("~center_min_delta", 0.05)))
         self.heading_min_delta = max(0.0, float(rospy.get_param("~heading_min_delta", math.radians(5.0))))

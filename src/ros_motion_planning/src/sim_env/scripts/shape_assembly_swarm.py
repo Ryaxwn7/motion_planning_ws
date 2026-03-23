@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import ast
 import math
 import os
 import random
@@ -62,6 +63,38 @@ def _yaw_from_quat(qx: float, qy: float, qz: float, qw: float) -> float:
     siny_cosp = 2.0 * (qw * qz + qx * qy)
     cosy_cosp = 1.0 - 2.0 * (qy * qy + qz * qz)
     return math.atan2(siny_cosp, cosy_cosp)
+
+
+def _parse_positive_int_list(value) -> List[int]:
+    def _normalize(items) -> List[int]:
+        result: List[int] = []
+        seen = set()
+        for item in items:
+            try:
+                rid = int(item)
+            except (TypeError, ValueError):
+                continue
+            if rid <= 0 or rid in seen:
+                continue
+            seen.add(rid)
+            result.append(rid)
+        return result
+
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return _normalize(value)
+
+    text = str(value).strip()
+    if not text:
+        return []
+    try:
+        parsed = ast.literal_eval(text)
+    except (ValueError, SyntaxError):
+        parsed = [part.strip() for part in text.split(",")]
+    if isinstance(parsed, (list, tuple)):
+        return _normalize(parsed)
+    return _normalize([parsed])
 
 
 class SimParam:
@@ -1290,7 +1323,18 @@ class ShapeAssemblySwarm:
         if self.robot_namespace_prefix:
             self.namespace_prefix = self.robot_namespace_prefix
         self.agent_number = int(rospy.get_param("~agent_number", 0))
+        private_robot_ids = _parse_positive_int_list(rospy.get_param("~robot_ids", []))
+        global_robot_ids = _parse_positive_int_list(rospy.get_param("/robot_ids", []))
+        self.robot_ids = private_robot_ids or global_robot_ids
         self.robot_namespaces = rospy.get_param("~robot_namespaces", [])
+        if self.robot_ids and self.agent_number > 0 and self.agent_number != len(self.robot_ids):
+            rospy.logwarn(
+                "ShapeAssembly: agent_number=%d mismatches robot_ids=%s, override agent_number with len(robot_ids)=%d",
+                self.agent_number,
+                str(self.robot_ids),
+                len(self.robot_ids),
+            )
+            self.agent_number = len(self.robot_ids)
         self.robot_detect_topic_suffix = str(rospy.get_param("~robot_detect_topic_suffix", "/odom"))
         self.robot_odom_topic_suffix = str(
             rospy.get_param("~robot_odom_topic_suffix", self.robot_detect_topic_suffix)
@@ -3261,6 +3305,10 @@ class ShapeAssemblySwarm:
         if not self.ns_list:
             if self.robot_namespaces:
                 ns_list = list(self.robot_namespaces)
+            elif self.robot_ids:
+                ns_list = [f"{self.namespace_prefix}{robot_id}" for robot_id in self.robot_ids]
+                rospy.set_param("~resolved_robot_ids", list(self.robot_ids))
+                rospy.set_param("~resolved_agent_number", len(self.robot_ids))
             elif self.auto_detect:
                 ns_list = self._detect_namespaces()
             elif self.agent_number > 0:

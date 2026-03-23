@@ -2,6 +2,7 @@
   <arg name="robot_namespace" />
   <arg name="agent_id" default="1" />
   <arg name="agent_number" default="4" />
+  <arg name="robot_ids" default="USE_YAML_SENTINEL" />
   <arg name="namespace_prefix" default="robot" />
   <arg name="distributed_marker_owner" default="robot1" />
   <arg name="shape_source" default="mat" />
@@ -22,6 +23,7 @@
     <arg name="auto_detect" value="false" />
     <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
     <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="robot_ids" value="$(arg robot_ids)" />
     <arg name="distributed_mode" value="true" />
     <arg name="distributed_agent_namespace" value="$(arg robot_namespace)" />
     <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
@@ -60,5 +62,6 @@
     <param name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
     <param name="gray_width" value="$(arg gray_width)" />
     <param name="debug_log" value="$(arg debug_log)" />
+    <rosparam if="$(eval arg('robot_ids') != 'USE_YAML_SENTINEL')" param="robot_ids" subst_value="true">$(arg robot_ids)</rosparam>
   </node>
 </launch>
