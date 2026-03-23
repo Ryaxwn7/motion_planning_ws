@@ -115,6 +115,8 @@
 
 ### 3.5 主机启动命令
 
+工作空间根目录同时提供了主机快捷脚本 [start_host.sh](/home/yxw/motion_planning_ws/start_host.sh)。默认读取 [config/host_start.conf](/home/yxw/motion_planning_ws/config/host_start.conf)。
+
 ```bash
 roslaunch turn_on_wheeltec_robot shape_assembly_host.launch \
   agent_number:=4 \
@@ -123,6 +125,38 @@ roslaunch turn_on_wheeltec_robot shape_assembly_host.launch \
   shape_scale:=1.0 \
   shape_library_root:=$(rospack find sim_env)/shape_images \
   auto_shape_heading:=true
+```
+
+如果你要做和 `new_ws` 的 `shape_assembly_5x10_d2.sh` 类似的真机聚集实验，推荐直接使用主机一键脚本：
+
+```bash
+./start_host.sh
+```
+
+如果你仍然要直接调用底层脚本，也可以：
+
+```bash
+bash src/ros_motion_planning/scripts/shape_assembly_real_robot.sh \
+  agent_number:=4 \
+  shape_type:=rectangle \
+  shape_source:=mat \
+  shape_scale:=1.0 \
+  auto_shape_heading:=true
+```
+
+这个脚本会：
+
+- 可选启动 `map_server`
+- 启动 `shape_assembly_host.launch`
+- 通过 `rosrun move_base_client start_gather.py` 向 `/gather_signal` 发送 `2`
+- 等待 `fm2_gather` 自动计算并发布聚集中心
+
+如果地图已经由其它终端启动，可以补充：
+
+```bash
+bash src/ros_motion_planning/scripts/shape_assembly_real_robot.sh \
+  launch_map_server:=false \
+  agent_number:=4
 ```
 
 ---
@@ -227,6 +261,14 @@ roslaunch turn_on_wheeltec_robot shape_assembly_host.launch \
 - `shape_black_threshold: 1.0e-6`
 
 ### 4.5 机器人启动命令
+
+工作空间根目录同时提供了机器人快捷脚本 [start_robot.sh](/home/yxw/motion_planning_ws/start_robot.sh)。默认读取 [config/robot_start.conf](/home/yxw/motion_planning_ws/config/robot_start.conf)。
+
+```bash
+./start_robot.sh
+```
+
+如果你仍然要直接调用 launch，也可以：
 
 ```bash
 roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
@@ -410,6 +452,9 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
 
 - [host_robot_code_split.md](/home/yxw/motion_planning_ws/host_robot_code_split.md)
 - [shape_assembly_real_robot_protocol.md](/home/yxw/motion_planning_ws/shape_assembly_real_robot_protocol.md)
+- [experiment_steps.md](/home/yxw/motion_planning_ws/experiment_steps.md)
+- [config/host_start.conf](/home/yxw/motion_planning_ws/config/host_start.conf)
+- [config/robot_start.conf](/home/yxw/motion_planning_ws/config/robot_start.conf)
 
 
 ---
@@ -465,6 +510,26 @@ roslaunch turn_on_wheeltec_robot shape_assembly_host.launch \
   auto_shape_heading:=true \
   replan_mode:=event
 ```
+
+更接近 `shape_assembly_5x10_d2.sh` 的主机一键入口：
+
+```bash
+export ROS_MASTER_URI=http://<HOST_IP>:11311
+export ROS_IP=<HOST_IP>
+source /opt/ros/noetic/setup.bash
+cd /home/yxw/motion_planning_ws
+source devel/setup.bash
+
+bash src/ros_motion_planning/scripts/shape_assembly_real_robot.sh \
+  launch_map_server:=false \
+  agent_number:=4 \
+  shape_type:=rectangle \
+  shape_source:=mat \
+  shape_scale:=1.0 \
+  auto_shape_heading:=true
+```
+
+这个脚本会在主机侧自动调用 `start_gather.py`，让 `fm2_gather` 接收启动信号后自行计算聚集中心。
 
 ### 11.4 机器人终端：分别启动 `robot1` 到 `robot4`
 
@@ -556,7 +621,7 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
   use_center_as_goal:=false
 ```
 
-### 11.5 主机终端 4：触发一次聚集中心计算
+### 11.5 主机终端 4：手动触发一次聚集中心计算（仅在未使用一键脚本时）
 
 ```bash
 export ROS_MASTER_URI=http://<HOST_IP>:11311
@@ -599,8 +664,8 @@ rostopic echo /robot1/shape_assembly/status
 
 ### 11.7 预期运行流程
 
-- 主机发布 `/gather_signal`，请求开始聚集中心计算
-- `fm2_gather` 根据当前机器人位姿计算聚集中心
+- 主机脚本或人工发布 `/gather_signal`，请求开始聚集中心计算
+- `fm2_gather` 结合当前地图和机器人位姿自动计算聚集中心
 - 主机自动选择 `shape_heading`
 - 主机发布 `/shape_assembly/task`
 - 每台机器人本机 `move_base` 导航到自己的 `staging goal`
