@@ -8,7 +8,7 @@
     <arg name="global_planner" default="fm2"/>
     <arg name="local_planner" default="my"/>
     <arg name="robot" default="mini_mec"/>
-    <arg name="map_file" default="$(find turn_on_wheeltec_robot)/map/exp_d2.yaml"/>
+    <arg name="map_file" default="$(find turn_on_wheeltec_robot)/map/5x10_2026.yaml"/>
     <arg name="enable_shape_assembly" default="false" />
     <arg name="launch_shape_assembly_host" default="false" />
     <arg name="shape_source" default="mat" />
