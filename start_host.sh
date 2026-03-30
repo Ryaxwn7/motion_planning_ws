@@ -17,6 +17,7 @@ _auto_start_gather=true
 _roscore_wait=8.0
 _ros_master_uri="${ROS_MASTER_URI:-http://192.168.1.104:11311}"
 _ros_ip="${ROS_IP:-}"
+_map_file=""
 host_args=(
   "agent_number:=2"
   "shape_type:=rectangle"
@@ -36,6 +37,7 @@ Script args:
   config:=/abs/or/relative/path.conf
   start_roscore:=true|false
   launch_map_server:=true|false
+  map_file:=/abs/or/relative/path.yaml
   auto_start_gather:=true|false
   roscore_wait:=8.0
   ros_master_uri:=http://<HOST_IP>:11311
@@ -61,6 +63,47 @@ merge_arg() {
     fi
   done
   host_args+=("$candidate")
+}
+
+count_robot_ids_from_arg() {
+  local robot_ids_value="$1"
+  robot_ids_value="${robot_ids_value#[}"
+  robot_ids_value="${robot_ids_value%]}"
+  robot_ids_value="${robot_ids_value//[[:space:]]/}"
+  if [[ -z "${robot_ids_value}" ]]; then
+    echo 0
+    return
+  fi
+
+  local count=0
+  local item
+  IFS=',' read -r -a _robot_ids <<< "${robot_ids_value}"
+  for item in "${_robot_ids[@]}"; do
+    if [[ -n "${item}" ]]; then
+      ((count+=1))
+    fi
+  done
+  echo "${count}"
+}
+
+synchronize_agent_number_with_robot_ids() {
+  local arg
+  local robot_ids_value=""
+  for arg in "${host_args[@]}"; do
+    if [[ "${arg}" == robot_ids:=* ]]; then
+      robot_ids_value="${arg#*=}"
+    fi
+  done
+
+  if [[ -z "${robot_ids_value}" || "${robot_ids_value}" == "USE_YAML_SENTINEL" ]]; then
+    return
+  fi
+
+  local robot_count
+  robot_count="$(count_robot_ids_from_arg "${robot_ids_value}")"
+  if [[ "${robot_count}" =~ ^[0-9]+$ ]] && (( robot_count > 0 )); then
+    merge_arg "agent_number:=${robot_count}"
+  fi
 }
 
 for arg in "$@"; do
@@ -103,6 +146,9 @@ fi
 if [[ ${ROS_IP_VALUE+x} ]]; then
   _ros_ip="$ROS_IP_VALUE"
 fi
+if [[ ${MAP_FILE_VALUE+x} ]]; then
+  _map_file="$MAP_FILE_VALUE"
+fi
 if declare -p HOST_LAUNCH_ARGS >/dev/null 2>&1; then
   host_args=("${HOST_LAUNCH_ARGS[@]}")
 fi
@@ -116,6 +162,9 @@ for arg in "$@"; do
       ;;
     launch_map_server:=*)
       _launch_map_server="${arg#*=}"
+      ;;
+    map_file:=*)
+      _map_file="${arg#*=}"
       ;;
     auto_start_gather:=*)
       _auto_start_gather="${arg#*=}"
@@ -134,6 +183,8 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+synchronize_agent_number_with_robot_ids
 
 export ROS_MASTER_URI="${_ros_master_uri}"
 if [[ -n "${_ros_ip}" ]]; then
@@ -195,6 +246,15 @@ printf '[start_host] Forward args:'
 printf ' %q' "${host_args[@]}"
 printf '\\n'
 
-bash "${ROOT_DIR}/src/ros_motion_planning/scripts/shape_assembly_real_robot.sh"   "launch_map_server:=${_launch_map_server}"   "auto_start_gather:=${_auto_start_gather}"   "${host_args[@]}" &
+shape_assembly_args=(
+  "launch_map_server:=${_launch_map_server}"
+  "auto_start_gather:=${_auto_start_gather}"
+)
+if [[ -n "${_map_file}" ]]; then
+  shape_assembly_args+=("map_file:=${_map_file}")
+fi
+shape_assembly_args+=("${host_args[@]}")
+
+bash "${ROOT_DIR}/src/ros_motion_planning/scripts/shape_assembly_real_robot.sh" "${shape_assembly_args[@]}" &
 HOST_STACK_PID=$!
 wait "${HOST_STACK_PID}"

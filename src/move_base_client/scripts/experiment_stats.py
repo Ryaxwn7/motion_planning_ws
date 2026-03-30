@@ -7,6 +7,59 @@ import rospy
 from std_msgs.msg import UInt8, String
 
 
+def _parse_positive_int_list(values):
+    if values is None:
+        return []
+    if not isinstance(values, (list, tuple)):
+        values = [values]
+
+    result = []
+    for value in values:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            continue
+        if parsed > 0:
+            result.append(parsed)
+    return result
+
+
+def _resolve_robot_config():
+    private_robot_ids = _parse_positive_int_list(rospy.get_param("~robot_ids", []))
+    global_robot_ids = _parse_positive_int_list(
+        rospy.get_param("/robot_ids", rospy.get_param("robot_ids", []))
+    )
+    robot_ids = private_robot_ids or global_robot_ids
+
+    num_robots = int(
+        rospy.get_param(
+            "~num_robots",
+            rospy.get_param("/num_robots", rospy.get_param("num_robots", 0)),
+        )
+    )
+
+    if robot_ids:
+        if num_robots > 0 and num_robots != len(robot_ids):
+            rospy.logwarn(
+                "ExperimentStats: robot_ids=%s mismatches num_robots=%d, use robot_ids size",
+                str(robot_ids),
+                num_robots,
+            )
+        num_robots = len(robot_ids)
+    elif num_robots > 0:
+        robot_ids = list(range(1, num_robots + 1))
+        rospy.logwarn(
+            "ExperimentStats: robot_ids missing, fallback to sequential IDs 1..%d",
+            num_robots,
+        )
+
+    if num_robots <= 0 or not robot_ids:
+        rospy.logwarn("ExperimentStats: no valid robot_ids/num_robots configured")
+        return [], 0
+
+    return robot_ids, num_robots
+
+
 class ExperimentStats(object):
     def __init__(self):
         # params
@@ -14,8 +67,7 @@ class ExperimentStats(object):
         self.output_events = rospy.get_param("~output_events", "/home/bsrl-ubuntu/new_ws/src/fm2_gather/data/exp_replan_events.csv")
         self.trial_name = rospy.get_param("~trial_name", "")
 
-        self.robot_ids = rospy.get_param("robot_ids", [1, 2, 3])
-        self.num_robots = rospy.get_param("num_robots", len(self.robot_ids))
+        self.robot_ids, self.num_robots = _resolve_robot_config()
 
         # attempt to read replan params from monitor node if available
         self.replan_mode = rospy.get_param("/global_plan_monitor/replan_mode", "unknown")

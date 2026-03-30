@@ -1,5 +1,10 @@
 <launch>
-    <rosparam file="$(find move_base_client)/config/param.yaml" command="load" />
+    <arg name="config_file" default="" />
+    <arg name="num_robots" default="0" />
+    <arg name="robot_ids" default="USE_YAML_SENTINEL" />
+    <rosparam if="$(eval arg('config_file') != '')" file="$(arg config_file)" command="load" />
+    <param if="$(eval arg('num_robots') != '0')" name="num_robots" value="$(arg num_robots)" />
+    <rosparam if="$(eval arg('robot_ids') != 'USE_YAML_SENTINEL')" param="robot_ids" subst_value="true">$(arg robot_ids)</rosparam>
     <!-- 启动地图融合节点 -->
     <node name="vr_node" pkg="move_base_client" type="vr_path_transformer" output="screen" />
 

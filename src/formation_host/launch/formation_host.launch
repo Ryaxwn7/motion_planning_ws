@@ -41,6 +41,7 @@
 
   <include file="$(find fm2_gather)/launch/laun.launch">
     <arg name="num_robots" value="$(arg agent_number)" />
+    <arg name="robot_ids" value="$(arg robot_ids)" />
     <arg name="publish_center_goal_only" value="$(arg publish_center_goal_only)" />
     <arg name="publish_goal" value="$(arg publish_goal)" />
     <arg name="gather_center_topic" value="$(arg gather_center_topic)" />

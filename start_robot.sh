@@ -57,6 +57,47 @@ merge_arg() {
   robot_args+=("$candidate")
 }
 
+count_robot_ids_from_arg() {
+  local robot_ids_value="$1"
+  robot_ids_value="${robot_ids_value#[}"
+  robot_ids_value="${robot_ids_value%]}"
+  robot_ids_value="${robot_ids_value//[[:space:]]/}"
+  if [[ -z "${robot_ids_value}" ]]; then
+    echo 0
+    return
+  fi
+
+  local count=0
+  local item
+  IFS=',' read -r -a _robot_ids <<< "${robot_ids_value}"
+  for item in "${_robot_ids[@]}"; do
+    if [[ -n "${item}" ]]; then
+      ((count+=1))
+    fi
+  done
+  echo "${count}"
+}
+
+synchronize_agent_number_with_robot_ids() {
+  local arg
+  local robot_ids_value=""
+  for arg in "${robot_args[@]}"; do
+    if [[ "${arg}" == robot_ids:=* ]]; then
+      robot_ids_value="${arg#*=}"
+    fi
+  done
+
+  if [[ -z "${robot_ids_value}" || "${robot_ids_value}" == "USE_YAML_SENTINEL" ]]; then
+    return
+  fi
+
+  local robot_count
+  robot_count="$(count_robot_ids_from_arg "${robot_ids_value}")"
+  if [[ "${robot_count}" =~ ^[0-9]+$ ]] && (( robot_count > 0 )); then
+    merge_arg "agent_number:=${robot_count}"
+  fi
+}
+
 for arg in "$@"; do
   case "$arg" in
     --help|-h)
@@ -104,6 +145,8 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+synchronize_agent_number_with_robot_ids
 
 export ROS_MASTER_URI="${_ros_master_uri}"
 if [[ -n "${_ros_ip}" ]]; then
