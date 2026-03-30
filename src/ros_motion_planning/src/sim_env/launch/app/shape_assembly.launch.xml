@@ -15,6 +15,7 @@
 
   <arg name="shape_source" default="USE_YAML_SENTINEL" />
   <arg name="shape_type" default="USE_YAML_SENTINEL" />
+  <arg name="shape_scale" default="USE_YAML_SENTINEL" />
   <arg name="shape_resolution" default="USE_YAML_SENTINEL" />
   <arg name="ring_inner_ratio" default="USE_YAML_SENTINEL" />
   <arg name="ring_outer_ratio" default="USE_YAML_SENTINEL" />
@@ -156,6 +157,7 @@
 
     <param if="$(eval arg('shape_source') != 'USE_YAML_SENTINEL')" name="shape_source" value="$(arg shape_source)" />
     <param if="$(eval arg('shape_type') != 'USE_YAML_SENTINEL')" name="shape_type" value="$(arg shape_type)" />
+    <param if="$(eval arg('shape_scale') != 'USE_YAML_SENTINEL')" name="shape_scale" value="$(arg shape_scale)" />
     <param if="$(eval arg('shape_resolution') != 'USE_YAML_SENTINEL')" name="shape_resolution" value="$(arg shape_resolution)" />
     <param if="$(eval arg('ring_inner_ratio') != 'USE_YAML_SENTINEL')" name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
     <param if="$(eval arg('ring_outer_ratio') != 'USE_YAML_SENTINEL')" name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />

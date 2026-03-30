@@ -260,7 +260,7 @@ class ShapeTaskBridge:
         self.goal_topic = rospy.get_param("~goal_topic", "shape_assembly/staging_goal")
         self.move_base_action = rospy.get_param("~move_base_action", f"/{self.robot_namespace}/move_base")
         self.goal_frame_id = rospy.get_param("~goal_frame_id", "map")
-        self.use_center_as_goal = bool(rospy.get_param("~use_center_as_goal", False))
+        self.use_center_as_goal = bool(rospy.get_param("~use_center_as_goal", True))
         self.angle_offset = math.radians(float(rospy.get_param("~staging_angle_offset_deg", 0.0)))
         self.goal_min_delta = max(0.0, float(rospy.get_param("~goal_min_delta", 0.05)))
         self.wait_for_server_timeout = max(0.0, float(rospy.get_param("~wait_for_server_timeout", 3.0)))

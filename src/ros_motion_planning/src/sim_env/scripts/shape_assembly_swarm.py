@@ -372,7 +372,7 @@ def generate_ring_shape(resolution: int, inner_ratio: float, outer_ratio: float,
     return value
 
 
-def init_form_shape(sim_param: SimParam, image_mtr: List[List[float]]) -> Tuple[ShapeMatrix, ShapeInfo]:
+def init_form_shape(sim_param: SimParam, image_mtr: List[List[float]], shape_scale: float = 1.0) -> Tuple[ShapeMatrix, ShapeInfo]:
     info = ShapeInfo()
     info.rn = len(image_mtr)
     info.cn = len(image_mtr[0]) if info.rn > 0 else 0
@@ -399,7 +399,8 @@ def init_form_shape(sim_param: SimParam, image_mtr: List[List[float]]) -> Tuple[
     temp = [2.0 if v == 0 else v for v in temp_row]
     info.gray_scale = 1.0 / min(temp) if temp else 1.0
 
-    info.grid = math.sqrt((math.pi / 4.0) * (sim_param.swarm_size / info.black_num)) * sim_param.r_avoid
+    scale = max(1.0e-3, float(shape_scale))
+    info.grid = math.sqrt((math.pi / 4.0) * (sim_param.swarm_size / info.black_num)) * sim_param.r_avoid * scale
 
     shape = ShapeMatrix()
     shape.value = image_mtr
@@ -1153,7 +1154,7 @@ def run_offline_self_test(args: argparse.Namespace) -> int:
         shape_mat_path=args.shape_mat_path,
         shape_library_root=args.shape_library_root,
     )
-    shape_mtr, shape_info = init_form_shape(sim_param, image_mtr)
+    shape_mtr, shape_info = init_form_shape(sim_param, image_mtr, float(args.shape_scale))
 
     robot_state = _init_random_robot_state(sim_param, args.ref_x, args.ref_y, args.init_spread)
     refer_state = ReferState(args.ref_x, args.ref_y)
@@ -1250,6 +1251,7 @@ def build_self_test_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--motion-ratio", type=float, default=0.1, help="robot velocity update ratio")
     parser.add_argument("--shape-source", type=str, default="analytic")
     parser.add_argument("--shape-type", type=str, default="ring")
+    parser.add_argument("--shape-scale", type=float, default=1.0)
     parser.add_argument("--shape-resolution", type=int, default=80)
     parser.add_argument("--ring-inner-ratio", type=float, default=0.25)
     parser.add_argument("--ring-outer-ratio", type=float, default=0.4)
@@ -1350,6 +1352,7 @@ class ShapeAssemblySwarm:
 
         self.shape_source = rospy.get_param("~shape_source", "analytic")
         self.shape_type = rospy.get_param("~shape_type", "ring")
+        self.shape_scale = max(1.0e-3, float(rospy.get_param("~shape_scale", 1.0)))
         self.shape_resolution = int(rospy.get_param("~shape_resolution", 80))
         self.ring_inner_ratio = float(rospy.get_param("~ring_inner_ratio", 0.35))
         self.ring_outer_ratio = float(rospy.get_param("~ring_outer_ratio", 0.6))
@@ -1699,7 +1702,7 @@ class ShapeAssemblySwarm:
             rospy.logwarn("Failed to load shape matrix: %s. Falling back to analytic ring.", exc)
             image_mtr = generate_ring_shape(self.shape_resolution, self.ring_inner_ratio, self.ring_outer_ratio, self.gray_width)
             self._shape_desc = "fallback:analytic:ring"
-        self.shape_mtr, self.shape_info = init_form_shape(self.sim_param, image_mtr)
+        self.shape_mtr, self.shape_info = init_form_shape(self.sim_param, image_mtr, self.shape_scale)
         self.switch_reference_radius = self._compute_reference_switch_radius()
         self._build_shape_overlap_samples()
         self.marker_needs_clear = True
@@ -1708,9 +1711,13 @@ class ShapeAssemblySwarm:
     def _formation_task_cb(self, msg: "ShapeTask") -> None:
         changed_shape = False
         next_shape_type = str(msg.shape_type).strip()
+        next_shape_scale = max(1.0e-3, float(msg.shape_scale))
         if next_shape_type and next_shape_type != self.shape_type:
             self.shape_type = next_shape_type
             changed_shape = True
+        changed_scale = abs(next_shape_scale - self.shape_scale) > 1.0e-6
+        if changed_scale:
+            self.shape_scale = next_shape_scale
 
         self.active_task_id = int(msg.task_id)
         self.reference_center_received = True
@@ -1722,7 +1729,7 @@ class ShapeAssemblySwarm:
             self.refer_state.pos_y = self.reference_center[1]
             self.refer_state.head = self.reference_heading
 
-        if changed_shape:
+        if changed_shape or changed_scale:
             self.pending_shape_reload = True
             self._reload_shape_model()
 
@@ -1730,11 +1737,12 @@ class ShapeAssemblySwarm:
         self._converged_reported = False
         self.marker_needs_clear = True
         rospy.loginfo(
-            "ShapeAssembly: task=%d center=(%.2f, %.2f) shape=%s heading=%.1fdeg",
+            "ShapeAssembly: task=%d center=(%.2f, %.2f) shape=%s scale=%.2f heading=%.1fdeg",
             self.active_task_id,
             self.reference_center[0],
             self.reference_center[1],
             self.shape_type,
+            self.shape_scale,
             math.degrees(self.reference_heading),
         )
 
@@ -1947,13 +1955,14 @@ class ShapeAssemblySwarm:
         self.marker_needs_clear = True
 
         rospy.loginfo(
-            "ShapeAssembly: initialized with %d robots, leaders=%s init_center_mode=%s strategy=%s target=%s shape=%s center=(%.2f, %.2f) switch_ref_radius=%.2f",
+            "ShapeAssembly: initialized with %d robots, leaders=%s init_center_mode=%s strategy=%s target=%s shape=%s scale=%.2f center=(%.2f, %.2f) switch_ref_radius=%.2f",
             n,
             self.inform_index,
             init_mode,
             self.control_strategy,
             self.shape_target_mode,
             self._shape_desc,
+            self.shape_scale,
             sum(self.shape_state.pos_x) / n,
             sum(self.shape_state.pos_y) / n,
             self.switch_reference_radius,

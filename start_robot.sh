@@ -20,7 +20,7 @@ robot_args=(
   "enable_shape_assembly:=true"
   "shape_source:=mat"
   "shape_type:=rectangle"
-  "use_center_as_goal:=false"
+  "use_center_as_goal:=true"
 )
 
 usage() {

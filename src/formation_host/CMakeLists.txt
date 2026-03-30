@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   rospy
   std_msgs
+  visualization_msgs
 )
 
 catkin_package(
@@ -16,6 +17,7 @@ catkin_package(
     nav_msgs
     rospy
     std_msgs
+    visualization_msgs
 )
 
 catkin_install_python(PROGRAMS

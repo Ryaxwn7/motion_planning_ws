@@ -20,7 +20,7 @@
     <arg name="shape_scale" default="1.0" />
     <arg name="staging_radius" default="0.0" />
     <arg name="auto_shape_heading" default="true" />
-    <arg name="use_center_as_goal" default="false" />
+    <arg name="use_center_as_goal" default="true" />
 
 <!--map_server节点启动一次，之后的机器人不再启动-->
 <node unless="$(arg map_started)" name="map_server_for_test" pkg="map_server" type="map_server" args="$(arg map_file)">
@@ -81,6 +81,7 @@
         <arg name="robot_ids" value="$(arg robot_ids)" />
         <arg name="shape_source" value="$(arg shape_source)" />
         <arg name="shape_type" value="$(arg shape_type)" />
+        <arg name="shape_scale" value="$(arg shape_scale)" />
         <arg name="use_center_as_goal" value="$(arg use_center_as_goal)" />
     </include>
   </group>
