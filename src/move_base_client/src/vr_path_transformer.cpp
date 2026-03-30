@@ -8,6 +8,39 @@
 
 std::vector<nav_msgs::Path> saved_paths;
 
+namespace {
+bool resolveRobotConfig(ros::NodeHandle& nh, int& num_robots, std::vector<int>& robot_ids) {
+    std::string num_param_name;
+    std::string ids_param_name;
+    const bool has_num_param =
+        nh.searchParam("num_robots", num_param_name) && nh.getParam(num_param_name, num_robots);
+    const bool has_ids_param =
+        nh.searchParam("robot_ids", ids_param_name) && nh.getParam(ids_param_name, robot_ids);
+
+    if (has_ids_param && !robot_ids.empty()) {
+        if (has_num_param && num_robots > 0 &&
+            robot_ids.size() != static_cast<std::size_t>(num_robots)) {
+            ROS_WARN("vr_path_transformer: robot_ids=%zu mismatches num_robots=%d, use robot_ids size",
+                     robot_ids.size(), num_robots);
+        }
+        num_robots = static_cast<int>(robot_ids.size());
+    } else if (has_num_param && num_robots > 0) {
+        robot_ids.reserve(num_robots);
+        for (int i = 1; i <= num_robots; ++i) {
+            robot_ids.push_back(i);
+        }
+        ROS_WARN("vr_path_transformer: robot_ids missing, fallback to sequential IDs 1..%d", num_robots);
+    }
+
+    if (num_robots <= 0 || robot_ids.empty()) {
+        ROS_ERROR("vr_path_transformer: missing valid robot_ids/num_robots configuration");
+        return false;
+    }
+
+    return true;
+}
+}
+
 
 class RobotPathPublisher {
 public:
@@ -106,21 +139,10 @@ int main(int argc, char** argv) {
     // Register signal handler for SIGINT (Ctrl+C)
     signal(SIGINT, saveDataAndExit);
 
-    int num_robots = 4; // Default to 4 robots
-
-
-    std::string paramname1, paramname2;
-    std::vector<int> robot_ids={1,2,3,4};
-    if(nh.searchParam("num_robots",paramname1)&& nh.searchParam("robot_ids",paramname2))
-    {
-        nh.getParam(paramname1  , num_robots);
-        nh.getParam(paramname2  , robot_ids);
-    }
-    else
-    {
-        ROS_ERROR("Failed to get /robot_ids or /num_robots parameters");
-        num_robots = 4;
-        robot_ids = {3,4,5,6};
+    int num_robots = 0;
+    std::vector<int> robot_ids;
+    if (!resolveRobotConfig(nh, num_robots, robot_ids)) {
+        return 1;
     }
 
     for (int i = 0; i < num_robots; ++i) {

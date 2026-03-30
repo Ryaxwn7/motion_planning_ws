@@ -293,8 +293,12 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
 
 主机发布：
 
+- `/gather_signal`
+  - 操作员或主机工具触发 `fm2_gather` 开始/重算聚集中心
+- `/gather_started`
+  - `fm2_gather` 发布当前聚集流程状态
 - `/shape_assembly/center_goal_cmd`
-  - 操作员或上层系统发布共享中心点
+  - 操作员或上层系统可选地直接覆盖共享中心点
 - `/gather_center`
   - `fm2_gather` 发布当前聚集中心
 - `/shape_assembly/task`
@@ -341,6 +345,22 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
   agent_id:=K \
   enable_shape_assembly:=true
 ```
+
+### 6.3 触发一次聚集中心计算
+
+默认推荐让 `fm2_gather` 根据当前机器人位置自行计算聚集中心：
+
+```bash
+rosrun move_base_client start_gather.py --wait-started 5.0
+```
+
+如果只想直接使用底层话题，也可以：
+
+```bash
+rostopic pub -1 /gather_signal std_msgs/UInt8 '{data: 2}'
+```
+
+`/shape_assembly/center_goal_cmd` 仍然保留，但它现在属于“手动覆盖中心”的可选入口，而不是默认启动方式。
 
 ---
 

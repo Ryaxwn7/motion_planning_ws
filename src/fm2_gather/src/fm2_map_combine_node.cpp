@@ -154,28 +154,24 @@ bool resolveRobotConfig(ros::NodeHandle& nh, int& resolved_num, std::vector<int>
         const bool has_num_param = nh.getParam("num_robots", resolved_num);
         nh.getParam("robot_ids", resolved_ids);
 
-        if (has_num_param && resolved_num > 0) {
-            if (resolved_ids.size() != static_cast<std::size_t>(resolved_num)) {
-                resolved_ids.clear();
-                resolved_ids.reserve(resolved_num);
-                for (int i = 1; i <= resolved_num; ++i) {
-                    resolved_ids.push_back(i);
-                }
-                ROS_WARN("[MAP COMBINE] robot_ids mismatched configured num_robots=%d, regenerate sequential IDs 1..%d",
-                         resolved_num, resolved_num);
+        if (!resolved_ids.empty()) {
+            if (has_num_param && resolved_num > 0 &&
+                resolved_ids.size() != static_cast<std::size_t>(resolved_num)) {
+                ROS_WARN("[MAP COMBINE] robot_ids=%zu mismatches configured num_robots=%d, keep explicit robot_ids and override num_robots",
+                         resolved_ids.size(), resolved_num);
             }
+            resolved_num = static_cast<int>(resolved_ids.size());
+        } else if (has_num_param && resolved_num > 0) {
+            resolved_ids.reserve(resolved_num);
+            for (int i = 1; i <= resolved_num; ++i) {
+                resolved_ids.push_back(i);
+            }
+            ROS_WARN("[MAP COMBINE] robot_ids missing, fallback to sequential IDs 1..%d", resolved_num);
         }
     }
 
     if (resolved_num <= 0 && !resolved_ids.empty()) {
         resolved_num = static_cast<int>(resolved_ids.size());
-    }
-    if (resolved_ids.empty() && resolved_num > 0) {
-        resolved_ids.reserve(resolved_num);
-        for (int i = 1; i <= resolved_num; ++i) {
-            resolved_ids.push_back(i);
-        }
-        ROS_WARN("[MAP COMBINE] robot_ids missing, fallback to sequential IDs 1..%d", resolved_num);
     }
     if (resolved_num != static_cast<int>(resolved_ids.size())) {
         ROS_WARN("[MAP COMBINE] num_robots=%d mismatches robot_ids size=%zu, use robot_ids size",

@@ -87,6 +87,7 @@ shape_vel_max: 1.0
 # Shape source
 shape_source: mat   # analytic | mat
 shape_type: rectangle # sphere| ring | letter_o | letter_r | letter_b | starfish | snowflake | rectangle | triangle
+shape_scale: 1.0
 shape_resolution: 80
 ring_inner_ratio: 0.25
 ring_outer_ratio: 0.4

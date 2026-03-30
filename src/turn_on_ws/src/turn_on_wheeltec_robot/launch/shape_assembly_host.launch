@@ -1,5 +1,6 @@
 <launch>
   <arg name="agent_number" default="4" />
+  <arg name="robot_ids" default="USE_YAML_SENTINEL" />
   <arg name="shape_type" default="rectangle" />
   <arg name="shape_heading" default="0.0" />
   <arg name="shape_scale" default="1.0" />
@@ -35,6 +36,7 @@
 
   <include file="$(find formation_host)/launch/formation_host.launch">
     <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="robot_ids" value="$(arg robot_ids)" />
     <arg name="shape_type" value="$(arg shape_type)" />
     <arg name="shape_heading" value="$(arg shape_heading)" />
     <arg name="shape_scale" value="$(arg shape_scale)" />

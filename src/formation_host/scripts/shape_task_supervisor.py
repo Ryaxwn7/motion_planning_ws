@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import ast
 import math
 import os
 from dataclasses import dataclass
@@ -6,8 +7,9 @@ from typing import List, Optional, Tuple
 
 import rospy
 from formation_msgs.msg import ShapeTask
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Point, PoseStamped
 from nav_msgs.msg import OccupancyGrid
+from visualization_msgs.msg import Marker, MarkerArray
 
 
 def _angle_diff(a: float, b: float) -> float:
@@ -52,6 +54,38 @@ def _normalize_shape_type(shape_type: str) -> str:
         "sph": "sphere",
     }
     return alias.get(key, key)
+
+
+def _parse_positive_int_list(value) -> List[int]:
+    def _normalize(items) -> List[int]:
+        result: List[int] = []
+        seen = set()
+        for item in items:
+            try:
+                rid = int(item)
+            except (TypeError, ValueError):
+                continue
+            if rid <= 0 or rid in seen:
+                continue
+            seen.add(rid)
+            result.append(rid)
+        return result
+
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return _normalize(value)
+
+    text = str(value).strip()
+    if not text:
+        return []
+    try:
+        parsed = ast.literal_eval(text)
+    except (ValueError, SyntaxError):
+        parsed = [part.strip() for part in text.split(",")]
+    if isinstance(parsed, (list, tuple)):
+        return _normalize(parsed)
+    return _normalize([parsed])
 
 
 def _get_default_shape_dir() -> str:
@@ -177,7 +211,7 @@ class _ShapeMatrix:
     base_y: List[List[float]]
 
 
-def _init_form_shape(agent_count: int, r_avoid: float, image_mtr: List[List[float]]) -> Tuple[_ShapeMatrix, _ShapeInfo]:
+def _init_form_shape(agent_count: int, r_avoid: float, image_mtr: List[List[float]], shape_scale: float = 1.0) -> Tuple[_ShapeMatrix, _ShapeInfo]:
     info = _ShapeInfo()
     info.rn = len(image_mtr)
     info.cn = len(image_mtr[0]) if info.rn > 0 else 0
@@ -199,7 +233,8 @@ def _init_form_shape(agent_count: int, r_avoid: float, image_mtr: List[List[floa
     temp_row = image_mtr[max(0, info.cen_y - 1)] if info.rn > 0 else []
     temp = [2.0 if v == 0 else v for v in temp_row]
     info.gray_scale = 1.0 / min(temp) if temp else 1.0
-    info.grid = math.sqrt((math.pi / 4.0) * (max(1, agent_count) / info.black_num)) * r_avoid
+    scale = max(1.0e-3, float(shape_scale))
+    info.grid = math.sqrt((math.pi / 4.0) * (max(1, agent_count) / info.black_num)) * r_avoid * scale
 
     shape = _ShapeMatrix(
         value=image_mtr,
@@ -221,6 +256,18 @@ class ShapeTaskSupervisor:
         self.gather_center_topic = rospy.get_param("~gather_center_topic", "/gather_center")
         self.frame_id = rospy.get_param("~frame_id", "map")
         self.agent_count = int(rospy.get_param("~agent_count", 0))
+        self.robot_ids = _parse_positive_int_list(
+            rospy.get_param("~robot_ids", rospy.get_param("/robot_ids", []))
+        )
+        if self.robot_ids:
+            if self.agent_count > 0 and self.agent_count != len(self.robot_ids):
+                rospy.logwarn(
+                    "ShapeTaskSupervisor: agent_count=%d mismatches robot_ids=%s, override agent_count with len(robot_ids)=%d",
+                    self.agent_count,
+                    str(self.robot_ids),
+                    len(self.robot_ids),
+                )
+            self.agent_count = len(self.robot_ids)
         self.source = rospy.get_param("~source", "fm2_gather")
         self.center_min_delta = max(0.0, float(rospy.get_param("~center_min_delta", 0.05)))
         self.heading_min_delta = max(0.0, float(rospy.get_param("~heading_min_delta", math.radians(5.0))))
@@ -245,6 +292,8 @@ class ShapeTaskSupervisor:
         self.shape_library_root = os.path.expanduser(str(rospy.get_param("~shape_library_root", "")).strip() or _get_default_shape_dir())
         self.r_avoid = float(rospy.get_param("~r_avoid", 0.35))
         self.shape_black_threshold = float(rospy.get_param("~shape_black_threshold", 1e-6))
+        self.publish_target_markers = bool(rospy.get_param("~publish_target_markers", True))
+        self.target_marker_topic = str(rospy.get_param("~target_marker_topic", "/shape_assembly/target_markers")).strip()
         if str(self.shape_source).strip().lower() == "mat" and not os.path.isdir(self.shape_library_root):
             rospy.logwarn("ShapeTaskSupervisor: local shape_library_root=%s missing. Host must store local shape_images or override ~shape_library_root.", self.shape_library_root)
 
@@ -262,6 +311,9 @@ class ShapeTaskSupervisor:
         self._shape_overlap_samples: List[Tuple[float, float, float]] = []
 
         self.task_pub = rospy.Publisher(self.task_topic, ShapeTask, queue_size=2, latch=True)
+        self.target_marker_pub = None
+        if self.publish_target_markers and self.target_marker_topic:
+            self.target_marker_pub = rospy.Publisher(self.target_marker_topic, MarkerArray, queue_size=1, latch=True)
         self.center_sub = rospy.Subscriber(self.gather_center_topic, PoseStamped, self._center_cb, queue_size=2)
         self.map_sub = None
         if self.auto_shape_heading and self.auto_shape_heading_map_topic:
@@ -269,18 +321,19 @@ class ShapeTaskSupervisor:
         self.config_timer = rospy.Timer(rospy.Duration(1.0 / self.config_poll_hz), self._config_timer_cb)
 
         rospy.loginfo(
-            "ShapeTaskSupervisor: task_topic=%s gather_center_topic=%s auto_heading=%s map_topic=%s agent_count=%d",
+            "ShapeTaskSupervisor: task_topic=%s gather_center_topic=%s auto_heading=%s map_topic=%s agent_count=%d target_markers=%s",
             self.task_topic,
             self.gather_center_topic,
             str(self.auto_shape_heading),
             self.auto_shape_heading_map_topic,
             self.agent_count,
+            self.target_marker_topic if self.target_marker_pub is not None else "disabled",
         )
 
     def _read_shape_config(self) -> Tuple[str, float, float]:
         shape_type = str(rospy.get_param("~shape_type", "rectangle")).strip() or "rectangle"
         shape_heading = float(rospy.get_param("~shape_heading", 0.0))
-        shape_scale = max(0.0, float(rospy.get_param("~shape_scale", 1.0)))
+        shape_scale = max(1.0e-3, float(rospy.get_param("~shape_scale", 1.0)))
         return shape_type, shape_heading, shape_scale
 
     def _resolve_staging_radius(self) -> float:
@@ -300,10 +353,11 @@ class ShapeTaskSupervisor:
     def _map_cb(self, msg: OccupancyGrid) -> None:
         self._map_msg = msg
 
-    def _ensure_shape_model(self, shape_type: str) -> bool:
+    def _ensure_shape_model(self, shape_type: str, shape_scale: float) -> bool:
         cache_key = (
             self.shape_source,
             _normalize_shape_type(shape_type),
+            max(1.0e-3, float(shape_scale)),
             self.shape_resolution,
             self.ring_inner_ratio,
             self.ring_outer_ratio,
@@ -326,7 +380,12 @@ class ShapeTaskSupervisor:
                 shape_mat_path=self.shape_mat_path,
                 shape_library_root=self.shape_library_root,
             )
-            self._shape_mtr, self._shape_info = _init_form_shape(self.agent_count, self.r_avoid, image_mtr)
+            self._shape_mtr, self._shape_info = _init_form_shape(
+                self.agent_count,
+                self.r_avoid,
+                image_mtr,
+                shape_scale,
+            )
             self._shape_cache_key = cache_key
             self._shape_overlap_samples = []
             stride = max(1, self.auto_shape_heading_shape_stride)
@@ -409,6 +468,7 @@ class ShapeTaskSupervisor:
         self,
         center_msg: PoseStamped,
         shape_type: str,
+        shape_scale: float,
         current_heading: float,
     ) -> float:
         if not self.auto_shape_heading:
@@ -426,7 +486,7 @@ class ShapeTaskSupervisor:
                 occ_frame,
             )
             return current_heading
-        if not self._ensure_shape_model(shape_type):
+        if not self._ensure_shape_model(shape_type, shape_scale):
             return current_heading
 
         center_x = float(center_msg.pose.position.x)
@@ -464,12 +524,58 @@ class ShapeTaskSupervisor:
         )
         return best_head
 
+    def _publish_target_markers(self, task: ShapeTask) -> None:
+        if self.target_marker_pub is None:
+            return
+
+        frame_id = task.header.frame_id or self.frame_id
+        marker = Marker()
+        marker.header.frame_id = frame_id
+        marker.header.stamp = task.header.stamp
+        marker.ns = "target_shape"
+        marker.id = 0
+        marker.type = Marker.POINTS
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        marker.color.r = 0.10
+        marker.color.g = 0.90
+        marker.color.b = 1.00
+        marker.color.a = 0.95
+
+        if not self._ensure_shape_model(task.shape_type, float(task.shape_scale)) or self._shape_mtr is None or self._shape_info is None:
+            marker.action = Marker.DELETE
+            self.target_marker_pub.publish(MarkerArray(markers=[marker]))
+            return
+
+        marker_size = max(0.02, min(0.12, 0.6 * self._shape_info.grid))
+        marker.scale.x = marker_size
+        marker.scale.y = marker_size
+
+        center_x = float(task.center.position.x)
+        center_y = float(task.center.position.y)
+        heading = float(task.shape_heading)
+        cos_h = math.cos(heading)
+        sin_h = math.sin(heading)
+        for r in range(self._shape_info.rn):
+            for c in range(self._shape_info.cn):
+                if self._shape_mtr.value[r][c] >= 1.0:
+                    continue
+                base_x = self._shape_mtr.base_x[r][c]
+                base_y = self._shape_mtr.base_y[r][c]
+                px = base_x * cos_h - base_y * sin_h + center_x
+                py = base_x * sin_h + base_y * cos_h + center_y
+                marker.points.append(Point(x=px, y=py, z=0.05))
+
+        if not marker.points:
+            marker.action = Marker.DELETE
+        self.target_marker_pub.publish(MarkerArray(markers=[marker]))
+
     def _publish_task(self, center_msg: PoseStamped, replan: bool) -> None:
         shape_type, manual_heading, shape_scale = self._read_shape_config()
         shape_heading_seed = manual_heading
         if self._last_shape_type == shape_type and self._last_shape_heading is not None:
             shape_heading_seed = self._last_shape_heading
-        shape_heading = self._compute_auto_shape_heading(center_msg, shape_type, shape_heading_seed)
+        shape_heading = self._compute_auto_shape_heading(center_msg, shape_type, shape_scale, shape_heading_seed)
         staging_radius = self._resolve_staging_radius()
         frame_id = center_msg.header.frame_id or self.frame_id
         center_key = (
@@ -504,6 +610,7 @@ class ShapeTaskSupervisor:
         task.replan = replan or (self._last_task is not None)
         task.source = self.source
         self.task_pub.publish(task)
+        self._publish_target_markers(task)
 
         self._last_task = task
         self._last_center = center_key
@@ -512,11 +619,12 @@ class ShapeTaskSupervisor:
         self._last_shape_scale = shape_scale
         self._last_staging_radius = staging_radius
         rospy.loginfo(
-            "ShapeTaskSupervisor: publish task=%d center=(%.2f, %.2f) shape=%s heading=%.1fdeg staging=%.2f replan=%s",
+            "ShapeTaskSupervisor: publish task=%d center=(%.2f, %.2f) shape=%s scale=%.2f heading=%.1fdeg staging=%.2f replan=%s",
             task.task_id,
             center_key[0],
             center_key[1],
             shape_type,
+            shape_scale,
             math.degrees(shape_heading),
             staging_radius,
             str(task.replan),

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import ast
 import math
 import os
 import re
@@ -28,6 +29,38 @@ def _extract_robot_id(namespace: str) -> int:
     if not match:
         return 1
     return max(1, int(match.group(1)))
+
+
+def _parse_positive_int_list(value) -> List[int]:
+    def _normalize(items) -> List[int]:
+        result: List[int] = []
+        seen = set()
+        for item in items:
+            try:
+                rid = int(item)
+            except (TypeError, ValueError):
+                continue
+            if rid <= 0 or rid in seen:
+                continue
+            seen.add(rid)
+            result.append(rid)
+        return result
+
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return _normalize(value)
+
+    text = str(value).strip()
+    if not text:
+        return []
+    try:
+        parsed = ast.literal_eval(text)
+    except (ValueError, SyntaxError):
+        parsed = [part.strip() for part in text.split(",")]
+    if isinstance(parsed, (list, tuple)):
+        return _normalize(parsed)
+    return _normalize([parsed])
 
 
 def _normalize_shape_type(shape_type: str) -> str:
@@ -210,12 +243,24 @@ class ShapeTaskBridge:
     def __init__(self) -> None:
         self.robot_namespace = str(rospy.get_param("~robot_namespace", rospy.get_namespace().strip("/"))).strip("/")
         self.robot_id = int(rospy.get_param("~robot_id", _extract_robot_id(self.robot_namespace)))
+        self.robot_ids = _parse_positive_int_list(
+            rospy.get_param("~robot_ids", rospy.get_param("/robot_ids", []))
+        )
         self.agent_count = int(rospy.get_param("~agent_count", 0))
+        if self.robot_ids and self.agent_count > 0 and self.agent_count != len(self.robot_ids):
+            rospy.logwarn(
+                "ShapeTaskBridge[%s]: agent_count=%d mismatches robot_ids=%s, override agent_count with len(robot_ids)=%d",
+                self.robot_namespace or "(no-ns)",
+                self.agent_count,
+                str(self.robot_ids),
+                len(self.robot_ids),
+            )
+            self.agent_count = len(self.robot_ids)
         self.task_topic = rospy.get_param("~task_topic", "/shape_assembly/task")
         self.goal_topic = rospy.get_param("~goal_topic", "shape_assembly/staging_goal")
         self.move_base_action = rospy.get_param("~move_base_action", f"/{self.robot_namespace}/move_base")
         self.goal_frame_id = rospy.get_param("~goal_frame_id", "map")
-        self.use_center_as_goal = bool(rospy.get_param("~use_center_as_goal", False))
+        self.use_center_as_goal = bool(rospy.get_param("~use_center_as_goal", True))
         self.angle_offset = math.radians(float(rospy.get_param("~staging_angle_offset_deg", 0.0)))
         self.goal_min_delta = max(0.0, float(rospy.get_param("~goal_min_delta", 0.05)))
         self.wait_for_server_timeout = max(0.0, float(rospy.get_param("~wait_for_server_timeout", 3.0)))
@@ -233,11 +278,6 @@ class ShapeTaskBridge:
         self.r_avoid = float(rospy.get_param("~r_avoid", 0.35))
         self.shape_sample_stride = max(1, int(rospy.get_param("~shape_sample_stride", 2)))
         self.debug_log = bool(rospy.get_param("~debug_log", False))
-
-        self.goal_pub = rospy.Publisher(self.goal_topic, PoseStamped, queue_size=2, latch=True)
-        self.task_sub = rospy.Subscriber(self.task_topic, ShapeTask, self._task_cb, queue_size=2)
-        self.client = actionlib.SimpleActionClient(self.move_base_action, MoveBaseAction)
-
         self._server_ready = False
         self._last_goal_xy: Optional[Tuple[float, float]] = None
         self._last_task_id = 0
@@ -245,17 +285,22 @@ class ShapeTaskBridge:
         self._last_goal_sent = False
         self._shape_cache_key: Optional[Tuple[object, ...]] = None
         self._shape_samples: List[Tuple[float, float]] = []
+        self.client = actionlib.SimpleActionClient(self.move_base_action, MoveBaseAction)
+        self.goal_pub = rospy.Publisher(self.goal_topic, PoseStamped, queue_size=2, latch=True)
+        self.task_sub = rospy.Subscriber(self.task_topic, ShapeTask, self._task_cb, queue_size=2)
+        
         self.retry_timer = rospy.Timer(rospy.Duration(1.0), self._retry_timer_cb)
 
         if str(self.shape_source).strip().lower() == "mat" and not os.path.isdir(self.shape_library_root):
             rospy.logwarn("ShapeTaskBridge[%s]: local shape_library_root=%s missing. Each robot must store local shape_images or override ~shape_library_root.", self.robot_namespace or "(no-ns)", self.shape_library_root)
 
         rospy.loginfo(
-            "ShapeTaskBridge[%s]: task_topic=%s move_base_action=%s robot_id=%d use_center_as_goal=%s",
+            "ShapeTaskBridge[%s]: task_topic=%s move_base_action=%s robot_id=%d robot_ids=%s use_center_as_goal=%s",
             self.robot_namespace or "(no-ns)",
             self.task_topic,
             self.move_base_action,
             self.robot_id,
+            str(self.robot_ids) if self.robot_ids else "auto",
             str(self.use_center_as_goal),
         )
 
@@ -345,10 +390,22 @@ class ShapeTaskBridge:
             goal.target_pose.pose.orientation = _yaw_to_quat(float(task.shape_heading))
             return goal
 
-        slot_count = int(task.agent_count) if int(task.agent_count) > 0 else max(1, self.agent_count)
-        if slot_count <= 0:
-            slot_count = max(1, self.robot_id)
-        slot_index = (self.robot_id - 1) % slot_count
+        if self.robot_ids and self.robot_id in self.robot_ids:
+            slot_count = len(self.robot_ids)
+            slot_index = self.robot_ids.index(self.robot_id)
+        else:
+            if self.robot_ids and self.robot_id not in self.robot_ids:
+                rospy.logwarn_throttle(
+                    5.0,
+                    "ShapeTaskBridge[%s]: robot_id=%d not found in robot_ids=%s, fallback to legacy modulo slot mapping.",
+                    self.robot_namespace or "(no-ns)",
+                    self.robot_id,
+                    str(self.robot_ids),
+                )
+            slot_count = int(task.agent_count) if int(task.agent_count) > 0 else max(1, self.agent_count)
+            if slot_count <= 0:
+                slot_count = max(1, self.robot_id)
+            slot_index = (self.robot_id - 1) % slot_count
         angle = float(task.shape_heading) + self.angle_offset + (2.0 * math.pi * float(slot_index) / float(slot_count))
         extent = self._directional_shape_extent(task.shape_type, float(task.shape_heading), float(task.shape_scale), angle)
         radius = max(

@@ -6,6 +6,7 @@
   <arg name="auto_detect" default="USE_YAML_SENTINEL" />
   <arg name="namespace_prefix" default="USE_YAML_SENTINEL" />
   <arg name="agent_number" default="USE_YAML_SENTINEL" />
+  <arg name="robot_ids" default="USE_YAML_SENTINEL" />
   <arg name="distributed_mode" default="USE_YAML_SENTINEL" />
   <arg name="distributed_agent_namespace" default="USE_YAML_SENTINEL" />
   <arg name="distributed_marker_owner" default="USE_YAML_SENTINEL" />
@@ -14,6 +15,7 @@
 
   <arg name="shape_source" default="USE_YAML_SENTINEL" />
   <arg name="shape_type" default="USE_YAML_SENTINEL" />
+  <arg name="shape_scale" default="USE_YAML_SENTINEL" />
   <arg name="shape_resolution" default="USE_YAML_SENTINEL" />
   <arg name="ring_inner_ratio" default="USE_YAML_SENTINEL" />
   <arg name="ring_outer_ratio" default="USE_YAML_SENTINEL" />
@@ -94,6 +96,7 @@
       auto_detect: true
       namespace_prefix: robot
       agent_number: 0
+      robot_ids: []
       distributed_mode: false
       distributed_agent_namespace: ""
       distributed_marker_owner: ""
@@ -145,6 +148,7 @@
     <param if="$(eval arg('auto_detect') != 'USE_YAML_SENTINEL')" name="auto_detect" value="$(arg auto_detect)" />
     <param if="$(eval arg('namespace_prefix') != 'USE_YAML_SENTINEL')" name="namespace_prefix" value="$(arg namespace_prefix)" />
     <param if="$(eval arg('agent_number') != 'USE_YAML_SENTINEL')" name="agent_number" value="$(arg agent_number)" />
+    <rosparam if="$(eval arg('robot_ids') != 'USE_YAML_SENTINEL')" param="robot_ids" subst_value="true">$(arg robot_ids)</rosparam>
     <param if="$(eval arg('distributed_mode') != 'USE_YAML_SENTINEL')" name="distributed_mode" value="$(arg distributed_mode)" />
     <param if="$(eval arg('distributed_agent_namespace') != 'USE_YAML_SENTINEL')" name="distributed_agent_namespace" value="$(arg distributed_agent_namespace)" />
     <param if="$(eval arg('distributed_marker_owner') != 'USE_YAML_SENTINEL')" name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
@@ -153,6 +157,7 @@
 
     <param if="$(eval arg('shape_source') != 'USE_YAML_SENTINEL')" name="shape_source" value="$(arg shape_source)" />
     <param if="$(eval arg('shape_type') != 'USE_YAML_SENTINEL')" name="shape_type" value="$(arg shape_type)" />
+    <param if="$(eval arg('shape_scale') != 'USE_YAML_SENTINEL')" name="shape_scale" value="$(arg shape_scale)" />
     <param if="$(eval arg('shape_resolution') != 'USE_YAML_SENTINEL')" name="shape_resolution" value="$(arg shape_resolution)" />
     <param if="$(eval arg('ring_inner_ratio') != 'USE_YAML_SENTINEL')" name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
     <param if="$(eval arg('ring_outer_ratio') != 'USE_YAML_SENTINEL')" name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />

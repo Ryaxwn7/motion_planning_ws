@@ -2,10 +2,12 @@
   <arg name="robot_namespace" />
   <arg name="agent_id" default="1" />
   <arg name="agent_number" default="4" />
+  <arg name="robot_ids" default="USE_YAML_SENTINEL" />
   <arg name="namespace_prefix" default="robot" />
   <arg name="distributed_marker_owner" default="robot1" />
   <arg name="shape_source" default="mat" />
   <arg name="shape_type" default="rectangle" />
+  <arg name="shape_scale" default="1.0" />
   <arg name="publish_markers" default="false" />
   <arg name="debug_log" default="false" />
   <arg name="shape_library_root" default="$(find sim_env)/shape_images" />
@@ -13,7 +15,7 @@
   <arg name="ring_inner_ratio" default="0.25" />
   <arg name="ring_outer_ratio" default="0.4" />
   <arg name="gray_width" default="4" />
-  <arg name="use_center_as_goal" default="false" />
+  <arg name="use_center_as_goal" default="true" />
   <arg name="task_topic" default="/shape_assembly/task" />
   <arg name="robot_status_topic" default="shape_assembly/status" />
 
@@ -22,12 +24,14 @@
     <arg name="auto_detect" value="false" />
     <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
     <arg name="agent_number" value="$(arg agent_number)" />
+    <arg name="robot_ids" value="$(arg robot_ids)" />
     <arg name="distributed_mode" value="true" />
     <arg name="distributed_agent_namespace" value="$(arg robot_namespace)" />
     <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
     <arg name="robot_odom_topic_suffix" value="/odom_combined" />
     <arg name="shape_source" value="$(arg shape_source)" />
     <arg name="shape_type" value="$(arg shape_type)" />
+    <arg name="shape_scale" value="$(arg shape_scale)" />
     <arg name="shape_library_root" value="$(arg shape_library_root)" />
     <arg name="reference_center_topic" value="/gather_center" />
     <arg name="reference_center_wait" value="true" />
@@ -60,5 +64,6 @@
     <param name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
     <param name="gray_width" value="$(arg gray_width)" />
     <param name="debug_log" value="$(arg debug_log)" />
+    <rosparam if="$(eval arg('robot_ids') != 'USE_YAML_SENTINEL')" param="robot_ids" subst_value="true">$(arg robot_ids)</rosparam>
   </node>
 </launch>

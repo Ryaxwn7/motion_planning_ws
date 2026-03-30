@@ -1,6 +1,7 @@
 <launch>
     <rosparam file="$(find fm2_gather)/config/gather_param.yaml" command="load" />
     <arg name="num_robots" default="0" />
+    <arg name="robot_ids" default="USE_YAML_SENTINEL" />
     <arg name="publish_center_goal_only" default="false" />
     <arg name="publish_goal" default="true" />
     <arg name="gather_center_topic" default="/gather_center" />
@@ -32,6 +33,7 @@
     <node if="$(arg enable_map_combine)" name="fm2_map_combine_node" pkg="fm2_gather" type="fm2_map_combine_node" output="screen" />
     <!-- 设置参数 -->
     <param name="num_robots" value="$(arg num_robots)" />
+    <rosparam if="$(eval arg('robot_ids') != 'USE_YAML_SENTINEL')" param="robot_ids" subst_value="true">$(arg robot_ids)</rosparam>
     <param name="publish_center_goal_only" value="$(arg publish_center_goal_only)" />
     <param name="gather_center_topic" value="$(arg gather_center_topic)" />
     <param name="external_center_goal_topic" value="$(arg external_center_goal_topic)" />

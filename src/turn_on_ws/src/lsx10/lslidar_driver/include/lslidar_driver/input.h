@@ -32,7 +32,13 @@
 #include <pcap.h>
 #include <netinet/in.h>
 #include <ros/ros.h>
+#if __has_include(<lslidar_msgs/LslidarPacket.h>)
 #include <lslidar_msgs/LslidarPacket.h>
+#elif __has_include(<lslidar_msgs/msg/LslidarPacket.h>)
+#include <lslidar_msgs/msg/LslidarPacket.h>
+#else
+#error "Unable to find LslidarPacket header in lslidar_msgs"
+#endif
 #include <string>
 #include <sstream>
 #include <sys/socket.h>
