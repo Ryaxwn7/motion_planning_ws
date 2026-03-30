@@ -278,11 +278,6 @@ class ShapeTaskBridge:
         self.r_avoid = float(rospy.get_param("~r_avoid", 0.35))
         self.shape_sample_stride = max(1, int(rospy.get_param("~shape_sample_stride", 2)))
         self.debug_log = bool(rospy.get_param("~debug_log", False))
-
-        self.goal_pub = rospy.Publisher(self.goal_topic, PoseStamped, queue_size=2, latch=True)
-        self.task_sub = rospy.Subscriber(self.task_topic, ShapeTask, self._task_cb, queue_size=2)
-        self.client = actionlib.SimpleActionClient(self.move_base_action, MoveBaseAction)
-
         self._server_ready = False
         self._last_goal_xy: Optional[Tuple[float, float]] = None
         self._last_task_id = 0
@@ -290,6 +285,10 @@ class ShapeTaskBridge:
         self._last_goal_sent = False
         self._shape_cache_key: Optional[Tuple[object, ...]] = None
         self._shape_samples: List[Tuple[float, float]] = []
+        self.client = actionlib.SimpleActionClient(self.move_base_action, MoveBaseAction)
+        self.goal_pub = rospy.Publisher(self.goal_topic, PoseStamped, queue_size=2, latch=True)
+        self.task_sub = rospy.Subscriber(self.task_topic, ShapeTask, self._task_cb, queue_size=2)
+        
         self.retry_timer = rospy.Timer(rospy.Duration(1.0), self._retry_timer_cb)
 
         if str(self.shape_source).strip().lower() == "mat" and not os.path.isdir(self.shape_library_root):
