@@ -13,7 +13,7 @@ import rospy
 from actionlib_msgs.msg import GoalID
 from geometry_msgs.msg import Point, PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid, Odometry
-from std_msgs.msg import ColorRGBA
+from std_msgs.msg import Bool, ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 
 try:
@@ -1380,6 +1380,10 @@ class ShapeAssemblySwarm:
         if self.shape_target_mode not in (ShapeTargetMode.NEGOTIATED, ShapeTargetMode.REFERENCE):
             rospy.logwarn("Unknown shape_target_mode=%s, fallback to %s", self.shape_target_mode, ShapeTargetMode.NEGOTIATED)
             self.shape_target_mode = ShapeTargetMode.NEGOTIATED
+        self.force_move_base_mode = bool(rospy.get_param("~force_move_base_mode", False))
+        self.force_move_base_mode_topic = str(
+            rospy.get_param("~force_move_base_mode_topic", "shape_assembly/force_move_base_mode")
+        ).strip()
         self.switch_gray_threshold = float(rospy.get_param("~switch_gray_threshold", 0.999))
         self.cancel_move_base_on_switch = bool(rospy.get_param("~cancel_move_base_on_switch", True))
         self.cancel_grace_period = max(0.0, float(rospy.get_param("~cancel_grace_period", 0.0)))
@@ -1505,6 +1509,7 @@ class ShapeAssemblySwarm:
         self.reference_center_received = False
         self.marker_pub: Optional[rospy.Publisher] = None
         self.robot_status_pub: Optional[rospy.Publisher] = None
+        self.force_move_base_mode_pub: Optional[rospy.Publisher] = None
         self.auto_shape_heading_map_sub: Optional[rospy.Subscriber] = None
         self.auto_shape_heading_map_msg: Optional[OccupancyGrid] = None
         self._shape_overlap_samples: List[Tuple[float, float, float]] = []
@@ -1542,6 +1547,9 @@ class ShapeAssemblySwarm:
             self.marker_pub = rospy.Publisher(self.marker_topic, MarkerArray, queue_size=1)
         if RobotFormationStatus is not None and self.robot_status_topic:
             self.robot_status_pub = rospy.Publisher(self.robot_status_topic, RobotFormationStatus, queue_size=5)
+        if self.force_move_base_mode_topic:
+            self.force_move_base_mode_pub = rospy.Publisher(self.force_move_base_mode_topic, Bool, queue_size=1, latch=True)
+            self._publish_force_move_base_mode()
 
         if self.reference_center_topic:
             self.reference_center_sub = rospy.Subscriber(
@@ -1593,6 +1601,11 @@ class ShapeAssemblySwarm:
         except Exception as exc:
             self._dyn_server = None
             rospy.logwarn("ShapeAssembly: failed to start dynamic_reconfigure (%s).", str(exc))
+
+    def _publish_force_move_base_mode(self) -> None:
+        if self.force_move_base_mode_pub is None:
+            return
+        self.force_move_base_mode_pub.publish(Bool(data=bool(self.force_move_base_mode)))
 
     def _ensure_auto_shape_heading_subscription(self) -> None:
         want_sub = self.auto_shape_heading and bool(self.auto_shape_heading_map_topic)
@@ -1657,6 +1670,7 @@ class ShapeAssemblySwarm:
         prev_use_local_costmap_avoid = bool(self.use_local_costmap_avoid)
         prev_auto_shape_heading = bool(self.auto_shape_heading)
         prev_auto_shape_heading_shape_stride = int(self.auto_shape_heading_shape_stride)
+        prev_force_move_base_mode = bool(self.force_move_base_mode)
 
         self.enabled = bool(config.enabled)
 
@@ -1690,6 +1704,7 @@ class ShapeAssemblySwarm:
         self.sim_param.cmd_scale = max(0.0, float(config.cmd_scale))
 
         self.velocity_scale = max(0.0, float(config.velocity_scale))
+        self.force_move_base_mode = bool(config.force_move_base_mode)
         self.switch_gray_threshold = max(0.0, min(1.0, float(config.switch_gray_threshold)))
         self.switch_use_reference_shape = bool(config.switch_use_reference_shape)
         self.switch_reference_radius_enable = bool(config.switch_reference_radius_enable)
@@ -1762,10 +1777,15 @@ class ShapeAssemblySwarm:
             self._ensure_auto_shape_heading_subscription()
             if self.auto_shape_heading:
                 self._last_auto_heading_time = 0.0
+        if self.force_move_base_mode != prev_force_move_base_mode:
+            self.shape_ctrl_active = [False] * self.sim_param.swarm_size
+            self.shape_ctrl_hold_until = [0.0] * self.sim_param.swarm_size
+            self._publish_force_move_base_mode()
+            rospy.loginfo("ShapeAssembly: force_move_base_mode=%s", str(self.force_move_base_mode))
 
         if self._dyn_ready:
             rospy.loginfo(
-                "ShapeAssembly[dyn]: enabled=%s vel_max=%.2f shape_vel_max=%.2f r_avoid=%.2f kappa_avoid=%.2f hard_avoid=%.2f switch_ref=%.2f",
+                "ShapeAssembly[dyn]: enabled=%s vel_max=%.2f shape_vel_max=%.2f r_avoid=%.2f kappa_avoid=%.2f hard_avoid=%.2f switch_ref=%.2f force_move_base=%s",
                 str(self.enabled),
                 self.sim_param.vel_max,
                 self.sim_param.shape_vel_max,
@@ -1773,6 +1793,7 @@ class ShapeAssemblySwarm:
                 self.sim_param.kappa_avoid,
                 self.sim_param.kappa_hard_avoid,
                 self.switch_reference_radius,
+                str(self.force_move_base_mode),
             )
         else:
             self._dyn_ready = True
@@ -2524,6 +2545,12 @@ class ShapeAssemblySwarm:
             self.shape_ctrl_active = [True] * n
             self.shape_ctrl_hold_until = [0.0] * n
             self.switch_gray_values = [0.0] * n
+            return self.shape_ctrl_active
+
+        if self.force_move_base_mode:
+            self.shape_ctrl_active = [False] * n
+            self.shape_ctrl_hold_until = [0.0] * n
+            self.switch_gray_values = self._compute_switch_gray_values(robot_state)
             return self.shape_ctrl_active
 
         if len(self.shape_ctrl_active) != n:

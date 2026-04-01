@@ -108,6 +108,8 @@ init_center_use_reference_only: false
 random_seed: 1
 control_strategy: move_base_then_shape  # shape_only | move_base_then_shape
 shape_target_mode: reference            # negotiated | reference
+force_move_base_mode: false             # override switch logic and hand control back to move_base
+force_move_base_mode_topic: shape_assembly/force_move_base_mode
 switch_gray_threshold: 0.999         # gray < threshold -> switch to shape control
 cancel_move_base_on_switch: true
 cancel_grace_period: 0.35
