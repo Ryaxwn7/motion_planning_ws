@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   move_base_msgs
   rospy
+  std_msgs
   tf
 )
 
@@ -17,6 +18,7 @@ catkin_package(
     geometry_msgs
     move_base_msgs
     rospy
+    std_msgs
     tf
 )
 

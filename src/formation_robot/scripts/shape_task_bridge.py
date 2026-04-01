@@ -11,6 +11,7 @@ import rospy
 from formation_msgs.msg import ShapeTask
 from geometry_msgs.msg import PoseStamped, Quaternion
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from std_msgs.msg import Bool
 from tf.transformations import quaternion_from_euler
 
 
@@ -260,6 +261,9 @@ class ShapeTaskBridge:
         self.goal_topic = rospy.get_param("~goal_topic", "shape_assembly/staging_goal")
         self.move_base_action = rospy.get_param("~move_base_action", f"/{self.robot_namespace}/move_base")
         self.goal_frame_id = rospy.get_param("~goal_frame_id", "map")
+        self.force_move_base_mode_topic = str(
+            rospy.get_param("~force_move_base_mode_topic", "shape_assembly/force_move_base_mode")
+        ).strip()
         self.use_center_as_goal = bool(rospy.get_param("~use_center_as_goal", True))
         self.angle_offset = math.radians(float(rospy.get_param("~staging_angle_offset_deg", 0.0)))
         self.goal_min_delta = max(0.0, float(rospy.get_param("~goal_min_delta", 0.05)))
@@ -285,9 +289,18 @@ class ShapeTaskBridge:
         self._last_goal_sent = False
         self._shape_cache_key: Optional[Tuple[object, ...]] = None
         self._shape_samples: List[Tuple[float, float]] = []
+        self._force_move_base_mode = False
         self.client = actionlib.SimpleActionClient(self.move_base_action, MoveBaseAction)
         self.goal_pub = rospy.Publisher(self.goal_topic, PoseStamped, queue_size=2, latch=True)
         self.task_sub = rospy.Subscriber(self.task_topic, ShapeTask, self._task_cb, queue_size=2)
+        self.force_move_base_sub = None
+        if self.force_move_base_mode_topic:
+            self.force_move_base_sub = rospy.Subscriber(
+                self.force_move_base_mode_topic,
+                Bool,
+                self._force_move_base_mode_cb,
+                queue_size=2,
+            )
         
         self.retry_timer = rospy.Timer(rospy.Duration(1.0), self._retry_timer_cb)
 
@@ -460,6 +473,34 @@ class ShapeTaskBridge:
                 goal_xy[1],
                 math.degrees(task.shape_heading),
             )
+
+    def _resend_last_goal(self, reason: str) -> None:
+        if self._last_goal is None:
+            rospy.logwarn(
+                "ShapeTaskBridge[%s]: %s requested but no cached move_base goal is available yet.",
+                self.robot_namespace or "(no-ns)",
+                reason,
+            )
+            return
+        self._last_goal_sent = False
+        if not self._ensure_server():
+            return
+        self.client.send_goal(self._last_goal)
+        self._last_goal_sent = True
+        rospy.loginfo(
+            "ShapeTaskBridge[%s]: resent cached move_base goal for task=%d (%s).",
+            self.robot_namespace or "(no-ns)",
+            self._last_task_id,
+            reason,
+        )
+
+    def _force_move_base_mode_cb(self, msg: Bool) -> None:
+        next_state = bool(msg.data)
+        if next_state == self._force_move_base_mode:
+            return
+        self._force_move_base_mode = next_state
+        if next_state:
+            self._resend_last_goal("force_move_base_mode")
 
     def _retry_timer_cb(self, _event) -> None:
         if self._last_goal is None or self._last_goal_sent:

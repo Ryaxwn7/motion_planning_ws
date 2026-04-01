@@ -13,7 +13,7 @@ import rospy
 from actionlib_msgs.msg import GoalID
 from geometry_msgs.msg import Point, PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid, Odometry
-from std_msgs.msg import ColorRGBA
+from std_msgs.msg import Bool, ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 
 try:
@@ -1380,6 +1380,10 @@ class ShapeAssemblySwarm:
         if self.shape_target_mode not in (ShapeTargetMode.NEGOTIATED, ShapeTargetMode.REFERENCE):
             rospy.logwarn("Unknown shape_target_mode=%s, fallback to %s", self.shape_target_mode, ShapeTargetMode.NEGOTIATED)
             self.shape_target_mode = ShapeTargetMode.NEGOTIATED
+        self.force_move_base_mode = bool(rospy.get_param("~force_move_base_mode", False))
+        self.force_move_base_mode_topic = str(
+            rospy.get_param("~force_move_base_mode_topic", "shape_assembly/force_move_base_mode")
+        ).strip()
         self.switch_gray_threshold = float(rospy.get_param("~switch_gray_threshold", 0.999))
         self.cancel_move_base_on_switch = bool(rospy.get_param("~cancel_move_base_on_switch", True))
         self.cancel_grace_period = max(0.0, float(rospy.get_param("~cancel_grace_period", 0.0)))
@@ -1505,6 +1509,7 @@ class ShapeAssemblySwarm:
         self.reference_center_received = False
         self.marker_pub: Optional[rospy.Publisher] = None
         self.robot_status_pub: Optional[rospy.Publisher] = None
+        self.force_move_base_mode_pub: Optional[rospy.Publisher] = None
         self.auto_shape_heading_map_sub: Optional[rospy.Subscriber] = None
         self.auto_shape_heading_map_msg: Optional[OccupancyGrid] = None
         self._shape_overlap_samples: List[Tuple[float, float, float]] = []
@@ -1542,6 +1547,9 @@ class ShapeAssemblySwarm:
             self.marker_pub = rospy.Publisher(self.marker_topic, MarkerArray, queue_size=1)
         if RobotFormationStatus is not None and self.robot_status_topic:
             self.robot_status_pub = rospy.Publisher(self.robot_status_topic, RobotFormationStatus, queue_size=5)
+        if self.force_move_base_mode_topic:
+            self.force_move_base_mode_pub = rospy.Publisher(self.force_move_base_mode_topic, Bool, queue_size=1, latch=True)
+            self._publish_force_move_base_mode()
 
         if self.reference_center_topic:
             self.reference_center_sub = rospy.Subscriber(
@@ -1570,20 +1578,7 @@ class ShapeAssemblySwarm:
             )
             rospy.loginfo("ShapeAssembly: subscribing formation task topic=%s", self.formation_task_topic)
 
-        if self.auto_shape_heading and self.auto_shape_heading_map_topic:
-            self.auto_shape_heading_map_sub = rospy.Subscriber(
-                self.auto_shape_heading_map_topic,
-                OccupancyGrid,
-                self._auto_shape_heading_map_cb,
-                queue_size=1,
-            )
-            rospy.loginfo(
-                "ShapeAssembly: auto shape heading enabled topic=%s step=%.1fdeg interval=%.2fs mode=%s",
-                self.auto_shape_heading_map_topic,
-                self.auto_shape_heading_angle_step_deg,
-                self.auto_shape_heading_update_interval,
-                self.shape_target_mode,
-            )
+        self._ensure_auto_shape_heading_subscription()
 
         self._update_takeover_state_param([])
 
@@ -1607,13 +1602,92 @@ class ShapeAssemblySwarm:
             self._dyn_server = None
             rospy.logwarn("ShapeAssembly: failed to start dynamic_reconfigure (%s).", str(exc))
 
+    def _publish_force_move_base_mode(self) -> None:
+        if self.force_move_base_mode_pub is None:
+            return
+        self.force_move_base_mode_pub.publish(Bool(data=bool(self.force_move_base_mode)))
+
+    def _ensure_auto_shape_heading_subscription(self) -> None:
+        want_sub = self.auto_shape_heading and bool(self.auto_shape_heading_map_topic)
+        if not want_sub:
+            if self.auto_shape_heading_map_sub is not None:
+                try:
+                    self.auto_shape_heading_map_sub.unregister()
+                except Exception:
+                    pass
+                self.auto_shape_heading_map_sub = None
+            return
+        if self.auto_shape_heading_map_sub is not None:
+            return
+        self.auto_shape_heading_map_sub = rospy.Subscriber(
+            self.auto_shape_heading_map_topic,
+            OccupancyGrid,
+            self._auto_shape_heading_map_cb,
+            queue_size=1,
+        )
+        rospy.loginfo(
+            "ShapeAssembly: auto shape heading enabled topic=%s step=%.1fdeg interval=%.2fs mode=%s",
+            self.auto_shape_heading_map_topic,
+            self.auto_shape_heading_angle_step_deg,
+            self.auto_shape_heading_update_interval,
+            self.shape_target_mode,
+        )
+
+    def _ensure_local_costmap_subscriptions(self) -> None:
+        if not self.use_local_costmap_avoid or not self.ns_list or self.local_costmap_subs:
+            return
+        for idx, _ns in enumerate(self.ns_list):
+            if self.distributed_mode and idx != self.self_agent_index:
+                continue
+            if idx >= len(self.local_costmap_topics):
+                continue
+            self.local_costmap_subs.append(
+                rospy.Subscriber(
+                    self.local_costmap_topics[idx],
+                    OccupancyGrid,
+                    self._local_costmap_cb,
+                    callback_args=idx,
+                    queue_size=2,
+                )
+            )
+
+    def _refresh_leader_indices(self) -> None:
+        n = max(0, int(self.sim_param.swarm_size))
+        if n <= 0:
+            self.inform_index = []
+            return
+        leader_num = max(0, min(n, int(math.ceil(n * self.sim_param.leader_fraction))))
+        if leader_num >= n:
+            self.inform_index = list(range(n))
+        elif leader_num > 0:
+            self.inform_index = sorted(random.sample(range(n), leader_num))
+        else:
+            self.inform_index = []
+
     def _dynamic_reconfigure_cb(self, config, _level):
+        prev_r_avoid = float(self.sim_param.r_avoid)
+        prev_leader_fraction = float(self.sim_param.leader_fraction)
+        prev_use_local_costmap_avoid = bool(self.use_local_costmap_avoid)
+        prev_auto_shape_heading = bool(self.auto_shape_heading)
+        prev_auto_shape_heading_shape_stride = int(self.auto_shape_heading_shape_stride)
+        prev_force_move_base_mode = bool(self.force_move_base_mode)
+
         self.enabled = bool(config.enabled)
+
+        self.sim_param.r_body = max(0.0, float(config.r_body))
+        self.sim_param.r_safe = max(self.sim_param.r_body, float(config.r_safe))
+        self.sim_param.r_avoid = max(self.sim_param.r_safe, float(config.r_avoid))
+        self.sim_param.r_sense = max(self.sim_param.r_avoid, float(config.r_sense))
+        config.r_body = self.sim_param.r_body
+        config.r_safe = self.sim_param.r_safe
+        config.r_avoid = self.sim_param.r_avoid
+        config.r_sense = self.sim_param.r_sense
 
         self.sim_param.vel_max = max(0.0, float(config.vel_max))
         self.sim_param.shape_vel_max = max(0.0, float(config.shape_vel_max))
         self.sim_param.hvel_max = max(0.0, float(config.hvel_max))
         self.sim_param.leader_fraction = max(0.0, min(1.0, float(config.leader_fraction)))
+        config.leader_fraction = self.sim_param.leader_fraction
         self.sim_param.kappa_enter = max(0.0, float(config.kappa_enter))
         self.sim_param.kappa_explore_1 = max(0.0, float(config.kappa_explore_1))
         self.sim_param.kappa_explore_2 = max(0.0, float(config.kappa_explore_2))
@@ -1626,32 +1700,48 @@ class ShapeAssemblySwarm:
         self.sim_param.kappa_track_head = max(0.0, float(config.kappa_track_head))
         self.sim_param.alpha = max(0.0, min(1.0, float(config.alpha)))
         self.sim_param.cmd_smooth_ratio = max(0.0, min(1.0, float(config.cmd_smooth_ratio)))
+        self.cmd_smooth_use_odom = bool(config.cmd_smooth_use_odom)
         self.sim_param.cmd_scale = max(0.0, float(config.cmd_scale))
 
         self.velocity_scale = max(0.0, float(config.velocity_scale))
+        self.force_move_base_mode = bool(config.force_move_base_mode)
         self.switch_gray_threshold = max(0.0, min(1.0, float(config.switch_gray_threshold)))
+        self.switch_use_reference_shape = bool(config.switch_use_reference_shape)
         self.switch_reference_radius_enable = bool(config.switch_reference_radius_enable)
         self.switch_reference_radius_margin = max(0.0, float(config.switch_reference_radius_margin))
         self.switch_reference_radius_min = max(0.0, float(config.switch_reference_radius_min))
         self.switch_reference_radius = self._compute_reference_switch_radius()
+        self.cancel_move_base_on_switch = bool(config.cancel_move_base_on_switch)
+        self.cancel_grace_period = max(0.0, float(config.cancel_grace_period))
+        self.stop_path_planning_on_shape_takeover = bool(config.stop_path_planning_on_shape_takeover)
 
+        self.use_local_costmap_avoid = bool(config.use_local_costmap_avoid)
         self.local_costmap_obstacle_threshold = max(0, min(100, int(config.local_costmap_obstacle_threshold)))
-        hard_radius = max(0.0, float(config.local_costmap_hard_radius))
+        self.local_costmap_unknown_is_obstacle = bool(config.local_costmap_unknown_is_obstacle)
+        hard_radius = max(max(self.sim_param.r_safe, 2.0 * self.sim_param.r_body), float(config.local_costmap_hard_radius))
         avoid_radius = max(hard_radius, float(config.local_costmap_avoid_radius))
         self.local_costmap_hard_radius = hard_radius
         self.local_costmap_avoid_radius = avoid_radius
+        config.local_costmap_hard_radius = self.local_costmap_hard_radius
+        config.local_costmap_avoid_radius = self.local_costmap_avoid_radius
         self.local_costmap_avoid_gain = max(0.0, float(config.local_costmap_avoid_gain))
         self.local_costmap_hard_gain = max(0.0, float(config.local_costmap_hard_gain))
         self.local_costmap_stride = max(1, int(config.local_costmap_stride))
         self.local_costmap_max_samples = max(1, int(config.local_costmap_max_samples))
         self.local_costmap_timeout = max(0.0, float(config.local_costmap_timeout))
         self.local_costmap_self_ignore_radius = max(0.0, float(config.local_costmap_self_ignore_radius))
+        self.local_costmap_skip_on_frame_mismatch = bool(config.local_costmap_skip_on_frame_mismatch)
 
+        self.auto_shape_heading = bool(config.auto_shape_heading)
         self.auto_shape_heading_angle_step_deg = max(1.0, float(config.auto_shape_heading_angle_step_deg))
         self.auto_shape_heading_update_interval = max(0.05, float(config.auto_shape_heading_update_interval))
         self.auto_shape_heading_obstacle_threshold = max(0, min(100, int(config.auto_shape_heading_obstacle_threshold)))
+        self.auto_shape_heading_unknown_is_obstacle = bool(config.auto_shape_heading_unknown_is_obstacle)
+        self.auto_shape_heading_shape_stride = max(1, int(config.auto_shape_heading_shape_stride))
+        config.auto_shape_heading_shape_stride = self.auto_shape_heading_shape_stride
         self.auto_shape_heading_min_improve = max(0.0, float(config.auto_shape_heading_min_improve))
         self.auto_shape_heading_yaw_bias = max(0.0, float(config.auto_shape_heading_yaw_bias))
+        self.auto_shape_heading_oob_is_obstacle = bool(config.auto_shape_heading_oob_is_obstacle)
 
         self.converge_inside_rate = max(0.0, min(1.0, float(config.converge_inside_rate)))
         self.converge_enter_rate = max(0.0, min(1.0, float(config.converge_enter_rate)))
@@ -1670,14 +1760,40 @@ class ShapeAssemblySwarm:
         self.debug_log_components = bool(config.debug_log_components)
         self.debug_log_metric = bool(config.debug_log_metric)
 
+        if abs(self.sim_param.r_avoid - prev_r_avoid) > 1.0e-6:
+            self.pending_shape_reload = True
+            self._reload_shape_model()
+        elif prev_auto_shape_heading_shape_stride != self.auto_shape_heading_shape_stride:
+            self._shape_overlap_samples = []
+            self._build_shape_overlap_samples()
+
+        if abs(self.sim_param.leader_fraction - prev_leader_fraction) > 1.0e-6:
+            self._refresh_leader_indices()
+
+        if self.use_local_costmap_avoid and not prev_use_local_costmap_avoid:
+            self._ensure_local_costmap_subscriptions()
+
+        if self.auto_shape_heading != prev_auto_shape_heading or (self.auto_shape_heading and self.auto_shape_heading_map_sub is None):
+            self._ensure_auto_shape_heading_subscription()
+            if self.auto_shape_heading:
+                self._last_auto_heading_time = 0.0
+        if self.force_move_base_mode != prev_force_move_base_mode:
+            self.shape_ctrl_active = [False] * self.sim_param.swarm_size
+            self.shape_ctrl_hold_until = [0.0] * self.sim_param.swarm_size
+            self._publish_force_move_base_mode()
+            rospy.loginfo("ShapeAssembly: force_move_base_mode=%s", str(self.force_move_base_mode))
+
         if self._dyn_ready:
             rospy.loginfo(
-                "ShapeAssembly[dyn]: enabled=%s vel_max=%.2f shape_vel_max=%.2f kappa_avoid=%.2f hard_avoid=%.2f",
+                "ShapeAssembly[dyn]: enabled=%s vel_max=%.2f shape_vel_max=%.2f r_avoid=%.2f kappa_avoid=%.2f hard_avoid=%.2f switch_ref=%.2f force_move_base=%s",
                 str(self.enabled),
                 self.sim_param.vel_max,
                 self.sim_param.shape_vel_max,
+                self.sim_param.r_avoid,
                 self.sim_param.kappa_avoid,
                 self.sim_param.kappa_hard_avoid,
+                self.switch_reference_radius,
+                str(self.force_move_base_mode),
             )
         else:
             self._dyn_ready = True
@@ -1936,11 +2052,7 @@ class ShapeAssemblySwarm:
         self.shape_state.head = [h - aveg_head for h in temp_head]
         self.shape_state.hvel = [0.0 for _ in range(n)]
 
-        leader_num = int(math.ceil(n * self.sim_param.leader_fraction))
-        if leader_num > 0:
-            self.inform_index = sorted(random.sample(range(n), leader_num))
-        else:
-            self.inform_index = []
+        self._refresh_leader_indices()
 
         self._reload_shape_model()
 
@@ -2433,6 +2545,12 @@ class ShapeAssemblySwarm:
             self.shape_ctrl_active = [True] * n
             self.shape_ctrl_hold_until = [0.0] * n
             self.switch_gray_values = [0.0] * n
+            return self.shape_ctrl_active
+
+        if self.force_move_base_mode:
+            self.shape_ctrl_active = [False] * n
+            self.shape_ctrl_hold_until = [0.0] * n
+            self.switch_gray_values = self._compute_switch_gray_values(robot_state)
             return self.shape_ctrl_active
 
         if len(self.shape_ctrl_active) != n:
