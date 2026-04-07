@@ -67,6 +67,9 @@ def _parse_positive_int_list(value) -> List[int]:
 def _normalize_shape_type(shape_type: str) -> str:
     key = str(shape_type).strip().lower()
     alias = {
+        "line": "line",
+        "line_shape": "line",
+        "linemat": "line",
         "ring": "ring",
         "o": "letter_o",
         "letter": "letter_o",
@@ -106,6 +109,7 @@ def _resolve_shape_mat_path(shape_type: str, shape_mat_path: str, shape_library_
             return expanded
     shape_key = _normalize_shape_type(shape_type)
     file_map = {
+        "line": "Image_line.mat",
         "letter_o": "Image_letter_O.mat",
         "letter_r": "Image_letter_R.mat",
         "letter_b": "Image_letter_B.mat",
@@ -279,7 +283,7 @@ class ShapeTaskBridge:
         self.gray_width = int(rospy.get_param("~gray_width", 4))
         self.shape_mat_path = rospy.get_param("~shape_mat_path", "")
         self.shape_library_root = os.path.expanduser(str(rospy.get_param("~shape_library_root", "")).strip() or _get_default_shape_dir())
-        self.r_avoid = float(rospy.get_param("~r_avoid", 0.35))
+        self.r_avoid = float(rospy.get_param("~r_avoid", 0.60))
         self.shape_sample_stride = max(1, int(rospy.get_param("~shape_sample_stride", 2)))
         self.debug_log = bool(rospy.get_param("~debug_log", False))
         self._server_ready = False

@@ -129,6 +129,7 @@ class SimParam:
         # command smoothing
         self.cmd_smooth_ratio = 0.1
         self.cmd_scale = 1.0
+        self.cmd_deadzone = 0.04
         self.shape_vel_max = 1.2
 
 
@@ -241,6 +242,9 @@ def _normalize_shape_target_mode(mode: str) -> str:
 def _normalize_shape_type(shape_type: str) -> str:
     key = str(shape_type).strip().lower()
     alias = {
+        "line": "line",
+        "line_shape": "line",
+        "linemat": "line",
         "ring": "ring",
         "o": "letter_o",
         "letter": "letter_o",
@@ -280,6 +284,7 @@ def _resolve_shape_mat_path(shape_type: str, shape_mat_path: str, shape_library_
             return expanded
     shape_key = _normalize_shape_type(shape_type)
     file_map = {
+        "line": "Image_line.mat",
         "letter_o": "Image_letter_O.mat",
         "letter_r": "Image_letter_R.mat",
         "letter_b": "Image_letter_B.mat",
@@ -962,6 +967,22 @@ def limit_speed(cmd_x: List[float], cmd_y: List[float], vel_max: float) -> Tuple
     return cmd_x, cmd_y
 
 
+def apply_linear_deadzone(cmd_x: List[float], cmd_y: List[float], deadzone: float) -> Tuple[List[float], List[float]]:
+    if deadzone <= 1e-9:
+        return cmd_x, cmd_y
+    n = len(cmd_x)
+    for i in range(n):
+        speed = math.hypot(cmd_x[i], cmd_y[i])
+        if speed <= deadzone:
+            cmd_x[i] = 0.0
+            cmd_y[i] = 0.0
+            continue
+        scale = (speed - deadzone) / speed
+        cmd_x[i] *= scale
+        cmd_y[i] *= scale
+    return cmd_x, cmd_y
+
+
 def get_shape_center(shape_state: ShapeState) -> Tuple[float, float, float]:
     n = max(1, len(shape_state.pos_x))
     center_x = sum(shape_state.pos_x) / n
@@ -1314,6 +1335,7 @@ class ShapeAssemblySwarm:
         self.sim_param.hvel_max = rospy.get_param("~hvel_max", self.sim_param.hvel_max)
         self.sim_param.cmd_smooth_ratio = rospy.get_param("~cmd_smooth_ratio", self.sim_param.cmd_smooth_ratio)
         self.sim_param.cmd_scale = rospy.get_param("~cmd_scale", self.sim_param.cmd_scale)
+        self.sim_param.cmd_deadzone = max(0.0, float(rospy.get_param("~cmd_deadzone", self.sim_param.cmd_deadzone)))
         self.sim_param.shape_vel_max = rospy.get_param("~shape_vel_max", max(self.sim_param.vel_max * 2.0, self.sim_param.shape_vel_max))
 
         self.enabled = rospy.get_param("~enabled", True)
@@ -1702,6 +1724,7 @@ class ShapeAssemblySwarm:
         self.sim_param.cmd_smooth_ratio = max(0.0, min(1.0, float(config.cmd_smooth_ratio)))
         self.cmd_smooth_use_odom = bool(config.cmd_smooth_use_odom)
         self.sim_param.cmd_scale = max(0.0, float(config.cmd_scale))
+        self.sim_param.cmd_deadzone = max(0.0, float(config.cmd_deadzone))
 
         self.velocity_scale = max(0.0, float(config.velocity_scale))
         self.force_move_base_mode = bool(config.force_move_base_mode)
@@ -3514,6 +3537,7 @@ class ShapeAssemblySwarm:
 
         cmd_x, cmd_y = enforce_safety_barrier(self.sim_param, neigh, cmd_x, cmd_y)
         cmd_x, cmd_y = limit_speed(cmd_x, cmd_y, self.sim_param.vel_max)
+        cmd_x, cmd_y = apply_linear_deadzone(cmd_x, cmd_y, self.sim_param.cmd_deadzone)
 
         self.prev_cmd_x = list(cmd_x)
         self.prev_cmd_y = list(cmd_y)

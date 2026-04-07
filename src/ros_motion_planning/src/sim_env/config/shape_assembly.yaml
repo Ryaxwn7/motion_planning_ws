@@ -55,9 +55,9 @@ control_dt: 0.0
 sim_dt: 0.0
 
 # Swarm parameters
-r_body: 0.24
-r_safe: 0.25
-r_avoid: 0.30
+r_body: 0.25
+r_safe: 0.50
+r_avoid: 0.60
 r_sense: 1.5
 vel_max: 0.7
 leader_fraction: 1.0  # use all informed robots for robust convergence in Gazebo
@@ -80,13 +80,14 @@ kappa_consensus: 1.2
 
 # Output shaping
 cmd_smooth_ratio: 0.32
-cmd_smooth_use_odom: true
+cmd_smooth_use_odom: false
 cmd_scale: 1.0
+cmd_deadzone: 0.04
 shape_vel_max: 1.0
 
 # Shape source
 shape_source: mat   # analytic | mat
-shape_type: rectangle # sphere| ring | letter_o | letter_r | letter_b | starfish | snowflake | rectangle | triangle
+shape_type: rectangle # line | sphere | ring | letter_o | letter_r | letter_b | starfish | snowflake | rectangle | triangle
 shape_scale: 1.0
 shape_resolution: 80
 ring_inner_ratio: 0.25
@@ -188,7 +189,7 @@ debug_log_components: false
 debug_log_metric: false
 velocity_source: odom    # odom | cmd
 cmd_in_map_frame: true
-odom_twist_in_base: false
+odom_twist_in_base: true
 velocity_scale: 1.0
 arrow_shaft_diameter: 0.04
 arrow_head_diameter: 0.08
