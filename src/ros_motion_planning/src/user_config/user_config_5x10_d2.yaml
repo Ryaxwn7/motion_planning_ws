@@ -1,0 +1,79 @@
+map: "5x10_d2"
+world: "5x10_d2"
+rviz_file: "view_multi.rviz"
+map_to_odom: "gazebo"  # amcl or gazebo
+debug: false
+gui: false
+headless: true
+use_rviz: false
+
+robots_config:
+  - robot1_type: "mini_mec"
+    robot1_global_planner: "fm2"
+    robot1_local_planner: "my"
+    robot1_x_pos: "2.0"
+    robot1_y_pos: "-6.8"
+    robot1_z_pos: "0.0"
+    robot1_yaw: "3.0"
+
+  - robot2_type: "mini_mec"
+    robot2_global_planner: "fm2"
+    robot2_local_planner: "my"
+    robot2_x_pos: "-1.0"
+    robot2_y_pos: "-7.0"
+    robot2_z_pos: "0.0"
+    robot2_yaw: "0.0"
+
+  - robot3_type: "mini_mec"
+    robot3_global_planner: "fm2"
+    robot3_local_planner: "my"
+    robot3_x_pos: "-1.2"
+    robot3_y_pos: "-1.78"
+    robot3_z_pos: "0.0"
+    robot3_yaw: "0.0"
+
+  - robot4_type: "mini_mec"
+    robot4_global_planner: "fm2"
+    robot4_local_planner: "my"
+    robot4_x_pos: "-1.0"
+    robot4_y_pos: "0.0"
+    robot4_z_pos: "0.0"
+    robot4_yaw: "0.0"
+
+# * global planner
+#   * graph_planner
+#     * a_star
+#     * jps
+#     * gbfs
+#     * dijkstra
+#     * d_star
+#     * lpa_star
+#     * voronoi
+#     * d_star_lite
+#     * theta_star
+#     * lazy_theta_star
+#     * hybrid_a_star
+#
+#   * sample_planner
+#     * rrt
+#     * rrt_star
+#     * informed_rrt
+#     * rrt_connect
+#
+#   * evolutionary_planner
+#     * aco
+#     * pso
+#     * ga
+#
+# * local planner
+#   * dwa
+#   * pid
+#   * apf
+#   * rpp
+#   * lqr
+#   * static
+
+plugins:
+  # pedestrians: "pedestrian_config.yaml"
+  # obstacles: "obstacles_config.yaml"
+  map_layers: "map_layers_config.yaml"

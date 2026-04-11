@@ -45,6 +45,10 @@ class MainGenerator(XMLGenerator):
         include.append(MainGenerator.createElement("arg", props={"name": "map", "value": self.user_cfg["map"]}))
         include.append(MainGenerator.createElement("arg", props={"name": "robot_number", "value": str(len(self.user_cfg["robots_config"]))}))
         include.append(MainGenerator.createElement("arg", props={"name": "rviz_file", "value": self.user_cfg["rviz_file"]}))
+        include.append(MainGenerator.createElement("arg", props={"name": "debug", "value": self._launch_value(self.user_cfg.get("debug", False))}))
+        include.append(MainGenerator.createElement("arg", props={"name": "gui", "value": self._launch_value(self.user_cfg.get("gui", True))}))
+        include.append(MainGenerator.createElement("arg", props={"name": "headless", "value": self._launch_value(self.user_cfg.get("headless", False))}))
+        include.append(MainGenerator.createElement("arg", props={"name": "use_rviz", "value": self._launch_value(self.user_cfg.get("use_rviz", True))}))
 
         launch.append(include)
         MainGenerator.indent(launch)
@@ -54,6 +58,12 @@ class MainGenerator(XMLGenerator):
 
     def plugin(self):
         pass
+
+    @staticmethod
+    def _launch_value(value):
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
 
 
 # dynamic generator

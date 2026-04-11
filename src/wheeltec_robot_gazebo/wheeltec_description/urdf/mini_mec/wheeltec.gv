@@ -1,0 +1,266 @@
+digraph G {
+node [shape=box];
+"base_footprint" [label="base_footprint"];
+"base_link" [label="base_link"];
+"imu_link" [label="imu_link"];
+"left_front_wheel_link" [label="left_front_wheel_link"];
+"left_front_shaft10_link" [label="left_front_shaft10_link"];
+"left_front_roll10_link" [label="left_front_roll10_link"];
+"left_front_shaft1_link" [label="left_front_shaft1_link"];
+"left_front_roll1_link" [label="left_front_roll1_link"];
+"left_front_shaft2_link" [label="left_front_shaft2_link"];
+"left_front_roll2_link" [label="left_front_roll2_link"];
+"left_front_shaft3_link" [label="left_front_shaft3_link"];
+"left_front_roll3_link" [label="left_front_roll3_link"];
+"left_front_shaft4_link" [label="left_front_shaft4_link"];
+"left_front_roll4_link" [label="left_front_roll4_link"];
+"left_front_shaft5_link" [label="left_front_shaft5_link"];
+"left_front_roll5_link" [label="left_front_roll5_link"];
+"left_front_shaft6_link" [label="left_front_shaft6_link"];
+"left_front_roll6_link" [label="left_front_roll6_link"];
+"left_front_shaft7_link" [label="left_front_shaft7_link"];
+"left_front_roll7_link" [label="left_front_roll7_link"];
+"left_front_shaft8_link" [label="left_front_shaft8_link"];
+"left_front_roll8_link" [label="left_front_roll8_link"];
+"left_front_shaft9_link" [label="left_front_shaft9_link"];
+"left_front_roll9_link" [label="left_front_roll9_link"];
+"left_rear_wheel_link" [label="left_rear_wheel_link"];
+"left_rear_shaft10_link" [label="left_rear_shaft10_link"];
+"left_rear_roll10_link" [label="left_rear_roll10_link"];
+"left_rear_shaft1_link" [label="left_rear_shaft1_link"];
+"left_rear_roll1_link" [label="left_rear_roll1_link"];
+"left_rear_shaft2_link" [label="left_rear_shaft2_link"];
+"left_rear_roll2_link" [label="left_rear_roll2_link"];
+"left_rear_shaft3_link" [label="left_rear_shaft3_link"];
+"left_rear_roll3_link" [label="left_rear_roll3_link"];
+"left_rear_shaft4_link" [label="left_rear_shaft4_link"];
+"left_rear_roll4_link" [label="left_rear_roll4_link"];
+"left_rear_shaft5_link" [label="left_rear_shaft5_link"];
+"left_rear_roll5_link" [label="left_rear_roll5_link"];
+"left_rear_shaft6_link" [label="left_rear_shaft6_link"];
+"left_rear_roll6_link" [label="left_rear_roll6_link"];
+"left_rear_shaft7_link" [label="left_rear_shaft7_link"];
+"left_rear_roll7_link" [label="left_rear_roll7_link"];
+"left_rear_shaft8_link" [label="left_rear_shaft8_link"];
+"left_rear_roll8_link" [label="left_rear_roll8_link"];
+"left_rear_shaft9_link" [label="left_rear_shaft9_link"];
+"left_rear_roll9_link" [label="left_rear_roll9_link"];
+"right_front_wheel_link" [label="right_front_wheel_link"];
+"right_front_shaft10_link" [label="right_front_shaft10_link"];
+"right_front_roll10_link" [label="right_front_roll10_link"];
+"right_front_shaft1_link" [label="right_front_shaft1_link"];
+"right_front_roll1_link" [label="right_front_roll1_link"];
+"right_front_shaft2_link" [label="right_front_shaft2_link"];
+"right_front_roll2_link" [label="right_front_roll2_link"];
+"right_front_shaft3_link" [label="right_front_shaft3_link"];
+"right_front_roll3_link" [label="right_front_roll3_link"];
+"right_front_shaft4_link" [label="right_front_shaft4_link"];
+"right_front_roll4_link" [label="right_front_roll4_link"];
+"right_front_shaft5_link" [label="right_front_shaft5_link"];
+"right_front_roll5_link" [label="right_front_roll5_link"];
+"right_front_shaft6_link" [label="right_front_shaft6_link"];
+"right_front_roll6_link" [label="right_front_roll6_link"];
+"right_front_shaft7_link" [label="right_front_shaft7_link"];
+"right_front_roll7_link" [label="right_front_roll7_link"];
+"right_front_shaft8_link" [label="right_front_shaft8_link"];
+"right_front_roll8_link" [label="right_front_roll8_link"];
+"right_front_shaft9_link" [label="right_front_shaft9_link"];
+"right_front_roll9_link" [label="right_front_roll9_link"];
+"right_rear_wheel_link" [label="right_rear_wheel_link"];
+"right_rear_shaft10_link" [label="right_rear_shaft10_link"];
+"right_rear_roll10_link" [label="right_rear_roll10_link"];
+"right_rear_shaft1_link" [label="right_rear_shaft1_link"];
+"right_rear_roll1_link" [label="right_rear_roll1_link"];
+"right_rear_shaft2_link" [label="right_rear_shaft2_link"];
+"right_rear_roll2_link" [label="right_rear_roll2_link"];
+"right_rear_shaft3_link" [label="right_rear_shaft3_link"];
+"right_rear_roll3_link" [label="right_rear_roll3_link"];
+"right_rear_shaft4_link" [label="right_rear_shaft4_link"];
+"right_rear_roll4_link" [label="right_rear_roll4_link"];
+"right_rear_shaft5_link" [label="right_rear_shaft5_link"];
+"right_rear_roll5_link" [label="right_rear_roll5_link"];
+"right_rear_shaft6_link" [label="right_rear_shaft6_link"];
+"right_rear_roll6_link" [label="right_rear_roll6_link"];
+"right_rear_shaft7_link" [label="right_rear_shaft7_link"];
+"right_rear_roll7_link" [label="right_rear_roll7_link"];
+"right_rear_shaft8_link" [label="right_rear_shaft8_link"];
+"right_rear_roll8_link" [label="right_rear_roll8_link"];
+"right_rear_shaft9_link" [label="right_rear_shaft9_link"];
+"right_rear_roll9_link" [label="right_rear_roll9_link"];
+"laser_link" [label="laser_link"];
+node [shape=ellipse, color=blue, fontcolor=blue];
+"base_footprint" -> "base_footprint_joint" [label="xyz: 0 0 0.072 \nrpy: 0 -0 0"]
+"base_footprint_joint" -> "base_link"
+"base_link" -> "imu_joint" [label="xyz: 0 0 0.0275 \nrpy: 0 -0 0"]
+"imu_joint" -> "imu_link"
+"base_link" -> "left_front_wheel_joint" [label="xyz: 0.085132 0.079068 -0.036 \nrpy: 0 -0 0"]
+"left_front_wheel_joint" -> "left_front_wheel_link"
+"left_front_wheel_link" -> "left_front_shaft10_joint" [label="xyz: 0.025483 0.016001 0.018516 \nrpy: 0 -0 0"]
+"left_front_shaft10_joint" -> "left_front_shaft10_link"
+"left_front_shaft10_link" -> "left_front_roll10_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_front_roll10_joint" -> "left_front_roll10_link"
+"left_front_wheel_link" -> "left_front_shaft1_joint" [label="xyz: 0.009733 0.016001 0.029959 \nrpy: 0 -0 0"]
+"left_front_shaft1_joint" -> "left_front_shaft1_link"
+"left_front_shaft1_link" -> "left_front_roll1_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_front_roll1_joint" -> "left_front_roll1_link"
+"left_front_wheel_link" -> "left_front_shaft2_joint" [label="xyz: -0.0097351 0.016001 0.029958 \nrpy: 0 -0 0"]
+"left_front_shaft2_joint" -> "left_front_shaft2_link"
+"left_front_shaft2_link" -> "left_front_roll2_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_front_roll2_joint" -> "left_front_roll2_link"
+"left_front_wheel_link" -> "left_front_shaft3_joint" [label="xyz: -0.025485 0.016001 0.018514 \nrpy: 0 -0 0"]
+"left_front_shaft3_joint" -> "left_front_shaft3_link"
+"left_front_shaft3_link" -> "left_front_roll3_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_front_roll3_joint" -> "left_front_roll3_link"
+"left_front_wheel_link" -> "left_front_shaft4_joint" [label="xyz: -0.0315 0.016001 0 \nrpy: 0 -0 0"]
+"left_front_shaft4_joint" -> "left_front_shaft4_link"
+"left_front_shaft4_link" -> "left_front_roll4_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_front_roll4_joint" -> "left_front_roll4_link"
+"left_front_wheel_link" -> "left_front_shaft5_joint" [label="xyz: -0.025483 0.016001 -0.018516 \nrpy: 0 -0 0"]
+"left_front_shaft5_joint" -> "left_front_shaft5_link"
+"left_front_shaft5_link" -> "left_front_roll5_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_front_roll5_joint" -> "left_front_roll5_link"
+"left_front_wheel_link" -> "left_front_shaft6_joint" [label="xyz: -0.009733 0.016001 -0.029959 \nrpy: 0 -0 0"]
+"left_front_shaft6_joint" -> "left_front_shaft6_link"
+"left_front_shaft6_link" -> "left_front_roll6_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_front_roll6_joint" -> "left_front_roll6_link"
+"left_front_wheel_link" -> "left_front_shaft7_joint" [label="xyz: 0.0097351 0.016001 -0.029958 \nrpy: 0 -0 0"]
+"left_front_shaft7_joint" -> "left_front_shaft7_link"
+"left_front_shaft7_link" -> "left_front_roll7_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_front_roll7_joint" -> "left_front_roll7_link"
+"left_front_wheel_link" -> "left_front_shaft8_joint" [label="xyz: 0.025485 0.016001 -0.018514 \nrpy: 0 -0 0"]
+"left_front_shaft8_joint" -> "left_front_shaft8_link"
+"left_front_shaft8_link" -> "left_front_roll8_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_front_roll8_joint" -> "left_front_roll8_link"
+"left_front_wheel_link" -> "left_front_shaft9_joint" [label="xyz: 0.0315 0.016001 0 \nrpy: 0 -0 0"]
+"left_front_shaft9_joint" -> "left_front_shaft9_link"
+"left_front_shaft9_link" -> "left_front_roll9_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_front_roll9_joint" -> "left_front_roll9_link"
+"base_link" -> "left_rear_wheel_joint" [label="xyz: -0.087868 0.080568 -0.036 \nrpy: 0 -0 0"]
+"left_rear_wheel_joint" -> "left_rear_wheel_link"
+"left_rear_wheel_link" -> "left_rear_shaft10_joint" [label="xyz: 0.025485 0.014501 0.018514 \nrpy: 0 -0 0"]
+"left_rear_shaft10_joint" -> "left_rear_shaft10_link"
+"left_rear_shaft10_link" -> "left_rear_roll10_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_rear_roll10_joint" -> "left_rear_roll10_link"
+"left_rear_wheel_link" -> "left_rear_shaft1_joint" [label="xyz: 0.025485 -0.1755 0.018514 \nrpy: 0 -0 0"]
+"left_rear_shaft1_joint" -> "left_rear_shaft1_link"
+"left_rear_shaft1_link" -> "left_rear_roll1_joint" [label="xyz: -0.01575 0.19 0.011444 \nrpy: 0 -0 0"]
+"left_rear_roll1_joint" -> "left_rear_roll1_link"
+"left_rear_wheel_link" -> "left_rear_shaft2_joint" [label="xyz: -0.009733 0.014501 0.029959 \nrpy: 0 -0 0"]
+"left_rear_shaft2_joint" -> "left_rear_shaft2_link"
+"left_rear_shaft2_link" -> "left_rear_roll2_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_rear_roll2_joint" -> "left_rear_roll2_link"
+"left_rear_wheel_link" -> "left_rear_shaft3_joint" [label="xyz: -0.025483 0.014501 0.018516 \nrpy: 0 -0 0"]
+"left_rear_shaft3_joint" -> "left_rear_shaft3_link"
+"left_rear_shaft3_link" -> "left_rear_roll3_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_rear_roll3_joint" -> "left_rear_roll3_link"
+"left_rear_wheel_link" -> "left_rear_shaft4_joint" [label="xyz: -0.0315 0.014501 0 \nrpy: 0 -0 0"]
+"left_rear_shaft4_joint" -> "left_rear_shaft4_link"
+"left_rear_shaft4_link" -> "left_rear_roll4_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_rear_roll4_joint" -> "left_rear_roll4_link"
+"left_rear_wheel_link" -> "left_rear_shaft5_joint" [label="xyz: -0.025485 0.014501 -0.018514 \nrpy: 0 -0 0"]
+"left_rear_shaft5_joint" -> "left_rear_shaft5_link"
+"left_rear_shaft5_link" -> "left_rear_roll5_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_rear_roll5_joint" -> "left_rear_roll5_link"
+"left_rear_wheel_link" -> "left_rear_shaft6_joint" [label="xyz: -0.0097351 0.014501 -0.029958 \nrpy: 0 -0 0"]
+"left_rear_shaft6_joint" -> "left_rear_shaft6_link"
+"left_rear_shaft6_link" -> "left_rear_roll6_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_rear_roll6_joint" -> "left_rear_roll6_link"
+"left_rear_wheel_link" -> "left_rear_shaft7_joint" [label="xyz: 0.009733 0.014501 -0.029959 \nrpy: 0 -0 0"]
+"left_rear_shaft7_joint" -> "left_rear_shaft7_link"
+"left_rear_shaft7_link" -> "left_rear_roll7_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_rear_roll7_joint" -> "left_rear_roll7_link"
+"left_rear_wheel_link" -> "left_rear_shaft8_joint" [label="xyz: 0.025483 0.014501 -0.018516 \nrpy: 0 -0 0"]
+"left_rear_shaft8_joint" -> "left_rear_shaft8_link"
+"left_rear_shaft8_link" -> "left_rear_roll8_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_rear_roll8_joint" -> "left_rear_roll8_link"
+"left_rear_wheel_link" -> "left_rear_shaft9_joint" [label="xyz: 0.0315 0.014501 0 \nrpy: 0 -0 0"]
+"left_rear_shaft9_joint" -> "left_rear_shaft9_link"
+"left_rear_shaft9_link" -> "left_rear_roll9_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"left_rear_roll9_joint" -> "left_rear_roll9_link"
+"base_link" -> "right_front_wheel_joint" [label="xyz: 0.085132 -0.078932 -0.036 \nrpy: 0 -0 0"]
+"right_front_wheel_joint" -> "right_front_wheel_link"
+"right_front_wheel_link" -> "right_front_shaft10_joint" [label="xyz: 0.0254834 -0.0160005 0.0185161 \nrpy: 0 -0 0"]
+"right_front_shaft10_joint" -> "right_front_shaft10_link"
+"right_front_shaft10_link" -> "right_front_roll10_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_front_roll10_joint" -> "right_front_roll10_link"
+"right_front_wheel_link" -> "right_front_shaft1_joint" [label="xyz: 0.00973301 -0.0160005 0.0299586 \nrpy: 0 -0 0"]
+"right_front_shaft1_joint" -> "right_front_shaft1_link"
+"right_front_shaft1_link" -> "right_front_roll1_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_front_roll1_joint" -> "right_front_roll1_link"
+"right_front_wheel_link" -> "right_front_shaft2_joint" [label="xyz: -0.00973507 -0.0160005 0.029958 \nrpy: 0 -0 0"]
+"right_front_shaft2_joint" -> "right_front_shaft2_link"
+"right_front_shaft2_link" -> "right_front_roll2_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_front_roll2_joint" -> "right_front_roll2_link"
+"right_front_wheel_link" -> "right_front_shaft3_joint" [label="xyz: -0.0254847 -0.0160005 0.0185144 \nrpy: 0 -0 0"]
+"right_front_shaft3_joint" -> "right_front_shaft3_link"
+"right_front_shaft3_link" -> "right_front_roll3_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_front_roll3_joint" -> "right_front_roll3_link"
+"right_front_wheel_link" -> "right_front_shaft4_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_front_shaft4_joint" -> "right_front_shaft4_link"
+"right_front_shaft4_link" -> "right_front_roll4_joint" [label="xyz: -0.0315 -0.0160005 0 \nrpy: 0 -0 0"]
+"right_front_roll4_joint" -> "right_front_roll4_link"
+"right_front_wheel_link" -> "right_front_shaft5_joint" [label="xyz: -0.0254834 -0.0160005 -0.0185161 \nrpy: 0 -0 0"]
+"right_front_shaft5_joint" -> "right_front_shaft5_link"
+"right_front_shaft5_link" -> "right_front_roll5_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_front_roll5_joint" -> "right_front_roll5_link"
+"right_front_wheel_link" -> "right_front_shaft6_joint" [label="xyz: -0.00973301 -0.0160005 -0.0299586 \nrpy: 0 -0 0"]
+"right_front_shaft6_joint" -> "right_front_shaft6_link"
+"right_front_shaft6_link" -> "right_front_roll6_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_front_roll6_joint" -> "right_front_roll6_link"
+"right_front_wheel_link" -> "right_front_shaft7_joint" [label="xyz: 0.00973506 -0.0160005 -0.0299579 \nrpy: 0 -0 0"]
+"right_front_shaft7_joint" -> "right_front_shaft7_link"
+"right_front_shaft7_link" -> "right_front_roll7_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_front_roll7_joint" -> "right_front_roll7_link"
+"right_front_wheel_link" -> "right_front_shaft8_joint" [label="xyz: 0.0254847 -0.0160005 -0.0185144 \nrpy: 0 -0 0"]
+"right_front_shaft8_joint" -> "right_front_shaft8_link"
+"right_front_shaft8_link" -> "right_front_roll8_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_front_roll8_joint" -> "right_front_roll8_link"
+"right_front_wheel_link" -> "right_front_shaft9_joint" [label="xyz: 0.0315 -0.0160005 0 \nrpy: 0 -0 0"]
+"right_front_shaft9_joint" -> "right_front_shaft9_link"
+"right_front_shaft9_link" -> "right_front_roll9_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_front_roll9_joint" -> "right_front_roll9_link"
+"base_link" -> "right_rear_wheel_joint" [label="xyz: -0.087868 -0.0804324 -0.036 \nrpy: 0 -0 0"]
+"right_rear_wheel_joint" -> "right_rear_wheel_link"
+"right_rear_wheel_link" -> "right_rear_shaft10_joint" [label="xyz: 0.0315 -0.0145005 0 \nrpy: 0 -0 0"]
+"right_rear_shaft10_joint" -> "right_rear_shaft10_link"
+"right_rear_shaft10_link" -> "right_rear_roll10_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_rear_roll10_joint" -> "right_rear_roll10_link"
+"right_rear_wheel_link" -> "right_rear_shaft1_joint" [label="xyz: 0.0254847 -0.0145005 0.0185144 \nrpy: 0 -0 0"]
+"right_rear_shaft1_joint" -> "right_rear_shaft1_link"
+"right_rear_shaft1_link" -> "right_rear_roll1_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_rear_roll1_joint" -> "right_rear_roll1_link"
+"right_rear_wheel_link" -> "right_rear_shaft2_joint" [label="xyz: 0.00973506 -0.0145005 0.0299579 \nrpy: 0 -0 0"]
+"right_rear_shaft2_joint" -> "right_rear_shaft2_link"
+"right_rear_shaft2_link" -> "right_rear_roll2_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_rear_roll2_joint" -> "right_rear_roll2_link"
+"right_rear_wheel_link" -> "right_rear_shaft3_joint" [label="xyz: -0.00973301 -0.0145005 0.0299586 \nrpy: 0 -0 0"]
+"right_rear_shaft3_joint" -> "right_rear_shaft3_link"
+"right_rear_shaft3_link" -> "right_rear_roll3_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_rear_roll3_joint" -> "right_rear_roll3_link"
+"right_rear_wheel_link" -> "right_rear_shaft4_joint" [label="xyz: -0.0254834 -0.0145005 0.0185161 \nrpy: 0 -0 0"]
+"right_rear_shaft4_joint" -> "right_rear_shaft4_link"
+"right_rear_shaft4_link" -> "right_rear_roll4_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_rear_roll4_joint" -> "right_rear_roll4_link"
+"right_rear_wheel_link" -> "right_rear_shaft5_joint" [label="xyz: -0.0315 -0.0145005 0 \nrpy: 0 -0 0"]
+"right_rear_shaft5_joint" -> "right_rear_shaft5_link"
+"right_rear_shaft5_link" -> "right_rear_roll5_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_rear_roll5_joint" -> "right_rear_roll5_link"
+"right_rear_wheel_link" -> "right_rear_shaft6_joint" [label="xyz: -0.0254847 -0.0145005 -0.0185144 \nrpy: 0 -0 0"]
+"right_rear_shaft6_joint" -> "right_rear_shaft6_link"
+"right_rear_shaft6_link" -> "right_rear_roll6_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_rear_roll6_joint" -> "right_rear_roll6_link"
+"right_rear_wheel_link" -> "right_rear_shaft7_joint" [label="xyz: -0.00973507 -0.0145005 -0.0299579 \nrpy: 0 -0 0"]
+"right_rear_shaft7_joint" -> "right_rear_shaft7_link"
+"right_rear_shaft7_link" -> "right_rear_roll7_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_rear_roll7_joint" -> "right_rear_roll7_link"
+"right_rear_wheel_link" -> "right_rear_shaft8_joint" [label="xyz: 0.009733 -0.0145005 -0.0299586 \nrpy: 0 -0 0"]
+"right_rear_shaft8_joint" -> "right_rear_shaft8_link"
+"right_rear_shaft8_link" -> "right_rear_roll8_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_rear_roll8_joint" -> "right_rear_roll8_link"
+"right_rear_wheel_link" -> "right_rear_shaft9_joint" [label="xyz: 0.0254834 -0.0145005 -0.0185161 \nrpy: 0 -0 0"]
+"right_rear_shaft9_joint" -> "right_rear_shaft9_link"
+"right_rear_shaft9_link" -> "right_rear_roll9_joint" [label="xyz: 0 0 0 \nrpy: 0 -0 0"]
+"right_rear_roll9_joint" -> "right_rear_roll9_link"
+"base_link" -> "rplidar_joint" [label="xyz: 0.048632 0.00018237 0.1296 \nrpy: 0 -0 0"]
+"rplidar_joint" -> "laser_link"
+}

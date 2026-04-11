@@ -67,6 +67,13 @@ class RobotGenerator(XMLGenerator):
 
         launch.append(RobotGenerator.createElement("arg", props={"name": "agent_number", "default": str(robots_num)}))
         launch.append(RobotGenerator.createElement("arg", props={"name": "agent_id", "default": str(robots_num)}))
+        launch.append(RobotGenerator.createElement("arg", props={"name": "spawn_wait_for", "default": ""}))
+        map_to_odom = self.user_cfg.get("map_to_odom", "auto")
+        if map_to_odom not in ("amcl", "gazebo", "auto"):
+            map_to_odom = "auto"
+        launch.append(RobotGenerator.createElement("arg", props={"name": "map_to_odom", "default": map_to_odom}))
+        use_move_base = self.user_cfg.get("use_move_base", True)
+        launch.append(RobotGenerator.createElement("arg", props={"name": "use_move_base", "default": str(use_move_base).lower()}))
 
         # setting the parameters of robots
         for i in range(robots_num):
@@ -90,6 +97,8 @@ class RobotGenerator(XMLGenerator):
         # planner
         include.append(getRobotArg("global_planner"))
         include.append(getRobotArg("local_planner"))
+        include.append(RobotGenerator.createElement("arg", props={"name": "map_to_odom", "value": "$(arg map_to_odom)"}))
+        include.append(RobotGenerator.createElement("arg", props={"name": "use_move_base", "value": "$(arg use_move_base)"}))
         # namespace
         include.append(RobotGenerator.createElement("arg", props={"name": "robot_namespace", "value": "robot$(arg agent_id)"}))
         if robots_num > 1:
@@ -101,10 +110,12 @@ class RobotGenerator(XMLGenerator):
         include.append(RobotGenerator.createElement("arg", props={"name": "robot_y", "value": "$(eval arg('robot' + str(arg('agent_id')) + '_y_pos'))"}))
         include.append(RobotGenerator.createElement("arg", props={"name": "robot_z", "value": "$(eval arg('robot' + str(arg('agent_id')) + '_z_pos'))"}))
         include.append(RobotGenerator.createElement("arg", props={"name": "robot_yaw", "value": "$(eval arg('robot' + str(arg('agent_id')) + '_yaw'))"}))
+        include.append(RobotGenerator.createElement("arg", props={"name": "spawn_wait_for", "value": "$(arg spawn_wait_for)"}))
 
         # recursive start
         cycle = RobotGenerator.createElement("include", props={"file": "$(find sim_env)/launch/include/robots/start_robots.launch.xml", "if": "$(eval arg('agent_id') > 1)"})
         cycle.append(RobotGenerator.createElement("arg", props={"name": "agent_id", "value": "$(eval arg('agent_id') - 1)"}))
+        cycle.append(RobotGenerator.createElement("arg", props={"name": "spawn_wait_for", "value": "robot$(arg agent_id)"}))
 
         launch.append(include)
         launch.append(cycle)

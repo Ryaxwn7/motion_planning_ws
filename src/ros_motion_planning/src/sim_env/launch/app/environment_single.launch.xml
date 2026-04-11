@@ -11,84 +11,244 @@
 -->
 
 <launch>
-  <arg name="agent_number" default="1" />
-  <arg name="agent_id" default="1" />
+    <arg name="agent_number" default="1" />
+    <arg name="agent_id" default="1" />
+    <!-- robot's type -->
+    <arg name="robot" default="turtlebot3_burger" />
+    <!-- robot's namespace 没有"/" "-->
+    <arg name="robot_namespace" />
+    <!-- whether use namespace or not -->
+    <arg name="start_ns" default="false" />
+    <arg name="spawn_wait_for" default="" />
+    <!-- global path planner name -->
+    <arg name="global_planner" default="a_star" />
+    <!-- local planner name -->
+    <arg name="local_planner" default="dwa" />
+    <arg name="map_to_odom" default="auto" />
+    <!-- whether start move_base -->
+    <arg name="use_move_base" default="true" />
 
-  <arg name="robot" default="turtlebot3_waffle" />
-  <arg name="robot_namespace" />
-  <arg name="start_ns" default="false" />
-  <arg name="global_planner" default="a_star" />
-  <arg name="local_planner" default="dwa" />
+    <!-- initial pose -->
+    <arg name="robot_x" />
+    <arg name="robot_y" />
+    <arg name="robot_z" />
+    <arg name="robot_yaw" />
 
-  <!-- initial pose -->
-  <arg name="robot_x" />
-  <arg name="robot_y" />
-  <arg name="robot_z" />
-  <arg name="robot_yaw" />
+    <!-- multi -->
+    <group ns="$(arg robot_namespace)" if="$(arg start_ns)">
+        <param name="tf_prefix" value="$(arg robot_namespace)" />
+        <group if="$(eval arg('robot')=='turtlebot3_burger'
+                        or arg('robot')=='turtlebot3_waffle'
+                        or arg('robot')=='turtlebot3_waffle_pi'
+                        or arg('robot')=='nanocar')"> 
+            
+            <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" output="screen" />
+            <node pkg="joint_state_publisher" type="joint_state_publisher" name="joint_state_publisher" output="screen" />
+            <param name="robot_description" command="$(find xacro)/xacro --inorder $(find sim_env)/urdf/$(arg robot)/$(arg robot).xacro" />
+            
+            <!-- Gazebo -->
+            <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+                if="$(eval arg('spawn_wait_for') == '')"
+                args="-urdf -x $(arg robot_x) -y $(arg robot_y) -z $(arg robot_z) -Y $(arg robot_yaw) -model $(arg robot_namespace) -param robot_description" />
+            <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+                if="$(eval arg('spawn_wait_for') != '')"
+                args="-urdf -x $(arg robot_x) -y $(arg robot_y) -z $(arg robot_z) -Y $(arg robot_yaw) -model $(arg robot_namespace) -param robot_description -wait $(arg spawn_wait_for)" />
 
-  <!-- multi -->
-  <group ns="$(arg robot_namespace)" if="$(arg start_ns)">
-    <param name="tf_prefix" value="$(arg robot_namespace)" />
-    <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" output="screen" />
-    <node pkg="joint_state_publisher" type="joint_state_publisher" name="joint_state_publisher" output="screen" />
-    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find sim_env)/urdf/$(arg robot)/$(arg robot).xacro" />
+            <include file="$(find sim_env)/launch/include/location/amcl.launch.xml" if="$(eval arg('map_to_odom') == 'amcl')">
+                <arg name="robot" value="$(arg robot)" />
+                <arg name="robot_namespace" value="$(arg robot_namespace)" />
+                <arg name="start_ns" value="$(arg start_ns)" />
+                <arg name="robot_x" value="$(arg robot_x)" />
+                <arg name="robot_y" value="$(arg robot_y)" />
+                <arg name="robot_a" value="$(arg robot_yaw)" />
+            </include>
+            <node pkg="sim_env" name="tf_map2odom_node" type="tf_map2odom.py" output="screen"
+                unless="$(eval arg('map_to_odom') == 'amcl')">
+                <param name="~odom_frame_id" value="$(arg robot_namespace)/odom" />
+            </node>
 
-    <!-- Gazebo -->
-    <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
-      args="-urdf -x $(arg robot_x) -y $(arg robot_y) -z $(arg robot_z) -Y $(arg robot_yaw) -model $(arg robot_namespace) -param robot_description" />
 
-    <!-- Transform from map to odom -->
-    <node pkg="sim_env" name="tf_map2odom_node" type="tf_map2odom.py" output="screen">
-      <param name="~odom_frame_id" value="$(arg robot_namespace)/odom" />
-    </node>
+            <!-- MoveBase -->
+            <include file="$(find sim_env)/launch/include/navigation/move_base.launch.xml" if="$(arg use_move_base)">
+                <arg name="agent_number" value="$(arg agent_number)" />
+                <arg name="agent_id" value="$(arg agent_id)" />
+                <arg name="robot_namespace" value="$(arg robot_namespace)" />
+                <arg name="start_ns" value="$(arg start_ns)" />
+                <arg name="robot" value="$(arg robot)" />
+                <arg name="global_planner" value="$(arg global_planner)" />
+                <arg name="local_planner" value="$(arg local_planner)" />
+            </include>
+        </group> <!-- if turtlebot3 -->
 
-    <!-- AMCL -->
-    <!-- <include file="$(find sim_env)/launch/include/location/amcl.launch.xml">
-      <arg name="robot_namespace" value="$(arg robot_namespace)" />
-      <arg name="start_ns" value="$(arg start_ns)" />
-      <arg name="robot_x" value="$(arg robot_x)" />
-      <arg name="robot_y" value="$(arg robot_y)" />
-      <arg name="robot_z" value="$(arg robot_z)" />
-    </include> -->
+        <group if="$(eval arg('robot')=='mini_mec')"> 
+            
+            <!--运行控制器-->
+            <node name="controller_manager" pkg="controller_manager" type="spawner" respawn="false"
+                output="screen" ns="controller" args="left_front_wheel_velocity_controller 
+                right_front_wheel_velocity_controller  
+                left_rear_wheel_velocity_controller  
+                right_rear_wheel_velocity_controller
+                joint_state_controller"/>   
 
-    <!-- MoveBase -->
-    <include file="$(find sim_env)/launch/include/navigation/move_base.launch.xml">
-      <arg name="agent_number" value="$(arg agent_number)" />
-      <arg name="agent_id" value="$(arg agent_id)" />
-      <arg name="robot_namespace" value="$(arg robot_namespace)" />
-      <arg name="start_ns" value="$(arg start_ns)" />
-      <arg name="robot" value="$(arg robot)" />
-      <arg name="global_planner" value="$(arg global_planner)" />
-      <arg name="local_planner" value="$(arg local_planner)" />
-    </include>
-  </group>
+            <!-- 运行joint_state_publisher节点，发布机器人的关节状态  -->
+            <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" >
+                <remap from="/joint_states" to="controller/joint_states"/>
+            </node> 
+            <!--判断车型是否为mini_akm,mini_mec和mini_4wd-->
+            <group if="$(eval robot == 'mini_mec' or robot == 'mini_4wd')">
+                <!--cmd_vel速度计算并赋值controller command-->
+                <node pkg="wheeltec_gazebo_function" type="Sub_cmd_vel_$(arg robot).py" name="sub_$(arg robot)_cmd" output="screen">
+                <remap from="/cmd_vel" to="cmd_vel"/> <!--重映射-->
+                <remap from="/wheeltec/mini_mec_left_front_wheel_velocity_controller/command" to="controller/left_front_wheel_velocity_controller/command"/>
+                <remap from="/wheeltec/mini_mec_right_front_wheel_velocity_controller/command" to="controller/right_front_wheel_velocity_controller/command"/>
+                <remap from="/wheeltec/mini_mec_left_rear_wheel_velocity_controller/command" to="controller/left_rear_wheel_velocity_controller/command"/>
+                <remap from="/wheeltec/mini_mec_right_rear_wheel_velocity_controller/command" to="controller/right_rear_wheel_velocity_controller/command"/>
+                </node>
 
-  <!-- single  -->
-  <group unless="$(arg start_ns)">
-    <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" output="screen" />
-    <node pkg="joint_state_publisher" type="joint_state_publisher" name="joint_state_publisher" output="screen" />
-    <param name="robot_description" command="$(find xacro)/xacro --inorder $(find sim_env)/urdf/$(arg robot)/$(arg robot).xacro" />
+                <!--订阅话题推出机器人运动状态-->
+                <node pkg="wheeltec_gazebo_function" type="real_cmd_vel_$(arg robot).py" name="pub_$(arg robot)_cmd" output="screen">
+                <remap from="/wheeltec/mini_mec_base_footprint_velocity/link_cmd_vel" to="controller/base_footprint_velocity/link_cmd_vel"/> <!--重映射-->
+                <remap from="/wheeltec/mini_mec_base_footprint_steering/link_cmd_vel" to="controller/base_footprint_steering/link_cmd_vel"/>
+                <remap from="/wheeltec/mini_mec_left_front_wheel_velocity/joint_cmd_vel" to="controller/left_front_wheel_velocity/joint_cmd_vel"/>
+                <remap from="/wheeltec/mini_mec_right_front_wheel_velocity/joint_cmd_vel" to="controller/right_front_wheel_velocity/joint_cmd_vel"/>
+                <remap from="/wheeltec/mini_mec_left_rear_wheel_velocity/joint_cmd_vel" to="controller/left_rear_wheel_velocity/joint_cmd_vel"/>
+                <remap from="/wheeltec/mini_mec_right_rear_wheel_velocity/joint_cmd_vel" to="controller/right_rear_wheel_velocity/joint_cmd_vel"/>
+                <remap from="/wheeltec/joint_states" to="controller/joint_states"/>
+                </node>
+                <!--load controller yaml-->
+                <rosparam file="$(find wheeltec_gazebo_control)/config/wheeltec_control_$(arg robot)_m.yaml" command="load"
+                    ns="controller"/>
+                <!--发布odom话题和tf-->
+                <node pkg="wheeltec_gazebo_function" name="gazebo_odometry_node" type="gazebo_odometry_m.py" output="screen">
+                    <param name="tf_prefix" value="$(arg robot_namespace)" />
+                </node>
+            </group>
+            <!-- 调用xacro文件解析器 将对应车型的xacro文件转为urdf文件 -->
+            <arg name="model" default="$(find xacro)/xacro --inorder '$(find wheeltec_description)/urdf/$(arg robot)/$(arg robot).xacro' Robot_Namespace:='/$(arg robot_namespace)/controller'"/>
+            <param name="robot_description" command="$(arg model)" />
+            <!-- 运行robot_state_publisher节点，发布tf  -->
+            <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"  output="screen" >
+                <remap from="/joint_states" to="controller/joint_states"/> <!--重映射-->
+                <param name="publish_frequency" type="double" value="50.0" /> <!--发布频率-->
+            </node>
+            <!-- Gazebo -->
+            <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+                if="$(eval arg('spawn_wait_for') == '')"
+                args="-urdf -x $(arg robot_x) -y $(arg robot_y) -z $(arg robot_z) -Y $(arg robot_yaw) -model $(arg robot_namespace) -param robot_description" />
+            <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+                if="$(eval arg('spawn_wait_for') != '')"
+                args="-urdf -x $(arg robot_x) -y $(arg robot_y) -z $(arg robot_z) -Y $(arg robot_yaw) -model $(arg robot_namespace) -param robot_description -wait $(arg spawn_wait_for)" />
+            <node pkg="sim_env" name="tf_map2odom_node" type="tf_map2odom.py" output="screen"
+                if="$(eval arg('map_to_odom') == 'gazebo')">
+                <param name="~odom_frame_id" value="$(arg robot_namespace)/odom" />
+            </node>
+            <include file="$(find sim_env)/launch/include/location/amcl.launch.xml" unless="$(eval arg('map_to_odom') == 'gazebo')">
+                <arg name="robot" value="$(arg robot)" />
+                <arg name="robot_namespace" value="$(arg robot_namespace)" />
+                <arg name="start_ns" value="$(arg start_ns)" />
+                <arg name="robot_x" value="$(arg robot_x)" />
+                <arg name="robot_y" value="$(arg robot_y)" />
+                <arg name="robot_a" value="$(arg robot_yaw)" /> 
+            </include>
+            <!-- MoveBase -->
+            <include file="$(find sim_env)/launch/include/navigation/move_base.launch.xml" if="$(arg use_move_base)">
+                <arg name="agent_number" value="$(arg agent_number)" />
+                <arg name="agent_id" value="$(arg agent_id)" />
+                <arg name="robot_namespace" value="$(arg robot_namespace)" />
+                <arg name="start_ns" value="$(arg start_ns)" />
+                <arg name="robot" value="$(arg robot)" />
+                <arg name="global_planner" value="$(arg global_planner)" />
+                <arg name="local_planner" value="$(arg local_planner)" />
+            </include>
 
-    <!-- Gazebo -->
-    <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
-      args="-urdf -x $(arg robot_x) -y $(arg robot_y) -z $(arg robot_z) -Y $(arg robot_yaw) -model $(arg robot) -param robot_description" />
+        </group> <!-- if mini_mec -->
 
-    <!-- AMCL -->
-    <include file="$(find sim_env)/launch/include/location/amcl.launch.xml">
-      <arg name="robot_namespace" value="$(arg robot_namespace)" />
-      <arg name="start_ns" value="$(arg start_ns)" />
-      <arg name="robot_x" value="$(arg robot_x)" />
-      <arg name="robot_y" value="$(arg robot_y)" />
-      <arg name="robot_z" value="$(arg robot_z)" />
-    </include>
+        <group if="$(eval arg('robot')=='mini_mec_control')"> 
+            <node if="$(eval robot == 'mini_mec_control'  or robot == 'mini_mec')" name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" >
+                <remap from="/joint_states" to="wheeltec/joint_states"/>
+            </node> 
+            <!-- 调用xacro文件解析器 将对应车型的xacro文件转为urdf文件 -->
+            <arg name="model" default="$(find xacro)/xacro --inorder '$(find wheeltec_description)/urdf/$(arg robot)/$(arg robot).xacro'"/>
+            <param name="robot_description" command="$(arg model)" />
+            <!-- 运行robot_state_publisher节点，发布tf  -->
+            <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"  output="screen" >
+                <remap from="/joint_states" to="wheeltec/joint_states"/> <!--重映射-->
+                <param name="publish_frequency" type="double" value="50.0" /> <!--发布频率-->
+            </node>
+            <!-- Gazebo -->
+            <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+                if="$(eval arg('spawn_wait_for') == '')"
+                args="-urdf -x $(arg robot_x) -y $(arg robot_y) -z $(arg robot_z) -Y $(arg robot_yaw) -model $(arg robot_namespace) -param robot_description" />
+            <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+                if="$(eval arg('spawn_wait_for') != '')"
+                args="-urdf -x $(arg robot_x) -y $(arg robot_y) -z $(arg robot_z) -Y $(arg robot_yaw) -model $(arg robot_namespace) -param robot_description -wait $(arg spawn_wait_for)" />
+            <!--发布odom话题和tf-->
+            <node  pkg="wheeltec_gazebo_function" name="gazebo_odometry_node" type="gazebo_odometry.py" output="screen">
+                <param name="tf_prefix" value="$(arg robot_namespace)" />
+            </node>
+            <include file="$(find sim_env)/launch/include/location/amcl.launch.xml" if="$(eval arg('map_to_odom') == 'amcl')">
+                <arg name="robot" value="$(arg robot)" />
+                <arg name="robot_namespace" value="$(arg robot_namespace)" />
+                <arg name="start_ns" value="$(arg start_ns)" />
+                <arg name="robot_x" value="$(arg robot_x)" />
+                <arg name="robot_y" value="$(arg robot_y)" />
+                <arg name="robot_a" value="$(arg robot_yaw)" />
+            </include>
+            <node pkg="sim_env" name="tf_map2odom_node" type="tf_map2odom.py" output="screen"
+                unless="$(eval arg('map_to_odom') == 'amcl')">
+                <param name="~odom_frame_id" value="$(arg robot_namespace)/odom" />
+            </node>
+            <!-- MoveBase -->
+            <include file="$(find sim_env)/launch/include/navigation/move_base.launch.xml" if="$(arg use_move_base)">
+                <arg name="agent_number" value="$(arg agent_number)" />
+                <arg name="agent_id" value="$(arg agent_id)" />
+                <arg name="robot_namespace" value="$(arg robot_namespace)" />
+                <arg name="start_ns" value="$(arg start_ns)" />
+                <arg name="robot" value="$(arg robot)" />
+                <arg name="global_planner" value="$(arg global_planner)" />
+                <arg name="local_planner" value="$(arg local_planner)" />
+            </include>
 
-    <!-- MoveBase-->
-    <include file="$(find sim_env)/launch/include/navigation/move_base.launch.xml">
-      <arg name="robot_namespace" value="$(arg robot_namespace)" />
-      <arg name="start_ns" value="$(arg start_ns)" />
-      <arg name="robot" value="$(arg robot)" />
-      <arg name="global_planner" value="$(arg global_planner)" />
-      <arg name="local_planner" value="$(arg local_planner)" />
-    </include>
-  </group>
+        </group> <!-- if mini_mec_control -->
+
+    </group>
+    <!-- single  -->
+    <group unless="$(arg start_ns)">
+        <!-- 不是minimec -->
+        <group unless="$(eval arg('robot')=='mini_mec' or arg('robot')=='mini_mec_control')">
+            <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" output="screen" />
+            <node pkg="joint_state_publisher" type="joint_state_publisher" name="joint_state_publisher" output="screen" />
+            <param name="robot_description" command="$(find xacro)/xacro --inorder $(find sim_env)/urdf/$(arg robot)/$(arg robot).xacro" />
+
+            <!-- Gazebo -->
+            <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+                if="$(eval arg('spawn_wait_for') == '')"
+                args="-urdf -x $(arg robot_x) -y $(arg robot_y) -z $(arg robot_z) -Y $(arg robot_yaw) -model $(arg robot) -param robot_description" />
+            <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+                if="$(eval arg('spawn_wait_for') != '')"
+                args="-urdf -x $(arg robot_x) -y $(arg robot_y) -z $(arg robot_z) -Y $(arg robot_yaw) -model $(arg robot) -param robot_description -wait $(arg spawn_wait_for)" />
+
+            <node pkg="sim_env" name="tf_map2odom_node" type="tf_map2odom.py" output="screen"
+                if="$(eval arg('map_to_odom') == 'gazebo')" />
+            <include file="$(find sim_env)/launch/include/location/amcl.launch.xml" unless="$(eval arg('map_to_odom') == 'gazebo')">
+                <arg name="robot_namespace" value="$(arg robot_namespace)" />
+                <arg name="start_ns" value="$(arg start_ns)" />
+                <arg name="robot_x" value="$(arg robot_x)" />
+                <arg name="robot_y" value="$(arg robot_y)" />
+                <arg name="robot_z" value="$(arg robot_z)" />
+            </include>
+
+            <!-- MoveBase-->
+            <include file="$(find sim_env)/launch/include/navigation/move_base.launch.xml" if="$(arg use_move_base)">
+                <arg name="robot_namespace" value="$(arg robot_namespace)" />
+                <arg name="start_ns" value="$(arg start_ns)" />
+                <arg name="robot" value="$(arg robot)" />
+                <arg name="global_planner" value="$(arg global_planner)" />
+                <arg name="local_planner" value="$(arg local_planner)" />
+            </include>
+        </group>
+        <!-- 是minimec -->
+
+    </group>
+
 </launch>
