@@ -5,6 +5,7 @@ find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   formation_msgs
   geometry_msgs
+  map_msgs
   roscpp
   rospy
   std_msgs
@@ -26,6 +27,7 @@ catkin_package(
     dynamic_reconfigure
     formation_msgs
     geometry_msgs
+    map_msgs
     nav_msgs
     urdf
     visualization_msgs

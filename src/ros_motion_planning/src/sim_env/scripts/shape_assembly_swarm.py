@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import ast
+import copy
 import math
 import os
 import random
@@ -12,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 import rospy
 from actionlib_msgs.msg import GoalID
 from geometry_msgs.msg import Point, PoseStamped, Twist
+from map_msgs.msg import OccupancyGridUpdate
 from nav_msgs.msg import OccupancyGrid, Odometry
 from std_msgs.msg import Bool, ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
@@ -1518,8 +1520,10 @@ class ShapeAssemblySwarm:
         self.odom_subs: List[rospy.Subscriber] = []
         self.odom_msgs: List[Optional[Odometry]] = []
         self.local_costmap_subs: List[rospy.Subscriber] = []
+        self.local_costmap_update_subs: List[rospy.Subscriber] = []
         self.local_costmap_msgs: List[Optional[OccupancyGrid]] = []
         self.local_costmap_topics: List[str] = []
+        self.local_costmap_update_topics: List[str] = []
         self.local_costmap_ready: List[bool] = []
         self.local_costmap_obs_cells: List[int] = []
         self.local_costmap_msg_age: List[float] = []
@@ -1672,6 +1676,16 @@ class ShapeAssemblySwarm:
                     queue_size=2,
                 )
             )
+            if idx < len(self.local_costmap_update_topics):
+                self.local_costmap_update_subs.append(
+                    rospy.Subscriber(
+                        self.local_costmap_update_topics[idx],
+                        OccupancyGridUpdate,
+                        self._local_costmap_update_cb,
+                        callback_args=idx,
+                        queue_size=2,
+                    )
+                )
 
     def _refresh_leader_indices(self) -> None:
         n = max(0, int(self.sim_param.swarm_size))
@@ -1957,7 +1971,9 @@ class ShapeAssemblySwarm:
         self.local_costmap_msgs = [None for _ in ns_list]
         self.odom_subs = []
         self.local_costmap_subs = []
+        self.local_costmap_update_subs = []
         self.local_costmap_topics = []
+        self.local_costmap_update_topics = []
         self.local_costmap_ready = [False for _ in ns_list]
         self.local_costmap_obs_cells = [0 for _ in ns_list]
         self.local_costmap_msg_age = [float("inf") for _ in ns_list]
@@ -1971,13 +1987,18 @@ class ShapeAssemblySwarm:
             cmd_topic = f"/{ns}/cmd_vel" if ns else "/cmd_vel"
             cancel_topic = f"/{ns}/move_base/cancel" if ns else "/move_base/cancel"
             costmap_topic = f"/{ns}/{costmap_suffix}" if ns else f"/{costmap_suffix}"
+            update_topic = f"{costmap_topic}_updates"
             self.local_costmap_topics.append(costmap_topic)
+            self.local_costmap_update_topics.append(update_topic)
             self.odom_subs.append(rospy.Subscriber(odom_topic, Odometry, self._odom_cb, callback_args=idx, queue_size=10))
             if (not self.distributed_mode) or idx == self.self_agent_index:
                 self.cmd_pubs[idx] = rospy.Publisher(cmd_topic, Twist, queue_size=10)
             if self.use_local_costmap_avoid and ((not self.distributed_mode) or idx == self.self_agent_index):
                 self.local_costmap_subs.append(
                     rospy.Subscriber(costmap_topic, OccupancyGrid, self._local_costmap_cb, callback_args=idx, queue_size=2)
+                )
+                self.local_costmap_update_subs.append(
+                    rospy.Subscriber(update_topic, OccupancyGridUpdate, self._local_costmap_update_cb, callback_args=idx, queue_size=2)
                 )
             if self.control_strategy == ControlStrategy.MOVE_BASE_THEN_SHAPE and ((not self.distributed_mode) or idx == self.self_agent_index):
                 self.move_base_cancel_pubs[idx] = rospy.Publisher(cancel_topic, GoalID, queue_size=4)
@@ -2129,7 +2150,59 @@ class ShapeAssemblySwarm:
 
     def _local_costmap_cb(self, msg: OccupancyGrid, idx: int) -> None:
         if idx < len(self.local_costmap_msgs):
-            self.local_costmap_msgs[idx] = msg
+            self.local_costmap_msgs[idx] = copy.deepcopy(msg)
+
+    def _local_costmap_update_cb(self, msg: OccupancyGridUpdate, idx: int) -> None:
+        if idx >= len(self.local_costmap_msgs):
+            return
+        base_msg = self.local_costmap_msgs[idx]
+        if base_msg is None:
+            return
+
+        base_width = int(base_msg.info.width)
+        base_height = int(base_msg.info.height)
+        if base_width <= 0 or base_height <= 0:
+            return
+
+        update_x = int(msg.x)
+        update_y = int(msg.y)
+        update_width = int(msg.width)
+        update_height = int(msg.height)
+        if update_width <= 0 or update_height <= 0:
+            return
+        if update_x < 0 or update_y < 0:
+            return
+        if update_x + update_width > base_width or update_y + update_height > base_height:
+            rospy.logwarn_throttle(
+                3.0,
+                "ShapeAssembly[%s]: local costmap update out of bounds x=%d y=%d w=%d h=%d base=%dx%d",
+                self.ns_list[idx] if idx < len(self.ns_list) else f"robot{idx+1}",
+                update_x,
+                update_y,
+                update_width,
+                update_height,
+                base_width,
+                base_height,
+            )
+            return
+
+        merged = copy.deepcopy(base_msg)
+        update_data = list(msg.data)
+        for row in range(update_height):
+            base_row = (update_y + row) * base_width
+            update_row = row * update_width
+            for col in range(update_width):
+                base_idx = base_row + (update_x + col)
+                update_idx = update_row + col
+                if base_idx < 0 or base_idx >= len(merged.data) or update_idx < 0 or update_idx >= len(update_data):
+                    continue
+                merged.data[base_idx] = int(update_data[update_idx])
+
+        try:
+            merged.header.stamp = msg.header.stamp
+        except Exception:
+            pass
+        self.local_costmap_msgs[idx] = merged
 
     def _auto_shape_heading_map_cb(self, msg: OccupancyGrid) -> None:
         self.auto_shape_heading_map_msg = msg
