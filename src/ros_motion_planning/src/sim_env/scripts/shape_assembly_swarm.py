@@ -2187,6 +2187,7 @@ class ShapeAssemblySwarm:
             return
 
         merged = copy.deepcopy(base_msg)
+        merged.data = list(merged.data)
         update_data = list(msg.data)
         for row in range(update_height):
             base_row = (update_y + row) * base_width
