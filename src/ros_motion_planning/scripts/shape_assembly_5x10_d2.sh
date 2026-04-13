@@ -5,6 +5,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "${SCRIPT_DIR}/env.sh"
 
+MAIN_GENERATOR="${SHAPE_ASSEMBLY_MAIN_GENERATOR:-${SCRIPT_DIR}/../src/plugins/dynamic_xml_config/main_generate_simtest.py}"
+USER_CONFIG_BASENAME="${SHAPE_ASSEMBLY_USER_CONFIG_BASENAME:-user_config_5x10_d2_simtest.yaml}"
+TARGET_LAUNCH="${SHAPE_ASSEMBLY_TARGET_LAUNCH:-shape_assembly_with_main_simtest.launch}"
+USER_CONFIG_PATH="${SCRIPT_DIR}/../src/user_config/${USER_CONFIG_BASENAME}"
+SHAPE_CONFIG_PATH="${SHAPE_ASSEMBLY_SHAPE_CONFIG_PATH:-${SCRIPT_DIR}/../src/sim_env/config/shape_assembly_simtest.yaml}"
+
 LOCK_FILE="/tmp/shape_assembly_5x10_d2.lock"
 
 _acquire_lock() {
@@ -57,10 +63,10 @@ if [[ "${SKIP_5X10_D2_CLEANUP:-0}" != "1" ]]; then
     yes | rosnode cleanup >/dev/null 2>&1 || true
   fi
 
-  _kill_pattern 'shape_assembly_with_main.launch'
+  _kill_pattern 'shape_assembly_with_main(_simtest)?\.launch'
   _kill_pattern '/controller_manager/spawner'
   _kill_pattern '/robot_state_publisher/robot_state_publisher'
-  _kill_pattern '/opt/ros/.*/bin/roslaunch sim_env shape_assembly_with_main.launch'
+  _kill_pattern '/opt/ros/.*/bin/roslaunch sim_env shape_assembly_with_main(_simtest)?\.launch'
   _kill_pattern 'gzserver.*sim_env/worlds/'
   _kill_pattern '/opt/ros/.*/lib/gazebo_ros/gzserver'
   _kill_pattern '/opt/ros/.*/lib/gazebo_ros/gzclient'
@@ -69,11 +75,9 @@ if [[ "${SKIP_5X10_D2_CLEANUP:-0}" != "1" ]]; then
   sleep 2
 fi
 
-# Generate the environment launch from user config (world/map/robots).
-python "${SCRIPT_DIR}/../src/plugins/dynamic_xml_config/main_generate.py" user_config_5x10_d2.yaml
+# Generate the simtest environment launch from user config (world/map/robots).
+python "${MAIN_GENERATOR}" "${USER_CONFIG_BASENAME}"
 
-USER_CONFIG_PATH="${SCRIPT_DIR}/../src/user_config/user_config_5x10_d2.yaml"
-SHAPE_CONFIG_PATH="${SCRIPT_DIR}/../src/sim_env/config/shape_assembly.yaml"
 DEFAULT_AGENT_NUMBER="$(rg -c 'robot[0-9]+_type' "${USER_CONFIG_PATH}" 2>/dev/null || true)"
 if ! [[ "${DEFAULT_AGENT_NUMBER}" =~ ^[0-9]+$ ]] || [[ "${DEFAULT_AGENT_NUMBER}" -le 0 ]]; then
   DEFAULT_AGENT_NUMBER=4
@@ -127,6 +131,7 @@ _yaml_get_first() {
 HAS_AGENT_NUMBER=0
 HAS_NAMESPACE_PREFIX=0
 HAS_USE_FM2=0
+HAS_ENABLE_MAP_COMBINE=0
 HAS_CENTER_ONLY=0
 HAS_CENTER_TOPIC=0
 HAS_FM2_AUTO_DETECT=0
@@ -153,6 +158,9 @@ for arg in "$@"; do
   fi
   if [[ "${arg}" == use_fm2_gather:=* ]]; then
     HAS_USE_FM2=1
+  fi
+  if [[ "${arg}" == enable_map_combine:=* ]]; then
+    HAS_ENABLE_MAP_COMBINE=1
   fi
   if [[ "${arg}" == publish_center_goal_only:=* ]]; then
     HAS_CENTER_ONLY=1
@@ -207,6 +215,7 @@ done
 YAML_AGENT_NUMBER="$(_yaml_get_first agent_number num_robots 2>/dev/null || true)"
 YAML_NAMESPACE_PREFIX="$(_yaml_get_first namespace_prefix robot_namespace_prefix 2>/dev/null || true)"
 YAML_USE_FM2="$(_yaml_get use_fm2_gather 2>/dev/null || true)"
+YAML_ENABLE_MAP_COMBINE="$(_yaml_get enable_map_combine 2>/dev/null || true)"
 YAML_CENTER_ONLY="$(_yaml_get publish_center_goal_only 2>/dev/null || true)"
 YAML_CENTER_TOPIC="$(_yaml_get gather_center_topic 2>/dev/null || true)"
 YAML_FM2_AUTO_DETECT="$(_yaml_get_first fm2_auto_detect_robots auto_detect_robots 2>/dev/null || true)"
@@ -239,6 +248,9 @@ if [[ "${HAS_NAMESPACE_PREFIX}" -eq 0 ]] && [[ -n "${YAML_NAMESPACE_PREFIX}" ]];
 fi
 if [[ "${HAS_USE_FM2}" -eq 0 ]] && [[ -n "${YAML_USE_FM2}" ]]; then
   launch_args=("use_fm2_gather:=${YAML_USE_FM2}" "${launch_args[@]}")
+fi
+if [[ "${HAS_ENABLE_MAP_COMBINE}" -eq 0 ]] && [[ -n "${YAML_ENABLE_MAP_COMBINE}" ]]; then
+  launch_args=("enable_map_combine:=${YAML_ENABLE_MAP_COMBINE}" "${launch_args[@]}")
 fi
 if [[ "${HAS_CENTER_ONLY}" -eq 0 ]] && [[ -n "${YAML_CENTER_ONLY}" ]]; then
   launch_args=("publish_center_goal_only:=${YAML_CENTER_ONLY}" "${launch_args[@]}")
@@ -289,4 +301,4 @@ if [[ "${HAS_DISTRIBUTED_MODE}" -eq 0 ]] && [[ -n "${YAML_DISTRIBUTED_MODE}" ]];
   launch_args=("distributed_mode:=${YAML_DISTRIBUTED_MODE}" "${launch_args[@]}")
 fi
 
-roslaunch sim_env shape_assembly_with_main.launch "${launch_args[@]}"
+roslaunch sim_env "${TARGET_LAUNCH}" "${launch_args[@]}"

@@ -1,0 +1,57 @@
+<launch>
+    <arg name="agent_number" default="1" />
+    <arg name="agent_id" default="1" />
+    <arg name="robot" default="turtlebot3_burger" />
+    <arg name="robot_namespace" />
+    <arg name="start_ns" default="false" />
+    <arg name="spawn_wait_for" default="" />
+    <arg name="global_planner" default="a_star" />
+    <arg name="local_planner" default="dwa" />
+    <arg name="map_to_odom" default="auto" />
+    <arg name="use_move_base" default="true" />
+    <arg name="robot_x" />
+    <arg name="robot_y" />
+    <arg name="robot_z" />
+    <arg name="robot_yaw" />
+
+    <include file="$(find sim_env)/launch/app/environment_single.launch.xml">
+        <arg name="agent_number" value="$(arg agent_number)" />
+        <arg name="agent_id" value="$(arg agent_id)" />
+        <arg name="robot" value="$(arg robot)" />
+        <arg name="robot_namespace" value="$(arg robot_namespace)" />
+        <arg name="start_ns" value="$(arg start_ns)" />
+        <arg name="spawn_wait_for" value="$(arg spawn_wait_for)" />
+        <arg name="global_planner" value="$(arg global_planner)" />
+        <arg name="local_planner" value="$(arg local_planner)" />
+        <arg name="map_to_odom" value="$(arg map_to_odom)" />
+        <arg name="use_move_base" value="false" />
+        <arg name="robot_x" value="$(arg robot_x)" />
+        <arg name="robot_y" value="$(arg robot_y)" />
+        <arg name="robot_z" value="$(arg robot_z)" />
+        <arg name="robot_yaw" value="$(arg robot_yaw)" />
+    </include>
+
+    <group ns="$(arg robot_namespace)" if="$(arg start_ns)">
+        <include file="$(find sim_env)/launch/include/navigation/move_base_simtest.launch.xml" if="$(arg use_move_base)">
+            <arg name="agent_number" value="$(arg agent_number)" />
+            <arg name="agent_id" value="$(arg agent_id)" />
+            <arg name="robot_namespace" value="$(arg robot_namespace)" />
+            <arg name="start_ns" value="$(arg start_ns)" />
+            <arg name="robot" value="$(arg robot)" />
+            <arg name="global_planner" value="$(arg global_planner)" />
+            <arg name="local_planner" value="$(arg local_planner)" />
+        </include>
+    </group>
+
+    <group unless="$(arg start_ns)">
+        <include file="$(find sim_env)/launch/include/navigation/move_base_simtest.launch.xml" if="$(arg use_move_base)">
+            <arg name="agent_number" value="$(arg agent_number)" />
+            <arg name="agent_id" value="$(arg agent_id)" />
+            <arg name="robot_namespace" value="$(arg robot_namespace)" />
+            <arg name="start_ns" value="$(arg start_ns)" />
+            <arg name="robot" value="$(arg robot)" />
+            <arg name="global_planner" value="$(arg global_planner)" />
+            <arg name="local_planner" value="$(arg local_planner)" />
+        </include>
+    </group>
+</launch>

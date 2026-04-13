@@ -1,0 +1,35 @@
+<!--
+******************************************************************************************
+*  Simtest Gazebo launch wrapper.                                                        *
+******************************************************************************************
+-->
+
+<launch>
+  <arg name="world" default="warehouse" />
+  <arg name="map" default="warehouse" />
+  <arg name="robot_number" default="1" />
+  <arg name="debug" default="false" />
+  <arg name="gui" default="true" />
+  <arg name="headless" default="false" />
+  <arg name="use_rviz" default="true" />
+  <arg name="rviz_file" default="" />
+
+  <include file="$(find gazebo_ros)/launch/empty_world.launch" unless="$(eval arg('world') == '')">
+    <arg name="world_name" value="$(find sim_env)/worlds/$(arg world).world" />
+    <arg name="debug" value="$(arg debug)" />
+    <arg name="gui" value="$(arg gui)" />
+    <arg name="headless" value="$(arg headless)" />
+    <arg name="paused" value="false" />
+    <arg name="use_sim_time" value="true" />
+  </include>
+
+  <node name="map_server" pkg="map_server" type="map_server" args="$(find sim_env)/maps/$(arg map)/$(arg map).yaml"
+    unless="$(eval arg('map') == '')" />
+
+  <include file="$(find sim_env)/launch/include/robots/start_robots_simtest.launch.xml" />
+
+  <node pkg="dynamic_rviz_config" type="rviz_generate.py" name="rosapp_rviz" args="$(arg robot_number)" output="screen"
+    if="$(eval arg('use_rviz') and arg('rviz_file') == '')" />
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find sim_env)/rviz/$(arg rviz_file)"
+    if="$(eval arg('use_rviz') and arg('rviz_file') != '')" />
+</launch>
