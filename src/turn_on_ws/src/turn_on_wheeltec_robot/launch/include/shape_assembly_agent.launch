@@ -4,12 +4,13 @@
   <arg name="agent_number" default="4" />
   <arg name="robot_ids" default="USE_YAML_SENTINEL" />
   <arg name="namespace_prefix" default="robot" />
-  <arg name="distributed_marker_owner" default="robot1" />
+  <arg name="distributed_marker_owner" default="" />
   <arg name="shape_source" default="mat" />
   <arg name="shape_type" default="rectangle" />
   <arg name="shape_scale" default="1.0" />
-  <arg name="publish_markers" default="false" />
-  <arg name="debug_log" default="false" />
+  <arg name="publish_markers" default="USE_YAML_SENTINEL" />
+  <arg name="debug_log" default="USE_YAML_SENTINEL" />
+  <arg name="shape_assembly_config" default="$(find sim_env)/config/shape_assembly.yaml" />
   <arg name="shape_library_root" default="$(find sim_env)/shape_images" />
   <arg name="task_topic" default="/shape_assembly/task" />
   <arg name="use_center_as_goal" default="true" />
@@ -28,6 +29,7 @@
     <arg name="shape_library_root" value="$(arg shape_library_root)" />
     <arg name="publish_markers" value="$(arg publish_markers)" />
     <arg name="debug_log" value="$(arg debug_log)" />
+    <arg name="shape_assembly_config" value="$(arg shape_assembly_config)" />
     <arg name="task_topic" value="$(arg task_topic)" />
     <arg name="use_center_as_goal" value="$(arg use_center_as_goal)" />
     <arg name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />

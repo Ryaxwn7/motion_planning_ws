@@ -1,11 +1,22 @@
 <launch>
   <arg name="agent_number" default="4" />
   <arg name="robot_ids" default="USE_YAML_SENTINEL" />
+  <arg name="gather_config" default="$(find fm2_gather)/config/gather_param.yaml" />
+  <arg name="enable_map_combine" default="false" />
   <arg name="shape_type" default="rectangle" />
   <arg name="shape_heading" default="0.0" />
   <arg name="shape_scale" default="1.0" />
   <arg name="shape_source" default="mat" />
   <arg name="shape_library_root" default="$(find sim_env)/shape_images" />
+  <arg name="shape_mat_path" default="" />
+  <arg name="shape_resolution" default="80" />
+  <arg name="ring_inner_ratio" default="0.25" />
+  <arg name="ring_outer_ratio" default="0.4" />
+  <arg name="gray_width" default="4" />
+  <arg name="r_avoid" default="0.60" />
+  <arg name="shape_black_threshold" default="1.0e-6" />
+  <arg name="publish_target_markers" default="true" />
+  <arg name="target_marker_topic" default="/shape_assembly/target_markers" />
   <arg name="staging_radius" default="0.0" />
   <arg name="auto_shape_heading" default="true" />
   <arg name="auto_shape_heading_map_topic" default="/map" />
@@ -40,6 +51,7 @@
   <rosparam if="$(eval arg('robot_ids') != 'USE_YAML_SENTINEL')" param="robot_ids" subst_value="true">$(arg robot_ids)</rosparam>
 
   <include file="$(find fm2_gather)/launch/laun.launch">
+    <arg name="config_file" value="$(arg gather_config)" />
     <arg name="num_robots" value="$(arg agent_number)" />
     <arg name="robot_ids" value="$(arg robot_ids)" />
     <arg name="publish_center_goal_only" value="$(arg publish_center_goal_only)" />
@@ -51,7 +63,7 @@
     <arg name="robot_namespace_prefix" value="$(arg robot_namespace_prefix)" />
     <arg name="robot_detect_topic_suffix" value="$(arg robot_detect_topic_suffix)" />
     <arg name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
-    <arg name="enable_map_combine" value="false" />
+    <arg name="enable_map_combine" value="$(arg enable_map_combine)" />
     <arg name="replan_mode" value="$(arg replan_mode)" />
     <arg name="periodic_interval" value="$(arg periodic_interval)" />
     <arg name="cooldown" value="$(arg cooldown)" />
@@ -74,6 +86,15 @@
     <param name="shape_scale" value="$(arg shape_scale)" />
     <param name="shape_source" value="$(arg shape_source)" />
     <param name="shape_library_root" value="$(arg shape_library_root)" />
+    <param name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <param name="shape_resolution" value="$(arg shape_resolution)" />
+    <param name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <param name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <param name="gray_width" value="$(arg gray_width)" />
+    <param name="r_avoid" value="$(arg r_avoid)" />
+    <param name="shape_black_threshold" value="$(arg shape_black_threshold)" />
+    <param name="publish_target_markers" value="$(arg publish_target_markers)" />
+    <param name="target_marker_topic" value="$(arg target_marker_topic)" />
     <param name="staging_radius" value="$(arg staging_radius)" />
     <param name="auto_shape_heading" value="$(arg auto_shape_heading)" />
     <param name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />

@@ -12,7 +12,7 @@ MAP_PID=""
 HOST_PID=""
 
 _launch_map_server=true
-_auto_start_gather=true
+_auto_start_gather=false
 _start_gather_delay=2.0
 _start_gather_wait_started=5.0
 _start_gather_wait_connections=2.0
@@ -90,6 +90,10 @@ fi
 echo "[shape_assembly_real_robot] Starting host formation stack"
 roslaunch turn_on_wheeltec_robot shape_assembly_host.launch "${launch_args[@]}" &
 HOST_PID=$!
+if [[ "${_auto_start_gather}" != "true" ]]; then
+  echo "[shape_assembly_real_robot] Host is waiting for manual gather trigger:"
+  echo "[shape_assembly_real_robot]   rostopic pub -1 /gather_signal std_msgs/UInt8 '{data: 2}'"
+fi
 
 if [[ "${_auto_start_gather}" == "true" ]]; then
   echo "[shape_assembly_real_robot] Waiting ${_start_gather_delay}s before triggering fm2_gather"

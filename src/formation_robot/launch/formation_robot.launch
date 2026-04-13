@@ -4,12 +4,13 @@
   <arg name="agent_number" default="4" />
   <arg name="robot_ids" default="USE_YAML_SENTINEL" />
   <arg name="namespace_prefix" default="robot" />
-  <arg name="distributed_marker_owner" default="robot1" />
+  <arg name="distributed_marker_owner" default="" />
   <arg name="shape_source" default="mat" />
   <arg name="shape_type" default="rectangle" />
   <arg name="shape_scale" default="1.0" />
-  <arg name="publish_markers" default="false" />
-  <arg name="debug_log" default="false" />
+  <arg name="publish_markers" default="USE_YAML_SENTINEL" />
+  <arg name="debug_log" default="USE_YAML_SENTINEL" />
+  <arg name="shape_assembly_config" default="$(find sim_env)/config/shape_assembly.yaml" />
   <arg name="shape_library_root" default="$(find sim_env)/shape_images" />
   <arg name="shape_resolution" default="80" />
   <arg name="ring_inner_ratio" default="0.25" />
@@ -22,6 +23,7 @@
 
   <include file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
     <arg name="node_name" value="shape_assembly_swarm" />
+    <arg name="config_file" value="$(arg shape_assembly_config)" />
     <arg name="auto_detect" value="false" />
     <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
     <arg name="agent_number" value="$(arg agent_number)" />
@@ -34,6 +36,10 @@
     <arg name="shape_type" value="$(arg shape_type)" />
     <arg name="shape_scale" value="$(arg shape_scale)" />
     <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
     <arg name="reference_center_topic" value="/gather_center" />
     <arg name="reference_center_wait" value="true" />
     <arg name="control_strategy" value="move_base_then_shape" />
@@ -42,7 +48,6 @@
     <arg name="cancel_grace_period" value="0.35" />
     <arg name="use_local_costmap_avoid" value="true" />
     <arg name="local_costmap_topic_suffix" value="move_base/local_costmap/costmap" />
-    <arg name="auto_shape_heading" value="false" />
     <arg name="publish_markers" value="$(arg publish_markers)" />
     <arg name="marker_topic" value="/shape_assembly/markers" />
     <arg name="debug_log" value="$(arg debug_log)" />
@@ -51,6 +56,7 @@
   </include>
 
   <node pkg="formation_robot" type="shape_task_bridge.py" name="shape_task_bridge" output="screen">
+    <rosparam file="$(arg shape_assembly_config)" command="load" />
     <param name="robot_namespace" value="$(arg robot_namespace)" />
     <param name="robot_id" value="$(arg agent_id)" />
     <param name="agent_count" value="$(arg agent_number)" />

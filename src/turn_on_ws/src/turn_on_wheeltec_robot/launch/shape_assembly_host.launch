@@ -1,11 +1,22 @@
 <launch>
   <arg name="agent_number" default="4" />
   <arg name="robot_ids" default="USE_YAML_SENTINEL" />
+  <arg name="gather_config" default="$(find fm2_gather)/config/gather_param_real_simaligned.yaml" />
+  <arg name="enable_map_combine" default="true" />
   <arg name="shape_type" default="rectangle" />
   <arg name="shape_heading" default="0.0" />
   <arg name="shape_scale" default="1.0" />
   <arg name="shape_source" default="mat" />
   <arg name="shape_library_root" default="$(find sim_env)/shape_images" />
+  <arg name="shape_mat_path" default="" />
+  <arg name="shape_resolution" default="80" />
+  <arg name="ring_inner_ratio" default="0.25" />
+  <arg name="ring_outer_ratio" default="0.4" />
+  <arg name="gray_width" default="4" />
+  <arg name="r_avoid" default="0.35" />
+  <arg name="shape_black_threshold" default="1.0e-6" />
+  <arg name="publish_target_markers" default="true" />
+  <arg name="target_marker_topic" default="/shape_assembly/target_markers" />
   <arg name="staging_radius" default="0.0" />
   <arg name="auto_shape_heading" default="true" />
   <arg name="auto_shape_heading_map_topic" default="/map" />
@@ -37,11 +48,22 @@
   <include file="$(find formation_host)/launch/formation_host.launch">
     <arg name="agent_number" value="$(arg agent_number)" />
     <arg name="robot_ids" value="$(arg robot_ids)" />
+    <arg name="gather_config" value="$(arg gather_config)" />
+    <arg name="enable_map_combine" value="$(arg enable_map_combine)" />
     <arg name="shape_type" value="$(arg shape_type)" />
     <arg name="shape_heading" value="$(arg shape_heading)" />
     <arg name="shape_scale" value="$(arg shape_scale)" />
     <arg name="shape_source" value="$(arg shape_source)" />
     <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="shape_mat_path" value="$(arg shape_mat_path)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
+    <arg name="r_avoid" value="$(arg r_avoid)" />
+    <arg name="shape_black_threshold" value="$(arg shape_black_threshold)" />
+    <arg name="publish_target_markers" value="$(arg publish_target_markers)" />
+    <arg name="target_marker_topic" value="$(arg target_marker_topic)" />
     <arg name="staging_radius" value="$(arg staging_radius)" />
     <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
     <arg name="auto_shape_heading_map_topic" value="$(arg auto_shape_heading_map_topic)" />

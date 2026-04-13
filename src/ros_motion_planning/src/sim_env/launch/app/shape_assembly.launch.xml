@@ -2,6 +2,7 @@
 <launch>
   <!-- Command-line override sentinel. Keep this value unchanged. -->
   <arg name="node_name" default="shape_assembly_swarm" />
+  <arg name="config_file" default="$(find sim_env)/config/shape_assembly.yaml" />
   <arg name="enabled" default="USE_YAML_SENTINEL" />
   <arg name="auto_detect" default="USE_YAML_SENTINEL" />
   <arg name="namespace_prefix" default="USE_YAML_SENTINEL" />
@@ -141,7 +142,7 @@
     </rosparam>
 
     <!-- YAML config (middle priority). -->
-    <rosparam file="$(find sim_env)/config/shape_assembly.yaml" command="load" />
+    <rosparam file="$(arg config_file)" command="load" />
 
     <!-- Command-line overrides (highest priority). -->
     <param if="$(eval arg('enabled') != 'USE_YAML_SENTINEL')" name="enabled" value="$(arg enabled)" />

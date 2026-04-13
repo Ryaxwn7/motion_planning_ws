@@ -13,7 +13,7 @@ HOST_STACK_PID=""
 _config_file="${ROOT_DIR}/config/host_start.conf"
 _start_roscore=true
 _launch_map_server=true
-_auto_start_gather=true
+_auto_start_gather=false
 _roscore_wait=8.0
 _ros_master_uri="${ROS_MASTER_URI:-http://192.168.1.104:11311}"
 _ros_ip="${ROS_IP:-}"
@@ -44,6 +44,7 @@ Script args:
   ros_ip:=<HOST_IP>
 
 All other args are forwarded to shape_assembly_real_robot.sh.
+Default gather behavior is manual: keep `auto_start_gather:=false` and publish `/gather_signal` yourself.
 Command-line args override config file values.
 EOF
 }
@@ -257,4 +258,8 @@ shape_assembly_args+=("${host_args[@]}")
 
 bash "${ROOT_DIR}/src/ros_motion_planning/scripts/shape_assembly_real_robot.sh" "${shape_assembly_args[@]}" &
 HOST_STACK_PID=$!
+if [[ "${_auto_start_gather}" != "true" ]]; then
+  echo "[start_host] Host stack started. Trigger gather manually with:"
+  echo "[start_host]   rostopic pub -1 /gather_signal std_msgs/UInt8 '{data: 2}'"
+fi
 wait "${HOST_STACK_PID}"

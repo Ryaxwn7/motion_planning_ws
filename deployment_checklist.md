@@ -4,6 +4,10 @@
 
 这份文档用于指导当前工作空间的实际部署。
 
+如果你现在使用的是默认真机链路，优先参考：
+
+- [real_simaligned_real_robot_runbook.md](/home/yxw/motion_planning_ws/src/ros_motion_planning/docs/real_simaligned_real_robot_runbook.md)
+
 目标是把系统分成两部分：
 
 - 主机：负责聚集中心选择、队形任务发布、全局监控、重规划触发
@@ -148,8 +152,8 @@ bash src/ros_motion_planning/scripts/shape_assembly_real_robot.sh \
 
 - 可选启动 `map_server`
 - 启动 `shape_assembly_host.launch`
-- 通过 `rosrun move_base_client start_gather.py` 向 `/gather_signal` 发送 `2`
-- 等待 `fm2_gather` 自动计算并发布聚集中心
+- 默认保持待命
+- 等待操作人手动发布 `/gather_signal = 2`
 
 如果地图已经由其它终端启动，可以补充：
 
@@ -209,20 +213,20 @@ bash src/ros_motion_planning/scripts/shape_assembly_real_robot.sh \
 - `enable_shape_assembly:=true`
 - `shape_source:=mat`
 - `shape_type:=rectangle`
-- `use_center_as_goal:=false`
+- `use_center_as_goal:=true`
 
 说明：
 
-- `use_center_as_goal:=false` 是默认推荐值
-- 这表示机器人先导航到本机计算出的 `staging goal`
-- 如果你希望机器人直接把聚集中心当作导航目标，再改成 `true`
+- `real_simaligned` 默认使用 `use_center_as_goal:=true`
+- 这表示机器人先直接导航到共享聚集中心
+- 如果你希望机器人先导航到本机 `staging goal`，再临时改回 `false`
 
 #### `formation_robot` 相关参数
 
 - `robot_namespace:=robot1`
 - `agent_id:=1`
 - `agent_number:=4`
-- `distributed_marker_owner:=robot1`
+- `distributed_marker_owner:=` 空字符串，允许按 `robot_ids` 自动选择 marker owner
 - `shape_source:=mat`
 - `shape_type:=rectangle`
 - `shape_library_root:=$(find sim_env)/shape_images`
@@ -232,7 +236,7 @@ bash src/ros_motion_planning/scripts/shape_assembly_real_robot.sh \
 - `gray_width:=4`
 - `task_topic:=/shape_assembly/task`
 - `robot_status_topic:=shape_assembly/status`
-- `use_center_as_goal:=false`
+- `use_center_as_goal:=true`
 
 #### `shape_assembly` 相关参数
 
@@ -256,8 +260,8 @@ bash src/ros_motion_planning/scripts/shape_assembly_real_robot.sh \
 - `switch_reference_radius_margin: 0.25`
 - `switch_reference_radius_min: 0.0`
 - `use_local_costmap_avoid: true`
-- `auto_shape_heading: false`
-- `publish_markers: false`
+- `auto_shape_heading: true`
+- `publish_markers: true`
 - `shape_black_threshold: 1.0e-6`
 
 ### 4.5 机器人启动命令
@@ -281,10 +285,10 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
   enable_shape_assembly:=true \
   shape_source:=mat \
   shape_type:=rectangle \
-  use_center_as_goal:=false
+  use_center_as_goal:=true
 ```
 
-如果你要测试“直接去聚集中心”模式：
+如果你要切回“先去 staging goal 再切换编队”的模式：
 
 ```bash
 roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
@@ -292,7 +296,7 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
   agent_number:=4 \
   agent_id:=1 \
   enable_shape_assembly:=true \
-  use_center_as_goal:=true
+  use_center_as_goal:=false
 ```
 
 ---
@@ -434,17 +438,17 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
 - `global_planner:=fm2`
 - `local_planner:=my`
 - `enable_shape_assembly:=true`
-- `use_center_as_goal:=false`
+- `use_center_as_goal:=true`
 
 原因：
 
 - `rectangle` 最容易观察队形朝向是否合理
 - `auto_shape_heading:=true` 能先利用主机自动适配可用空间
-- `use_center_as_goal:=false` 更符合当前分层设计，能减少多机器人直接拥到中心的风险
+- `use_center_as_goal:=true` 更接近当前 `real_simaligned` 和 `simtest` 的默认行为
 
-如果现场空间很宽、你只想先做最简单验证，再临时改成：
+如果你现场更希望“先去 staging 再编队”，再临时改成：
 
-- `use_center_as_goal:=true`
+- `use_center_as_goal:=false`
 
 ---
 
@@ -529,7 +533,7 @@ bash src/ros_motion_planning/scripts/shape_assembly_real_robot.sh \
   auto_shape_heading:=true
 ```
 
-这个脚本会在主机侧自动调用 `start_gather.py`，让 `fm2_gather` 接收启动信号后自行计算聚集中心。
+当前默认不自动触发聚集。主机启动完成后，由操作人手动发布 `/gather_signal=2` 或手动运行 `start_gather.py`。
 
 ### 11.4 机器人终端：分别启动 `robot1` 到 `robot4`
 
@@ -552,7 +556,7 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
   enable_shape_assembly:=true \
   shape_source:=mat \
   shape_type:=rectangle \
-  use_center_as_goal:=false
+  use_center_as_goal:=true
 ```
 
 `robot2`：
@@ -574,7 +578,7 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
   enable_shape_assembly:=true \
   shape_source:=mat \
   shape_type:=rectangle \
-  use_center_as_goal:=false
+  use_center_as_goal:=true
 ```
 
 `robot3`：
@@ -596,7 +600,7 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
   enable_shape_assembly:=true \
   shape_source:=mat \
   shape_type:=rectangle \
-  use_center_as_goal:=false
+  use_center_as_goal:=true
 ```
 
 `robot4`：
@@ -618,7 +622,7 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
   enable_shape_assembly:=true \
   shape_source:=mat \
   shape_type:=rectangle \
-  use_center_as_goal:=false
+  use_center_as_goal:=true
 ```
 
 ### 11.5 主机终端 4：手动触发一次聚集中心计算（仅在未使用一键脚本时）

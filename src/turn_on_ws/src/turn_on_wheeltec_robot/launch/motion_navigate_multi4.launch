@@ -16,10 +16,25 @@
     <arg name="shape_type" default="rectangle" />
     <arg name="shape_heading" default="0.0" />
     <arg name="shape_scale" default="1.0" />
+    <arg name="shape_library_root" default="$(find sim_env)/shape_images" />
+    <arg name="shape_resolution" default="80" />
+    <arg name="ring_inner_ratio" default="0.25" />
+    <arg name="ring_outer_ratio" default="0.4" />
+    <arg name="gray_width" default="4" />
     <arg name="staging_radius" default="0.0" />
     <arg name="auto_shape_heading" default="true" />
     <arg name="use_center_as_goal" default="true" />
+    <arg name="gather_config" default="$(find fm2_gather)/config/gather_param_real_simaligned.yaml" />
+    <arg name="enable_map_combine" default="true" />
+    <arg name="publish_target_markers" default="true" />
+    <arg name="target_marker_topic" default="/shape_assembly/target_markers" />
+    <arg name="distributed_marker_owner" default="" />
+    <arg name="publish_markers" default="USE_YAML_SENTINEL" />
     <arg name="robot_odom_topic_suffix" default="USE_YAML_SENTINEL" />
+    <arg name="shape_assembly_config" default="$(find sim_env)/config/shape_assembly_real_simaligned.yaml" />
+    <arg name="my_local_planner_config" default="$(find sim_env)/config/planner/my_local_planner_params_real_simaligned.yaml" />
+    <arg name="global_costmap_config" default="$(find sim_env)/config/costmap/global_costmap_params_real_simaligned.yaml" />
+    <arg name="local_costmap_config" default="$(find sim_env)/config/costmap/local_costmap_params_real_simaligned.yaml" />
 
 <!--map_server节点启动一次，之后的机器人不再启动-->
 <node unless="$(arg map_started)" name="map_server_for_test" pkg="map_server" type="map_server" args="$(arg map_file)">
@@ -28,12 +43,22 @@
 <include if="$(arg launch_shape_assembly_host)" file="$(find turn_on_wheeltec_robot)/launch/shape_assembly_host.launch">
     <arg name="agent_number" value="$(arg agent_number)" />
     <arg name="robot_ids" value="$(arg robot_ids)" />
+    <arg name="gather_config" value="$(arg gather_config)" />
+    <arg name="enable_map_combine" value="$(arg enable_map_combine)" />
     <arg name="shape_type" value="$(arg shape_type)" />
     <arg name="shape_heading" value="$(arg shape_heading)" />
     <arg name="shape_scale" value="$(arg shape_scale)" />
     <arg name="shape_source" value="$(arg shape_source)" />
+    <arg name="shape_library_root" value="$(arg shape_library_root)" />
+    <arg name="shape_resolution" value="$(arg shape_resolution)" />
+    <arg name="ring_inner_ratio" value="$(arg ring_inner_ratio)" />
+    <arg name="ring_outer_ratio" value="$(arg ring_outer_ratio)" />
+    <arg name="gray_width" value="$(arg gray_width)" />
     <arg name="staging_radius" value="$(arg staging_radius)" />
     <arg name="auto_shape_heading" value="$(arg auto_shape_heading)" />
+    <arg name="publish_target_markers" value="$(arg publish_target_markers)" />
+    <arg name="target_marker_topic" value="$(arg target_marker_topic)" />
+    <arg name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
 </include>
 
 <group ns="$(arg robot_namespace)" if="$(arg start_ns)">
@@ -69,6 +94,9 @@
         <arg name="agent_number" value="$(arg agent_number)" />
         <arg name="agent_id" value="$(arg agent_id)" />
         <arg name="start_ns" value="$(arg start_ns)"/>
+        <arg name="my_local_planner_config" value="$(arg my_local_planner_config)" />
+        <arg name="global_costmap_config" value="$(arg global_costmap_config)" />
+        <arg name="local_costmap_config" value="$(arg local_costmap_config)" />
     </include>
 
     <include if="$(arg enable_shape_assembly)" file="$(find turn_on_wheeltec_robot)/launch/include/shape_assembly_agent.launch">
@@ -76,9 +104,13 @@
         <arg name="agent_id" value="$(arg agent_id)" />
         <arg name="agent_number" value="$(arg agent_number)" />
         <arg name="robot_ids" value="$(arg robot_ids)" />
+        <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
         <arg name="shape_source" value="$(arg shape_source)" />
         <arg name="shape_type" value="$(arg shape_type)" />
         <arg name="shape_scale" value="$(arg shape_scale)" />
+        <arg name="shape_library_root" value="$(arg shape_library_root)" />
+        <arg name="publish_markers" value="$(arg publish_markers)" />
+        <arg name="shape_assembly_config" value="$(arg shape_assembly_config)" />
         <arg name="use_center_as_goal" value="$(arg use_center_as_goal)" />
         <arg name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
     </include>

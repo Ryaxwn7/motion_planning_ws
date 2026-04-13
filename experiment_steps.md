@@ -13,8 +13,12 @@
 默认目标：
 
 - 主机启动 `roscore`、`map_server`、`shape_assembly_host.launch`
-- 主机自动调用 `start_gather.py`，通过 `/gather_signal` 触发 `fm2_gather` 自动计算聚集中心
+- 主机默认进入待命状态，等待操作人通过 `/gather_signal` 手动触发 `fm2_gather` 计算聚集中心
 - 每台机器人运行自己的 `move_base + shape_assembly`
+
+详细真机运行手册见：
+
+- [real_simaligned_real_robot_runbook.md](/home/yxw/motion_planning_ws/src/ros_motion_planning/docs/real_simaligned_real_robot_runbook.md)
 
 ## 1. 实验前检查
 
@@ -35,7 +39,9 @@
 
 - `ROS_MASTER_URI_VALUE`
 - `ROS_IP_VALUE`
-- `HOST_LAUNCH_ARGS` 中的 `agent_number`、`shape_type`
+- `HOST_LAUNCH_ARGS` 中的 `agent_number`
+- `HOST_LAUNCH_ARGS` 中的 `robot_ids`
+- `HOST_LAUNCH_ARGS` 中的 `shape_type`
 
 每台机器人分别编辑自己的本地文件：
 
@@ -47,6 +53,7 @@
 - `ROS_IP_VALUE`
 - `ROBOT_LAUNCH_ARGS` 中的 `agent_id`
 - `ROBOT_LAUNCH_ARGS` 中的 `agent_number`
+- `ROBOT_LAUNCH_ARGS` 中的 `robot_ids`
 
 说明：
 
@@ -113,20 +120,16 @@ rostopic echo /robot1/shape_assembly/status
 
 ## 6. 手动控制选项
 
-如果不想自动触发聚集中心计算，可以把主机配置改成：
-
-- `AUTO_START_GATHER=false`
-
-或者临时覆盖：
-
-```bash
-./start_host.sh auto_start_gather:=false
-```
-
-然后手动触发：
+当前默认就是手动触发聚集中心计算。主机启动完成后，手动触发：
 
 ```bash
 rosrun move_base_client start_gather.py --wait-started 5.0
+```
+
+或直接发布底层信号：
+
+```bash
+rostopic pub -1 /gather_signal std_msgs/UInt8 '{data: 2}'
 ```
 
 如果你要人工覆盖 `fm2_gather` 计算出的中心，则额外发布：
@@ -145,14 +148,19 @@ rostopic pub -1 /shape_assembly/center_goal_cmd geometry_msgs/PoseStamped '{head
 
 ## 8. 常用变体
 
-如果要测试“机器人直接去聚集中心”模式，修改机器人配置：
+默认 `real_simaligned` 真实链路已经使用 `use_center_as_goal:=true`。
 
-- 在 `ROBOT_LAUNCH_ARGS` 里把 `use_center_as_goal:=false` 改成 `true`
-
-或者临时覆盖：
+如果要整体回退到旧真实参数链路：
 
 ```bash
-./start_robot.sh use_center_as_goal:=true
+./start_host.sh config:=/home/yxw/motion_planning_ws/config/host_start.legacy.conf
+./start_robot.sh config:=/home/yxw/motion_planning_ws/config/robot_start.legacy.conf
+```
+
+如果要切回“先去 staging goal 再切换编队”的模式，可以临时覆盖：
+
+```bash
+./start_robot.sh use_center_as_goal:=false
 ```
 
 如果要关闭编队控制、只跑导航链：

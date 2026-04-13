@@ -1,5 +1,6 @@
 <launch>
-    <rosparam file="$(find fm2_gather)/config/gather_param.yaml" command="load" />
+    <arg name="config_file" default="$(find fm2_gather)/config/gather_param.yaml" />
+    <rosparam file="$(arg config_file)" command="load" />
     <arg name="num_robots" default="0" />
     <arg name="robot_ids" default="USE_YAML_SENTINEL" />
     <arg name="publish_center_goal_only" default="false" />
