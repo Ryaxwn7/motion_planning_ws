@@ -9,8 +9,8 @@
     <arg name="external_center_sync_wait" default="0.5" />
     <arg name="auto_detect_robots" default="true" />
     <arg name="robot_namespace_prefix" default="robot" />
-    <arg name="robot_detect_topic_suffix" default="/odom_combined" />
-    <arg name="robot_odom_topic_suffix" default="/odom_combined" />
+    <arg name="robot_detect_topic_suffix" default="USE_YAML_SENTINEL" />
+    <arg name="robot_odom_topic_suffix" default="USE_YAML_SENTINEL" />
     <arg name="robot_detect_timeout" default="8.0" />
     <arg name="enable_map_combine" default="false" />
     <!-- replan monitor params -->
@@ -40,8 +40,8 @@
     <param name="external_center_sync_wait" value="$(arg external_center_sync_wait)" />
     <param name="auto_detect_robots" value="$(arg auto_detect_robots)" />
     <param name="robot_namespace_prefix" value="$(arg robot_namespace_prefix)" />
-    <param name="robot_detect_topic_suffix" value="$(arg robot_detect_topic_suffix)" />
-    <param name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
+    <param if="$(eval arg('robot_detect_topic_suffix') != 'USE_YAML_SENTINEL')" name="robot_detect_topic_suffix" value="$(arg robot_detect_topic_suffix)" />
+    <param if="$(eval arg('robot_odom_topic_suffix') != 'USE_YAML_SENTINEL')" name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
     <param name="robot_detect_timeout" value="$(arg robot_detect_timeout)" />
     <param name="test_mode" type="bool" value="false" />
     <!-- <param name="mission" type="string" value="fastest" />  mission: fastest, energy, space -->
@@ -54,7 +54,7 @@
 
     <node name="c_plan_monitor" pkg="move_base_client" type="c_plan_monitor" output="screen"> <!-- launch-prefix="gnome-terminal - - -->
         <param name="robot_namespace_prefix" value="$(arg robot_namespace_prefix)" />
-        <param name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
+        <param if="$(eval arg('robot_odom_topic_suffix') != 'USE_YAML_SENTINEL')" name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
         <param name="replan_mode" value="$(arg replan_mode)" />
         <param name="periodic_interval" value="$(arg periodic_interval)" />
         <param name="cooldown" value="$(arg cooldown)" />

@@ -18,8 +18,8 @@
   <arg name="auto_shape_heading_oob_is_obstacle" default="true" />
   <arg name="publish_center_goal_only" default="true" />
   <arg name="robot_namespace_prefix" default="robot" />
-  <arg name="robot_detect_topic_suffix" default="/odom_combined" />
-  <arg name="robot_odom_topic_suffix" default="/odom_combined" />
+  <arg name="robot_detect_topic_suffix" default="USE_YAML_SENTINEL" />
+  <arg name="robot_odom_topic_suffix" default="USE_YAML_SENTINEL" />
   <arg name="external_center_goal_topic" default="/shape_assembly/center_goal_cmd" />
   <arg name="external_center_sync_wait" default="0.5" />
   <arg name="replan_mode" default="event" />

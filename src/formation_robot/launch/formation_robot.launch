@@ -18,6 +18,7 @@
   <arg name="use_center_as_goal" default="true" />
   <arg name="task_topic" default="/shape_assembly/task" />
   <arg name="robot_status_topic" default="shape_assembly/status" />
+  <arg name="robot_odom_topic_suffix" default="USE_YAML_SENTINEL" />
 
   <include file="$(find sim_env)/launch/app/shape_assembly.launch.xml">
     <arg name="node_name" value="shape_assembly_swarm" />
@@ -28,7 +29,7 @@
     <arg name="distributed_mode" value="true" />
     <arg name="distributed_agent_namespace" value="$(arg robot_namespace)" />
     <arg name="distributed_marker_owner" value="$(arg distributed_marker_owner)" />
-    <arg name="robot_odom_topic_suffix" value="/odom" />
+    <arg name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
     <arg name="shape_source" value="$(arg shape_source)" />
     <arg name="shape_type" value="$(arg shape_type)" />
     <arg name="shape_scale" value="$(arg shape_scale)" />

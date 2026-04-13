@@ -13,6 +13,7 @@
   <arg name="shape_library_root" default="$(find sim_env)/shape_images" />
   <arg name="task_topic" default="/shape_assembly/task" />
   <arg name="use_center_as_goal" default="true" />
+  <arg name="robot_odom_topic_suffix" default="USE_YAML_SENTINEL" />
 
   <include file="$(find formation_robot)/launch/formation_robot.launch">
     <arg name="robot_namespace" value="$(arg robot_namespace)" />
@@ -29,5 +30,6 @@
     <arg name="debug_log" value="$(arg debug_log)" />
     <arg name="task_topic" value="$(arg task_topic)" />
     <arg name="use_center_as_goal" value="$(arg use_center_as_goal)" />
+    <arg name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
   </include>
 </launch>
