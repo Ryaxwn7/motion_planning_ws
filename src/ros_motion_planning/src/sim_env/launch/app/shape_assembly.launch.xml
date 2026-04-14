@@ -53,6 +53,10 @@
   <arg name="cmd_smooth_ratio" default="USE_YAML_SENTINEL" />
   <arg name="cmd_scale" default="USE_YAML_SENTINEL" />
   <arg name="shape_vel_max" default="USE_YAML_SENTINEL" />
+  <arg name="yaw_correction_enabled" default="USE_YAML_SENTINEL" />
+  <arg name="yaw_tolerance" default="USE_YAML_SENTINEL" />
+  <arg name="yaw_linear_slowdown_start" default="USE_YAML_SENTINEL" />
+  <arg name="yaw_linear_stop_threshold" default="USE_YAML_SENTINEL" />
 
   <arg name="switch_gray_threshold" default="USE_YAML_SENTINEL" />
   <arg name="cancel_move_base_on_switch" default="USE_YAML_SENTINEL" />
@@ -112,6 +116,10 @@
       control_strategy: shape_only
       shape_target_mode: negotiated
       shape_marker_mode: negotiated
+      yaw_correction_enabled: true
+      yaw_tolerance: 0.05
+      yaw_linear_slowdown_start: 0.35
+      yaw_linear_stop_threshold: 0.80
       marker_topic: /shape_assembly/markers
       use_local_costmap_avoid: true
       local_costmap_topic_suffix: move_base/local_costmap/costmap
@@ -195,6 +203,10 @@
     <param if="$(eval arg('cmd_smooth_ratio') != 'USE_YAML_SENTINEL')" name="cmd_smooth_ratio" value="$(arg cmd_smooth_ratio)" />
     <param if="$(eval arg('cmd_scale') != 'USE_YAML_SENTINEL')" name="cmd_scale" value="$(arg cmd_scale)" />
     <param if="$(eval arg('shape_vel_max') != 'USE_YAML_SENTINEL')" name="shape_vel_max" value="$(arg shape_vel_max)" />
+    <param if="$(eval arg('yaw_correction_enabled') != 'USE_YAML_SENTINEL')" name="yaw_correction_enabled" value="$(arg yaw_correction_enabled)" />
+    <param if="$(eval arg('yaw_tolerance') != 'USE_YAML_SENTINEL')" name="yaw_tolerance" value="$(arg yaw_tolerance)" />
+    <param if="$(eval arg('yaw_linear_slowdown_start') != 'USE_YAML_SENTINEL')" name="yaw_linear_slowdown_start" value="$(arg yaw_linear_slowdown_start)" />
+    <param if="$(eval arg('yaw_linear_stop_threshold') != 'USE_YAML_SENTINEL')" name="yaw_linear_stop_threshold" value="$(arg yaw_linear_stop_threshold)" />
 
     <param if="$(eval arg('switch_gray_threshold') != 'USE_YAML_SENTINEL')" name="switch_gray_threshold" value="$(arg switch_gray_threshold)" />
     <param if="$(eval arg('cancel_move_base_on_switch') != 'USE_YAML_SENTINEL')" name="cancel_move_base_on_switch" value="$(arg cancel_move_base_on_switch)" />

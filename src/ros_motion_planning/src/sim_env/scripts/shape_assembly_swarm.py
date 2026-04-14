@@ -1339,6 +1339,12 @@ class ShapeAssemblySwarm:
         self.sim_param.cmd_scale = rospy.get_param("~cmd_scale", self.sim_param.cmd_scale)
         self.sim_param.cmd_deadzone = max(0.0, float(rospy.get_param("~cmd_deadzone", self.sim_param.cmd_deadzone)))
         self.sim_param.shape_vel_max = rospy.get_param("~shape_vel_max", max(self.sim_param.vel_max * 2.0, self.sim_param.shape_vel_max))
+        self.yaw_correction_enabled = bool(rospy.get_param("~yaw_correction_enabled", True))
+        self.yaw_tolerance = max(0.0, float(rospy.get_param("~yaw_tolerance", 0.05)))
+        self.yaw_linear_slowdown_start = max(0.0, float(rospy.get_param("~yaw_linear_slowdown_start", 0.35)))
+        self.yaw_linear_stop_threshold = max(0.0, float(rospy.get_param("~yaw_linear_stop_threshold", 0.80)))
+        if self.yaw_linear_stop_threshold < self.yaw_linear_slowdown_start:
+            self.yaw_linear_stop_threshold = self.yaw_linear_slowdown_start
 
         self.enabled = rospy.get_param("~enabled", True)
         self.auto_detect = rospy.get_param("~auto_detect", True)
@@ -1739,6 +1745,11 @@ class ShapeAssemblySwarm:
         self.cmd_smooth_use_odom = bool(config.cmd_smooth_use_odom)
         self.sim_param.cmd_scale = max(0.0, float(config.cmd_scale))
         self.sim_param.cmd_deadzone = max(0.0, float(config.cmd_deadzone))
+        self.yaw_correction_enabled = bool(config.yaw_correction_enabled)
+        self.yaw_tolerance = max(0.0, float(config.yaw_tolerance))
+        self.yaw_linear_slowdown_start = max(0.0, float(config.yaw_linear_slowdown_start))
+        self.yaw_linear_stop_threshold = max(self.yaw_linear_slowdown_start, float(config.yaw_linear_stop_threshold))
+        config.yaw_linear_stop_threshold = self.yaw_linear_stop_threshold
 
         self.velocity_scale = max(0.0, float(config.velocity_scale))
         self.force_move_base_mode = bool(config.force_move_base_mode)
@@ -2902,6 +2913,72 @@ class ShapeAssemblySwarm:
         msg.note = self.shape_type
         self.robot_status_pub.publish(msg)
 
+    def _get_target_heading_arrays(self, target_shape_state: ShapeState) -> Tuple[List[float], List[float]]:
+        n = max(0, self.sim_param.swarm_size)
+        if n <= 0:
+            return [], []
+        target_head = [0.0] * n
+        target_hvel = [0.0] * n
+        for i in range(n):
+            if i < len(target_shape_state.head):
+                target_head[i] = _limit_angle(float(target_shape_state.head[i]))
+            if i < len(target_shape_state.hvel):
+                target_hvel[i] = float(target_shape_state.hvel[i])
+        return target_head, target_hvel
+
+    def _apply_yaw_linear_slowdown(
+        self,
+        cmd_x: List[float],
+        cmd_y: List[float],
+        yaw_err: List[float],
+        control_active: List[bool],
+    ) -> Tuple[List[float], List[float]]:
+        if not self.yaw_correction_enabled:
+            return cmd_x, cmd_y
+        stop_thr = max(0.0, float(self.yaw_linear_stop_threshold))
+        slow_thr = max(0.0, min(float(self.yaw_linear_slowdown_start), stop_thr))
+        new_x = list(cmd_x)
+        new_y = list(cmd_y)
+        for i in range(min(len(new_x), len(yaw_err), len(control_active))):
+            if not control_active[i]:
+                continue
+            err_abs = abs(float(yaw_err[i]))
+            if err_abs <= slow_thr:
+                continue
+            if stop_thr <= slow_thr:
+                scale = 0.0
+            elif err_abs >= stop_thr:
+                scale = 0.0
+            else:
+                scale = 1.0 - ((err_abs - slow_thr) / (stop_thr - slow_thr))
+            new_x[i] *= scale
+            new_y[i] *= scale
+        return new_x, new_y
+
+    def _compute_angular_cmds(
+        self,
+        robot_state: RobotState,
+        target_head: List[float],
+        target_hvel: List[float],
+        control_active: List[bool],
+    ) -> Tuple[List[float], List[float]]:
+        n = max(0, self.sim_param.swarm_size)
+        yaw_err = [0.0] * n
+        angular_cmd = [0.0] * n
+        if not self.yaw_correction_enabled:
+            return yaw_err, angular_cmd
+        for i in range(min(n, len(robot_state.yaw), len(target_head), len(control_active))):
+            if not control_active[i]:
+                continue
+            yaw_err[i] = _limit_angle(float(target_head[i]) - float(robot_state.yaw[i]))
+            if abs(yaw_err[i]) <= self.yaw_tolerance:
+                angular_cmd[i] = 0.0
+                continue
+            target_rate = target_hvel[i] if i < len(target_hvel) else 0.0
+            cmd = self.sim_param.kappa_track_head * yaw_err[i] + target_rate
+            angular_cmd[i] = max(-self.sim_param.hvel_max, min(self.sim_param.hvel_max, cmd))
+        return yaw_err, angular_cmd
+
     def _format_monitor_robot_ids(self, indices: List[int]) -> str:
         if not indices:
             return "[]"
@@ -2989,6 +3066,9 @@ class ShapeAssemblySwarm:
         cmd_y: List[float],
         pub_cmd_x: List[float],
         pub_cmd_y: List[float],
+        angular_cmd: Optional[List[float]] = None,
+        target_head: Optional[List[float]] = None,
+        yaw_err: Optional[List[float]] = None,
         cmd_enter_x: Optional[List[float]] = None,
         cmd_enter_y: Optional[List[float]] = None,
         cmd_explore_x: Optional[List[float]] = None,
@@ -3062,8 +3142,11 @@ class ShapeAssemblySwarm:
             speed = math.hypot(robot_state.vel_x[i], robot_state.vel_y[i])
             cmd_speed = math.hypot(cmd_x[i], cmd_y[i])
             pub_speed = math.hypot(pub_cmd_x[i], pub_cmd_y[i])
+            target_yaw = target_head[i] if target_head is not None and i < len(target_head) else 0.0
+            yaw_error = yaw_err[i] if yaw_err is not None and i < len(yaw_err) else 0.0
+            angular_speed = angular_cmd[i] if angular_cmd is not None and i < len(angular_cmd) else 0.0
             rospy.loginfo(
-                "dbg %s mode=%s sw_gray=%.2f lc_ok=%s lc_obs=%d lc_age=%.2f pos(%.2f,%.2f) yaw=%.2f neigh=%d v_odom(%.2f,%.2f)|%.2f cmd_map(%.2f,%.2f)|%.2f cmd_pub(%.2f,%.2f)|%.2f",
+                "dbg %s mode=%s sw_gray=%.2f lc_ok=%s lc_obs=%d lc_age=%.2f pos(%.2f,%.2f) yaw=%.2f tgt=%.2f dyaw=%.2f wz=%.2f neigh=%d v_odom(%.2f,%.2f)|%.2f cmd_map(%.2f,%.2f)|%.2f cmd_pub(%.2f,%.2f)|%.2f",
                 ns,
                 ctrl_mode,
                 sw_gray,
@@ -3073,6 +3156,9 @@ class ShapeAssemblySwarm:
                 robot_state.pos_x[i],
                 robot_state.pos_y[i],
                 robot_state.yaw[i],
+                target_yaw,
+                yaw_error,
+                angular_speed,
                 neigh_count,
                 robot_state.vel_x[i],
                 robot_state.vel_y[i],
@@ -3133,6 +3219,8 @@ class ShapeAssemblySwarm:
         robot_state: RobotState,
         cmd_x: List[float],
         cmd_y: List[float],
+        target_head: Optional[List[float]] = None,
+        yaw_err: Optional[List[float]] = None,
         neigh: Optional[Dict[str, List[List[float]]]] = None,
         shape_dyn: Optional[ShapeDyn] = None,
         enter_goals: Optional[List[Tuple[float, float, float]]] = None,
@@ -3477,6 +3565,73 @@ class ShapeAssemblySwarm:
             else:
                 markers.markers.append(_mk_delete("speed", i))
 
+            if target_head is not None and i < len(target_head):
+                head_len = max(0.12, self.shape_point_size * 5.0)
+
+                cur_arrow = Marker()
+                cur_arrow.header.frame_id = self.marker_frame
+                cur_arrow.header.stamp = now
+                cur_arrow.ns = "heading_current"
+                cur_arrow.id = i
+                cur_arrow.type = Marker.ARROW
+                cur_arrow.action = Marker.ADD
+                cur_arrow.scale.x = max(1e-3, self.arrow_shaft_diameter * 0.75)
+                cur_arrow.scale.y = max(1e-3, self.arrow_head_diameter * 0.75)
+                cur_arrow.scale.z = max(1e-3, self.arrow_head_length * 0.75)
+                cur_arrow.color = ColorRGBA(r=1.0, g=0.85, b=0.2, a=0.85)
+                cur_arrow.points = [
+                    Point(x=robot_state.pos_x[i], y=robot_state.pos_y[i], z=0.10),
+                    Point(
+                        x=robot_state.pos_x[i] + head_len * math.cos(robot_state.yaw[i]),
+                        y=robot_state.pos_y[i] + head_len * math.sin(robot_state.yaw[i]),
+                        z=0.10,
+                    ),
+                ]
+                markers.markers.append(cur_arrow)
+
+                tgt_arrow = Marker()
+                tgt_arrow.header.frame_id = self.marker_frame
+                tgt_arrow.header.stamp = now
+                tgt_arrow.ns = "heading_target"
+                tgt_arrow.id = i
+                tgt_arrow.type = Marker.ARROW
+                tgt_arrow.action = Marker.ADD
+                tgt_arrow.scale.x = max(1e-3, self.arrow_shaft_diameter * 0.75)
+                tgt_arrow.scale.y = max(1e-3, self.arrow_head_diameter * 0.75)
+                tgt_arrow.scale.z = max(1e-3, self.arrow_head_length * 0.75)
+                tgt_arrow.color = ColorRGBA(r=0.15, g=1.0, b=0.35, a=0.85)
+                tgt_arrow.points = [
+                    Point(x=robot_state.pos_x[i], y=robot_state.pos_y[i], z=0.14),
+                    Point(
+                        x=robot_state.pos_x[i] + head_len * math.cos(target_head[i]),
+                        y=robot_state.pos_y[i] + head_len * math.sin(target_head[i]),
+                        z=0.14,
+                    ),
+                ]
+                markers.markers.append(tgt_arrow)
+
+                if yaw_err is not None and self.show_speed_text and i < len(yaw_err):
+                    heading_text = Marker()
+                    heading_text.header.frame_id = self.marker_frame
+                    heading_text.header.stamp = now
+                    heading_text.ns = "heading_err"
+                    heading_text.id = i
+                    heading_text.type = Marker.TEXT_VIEW_FACING
+                    heading_text.action = Marker.ADD
+                    heading_text.scale.z = self.speed_text_size
+                    heading_text.color = ColorRGBA(r=0.9, g=1.0, b=0.9, a=0.85)
+                    heading_text.pose.position.x = robot_state.pos_x[i]
+                    heading_text.pose.position.y = robot_state.pos_y[i]
+                    heading_text.pose.position.z = self.speed_text_z + 0.18
+                    heading_text.text = f"dyaw={math.degrees(yaw_err[i]):.1f}"
+                    markers.markers.append(heading_text)
+                else:
+                    markers.markers.append(_mk_delete("heading_err", i))
+            else:
+                markers.markers.append(_mk_delete("heading_current", i))
+                markers.markers.append(_mk_delete("heading_target", i))
+                markers.markers.append(_mk_delete("heading_err", i))
+
         if self.show_metric_text and metric is not None:
             metric_marker = Marker()
             metric_marker.header.frame_id = self.marker_frame
@@ -3619,6 +3774,11 @@ class ShapeAssemblySwarm:
         self._cancel_move_base_for_active(control_active)
         self._update_takeover_state_param(control_active)
 
+        target_head, target_hvel = self._get_target_heading_arrays(target_shape_state)
+        yaw_err, angular_cmd = self._compute_angular_cmds(robot_state, target_head, target_hvel, control_active)
+        cmd_x, cmd_y = self._apply_yaw_linear_slowdown(cmd_x, cmd_y, yaw_err, control_active)
+        cmd_x, cmd_y = limit_speed(cmd_x, cmd_y, self.sim_param.vel_max)
+
         pub_cmd_x = [0.0] * self.sim_param.swarm_size
         pub_cmd_y = [0.0] * self.sim_param.swarm_size
         for i in range(self.sim_param.swarm_size):
@@ -3644,7 +3804,7 @@ class ShapeAssemblySwarm:
             twist.linear.z = 0.0
             twist.angular.x = 0.0
             twist.angular.y = 0.0
-            twist.angular.z = 0.0
+            twist.angular.z = 0.0 if hold_active else angular_cmd[i]
             pub.publish(twist)
 
         metric = compute_swarm_metric(
@@ -3669,6 +3829,9 @@ class ShapeAssemblySwarm:
             cmd_y,
             pub_cmd_x,
             pub_cmd_y,
+            angular_cmd,
+            target_head,
+            yaw_err,
             cmd_enter_x,
             cmd_enter_y,
             cmd_explore_x,
@@ -3682,7 +3845,7 @@ class ShapeAssemblySwarm:
             self.switch_gray_values,
             local_obs_nearest,
         )
-        self._publish_markers(robot_state, cmd_x, cmd_y, neigh, shape_dyn, enter_goals, metric)
+        self._publish_markers(robot_state, cmd_x, cmd_y, target_head, yaw_err, neigh, shape_dyn, enter_goals, metric)
 
 
 if __name__ == "__main__":
