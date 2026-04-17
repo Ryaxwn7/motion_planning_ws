@@ -39,6 +39,7 @@ public:
     ~FM2_Planner()=default;
     bool plan(const Node& start, const Node& goal, std::vector<Node>& path, std::vector<Node>& expand) override;
     bool plan(costmap_2d::Costmap2D* costmap, const Node& start, const Node& goal, std::vector<Node>& path, std::vector<Node>& expand);
+    bool getLastArrivalTime(double& arrival_time) const;
 
 private:
     struct UncertaintyKernelCell {
@@ -71,6 +72,7 @@ private:
     bool updateGrid(costmap_2d::Costmap2D* costmap);
     bool ensureBaseVelocityMap(const std::vector<int>& init_point, int goal_idx);
     bool applyDynamicObstacleUncertainty(const costmap_2d::Costmap2D* costmap, std::vector<double>& velocity_map);
+    bool updateLastArrivalTime(int query_idx);
     bool isDynamicObstacleCost(unsigned char cost) const;
     void collectDynamicObstacleCells(const unsigned char* map_data, std::vector<int>& occupied_indices) const;
     void extractDynamicObstacleClusters(
@@ -139,6 +141,7 @@ private:
     bool debug_visualize_ = false;
     bool debug_log_ = false;
     std::string debug_velocity_path_ = "/tmp/fm2_velocity.csv";
+    double last_arrival_time_ = -1.0;
 
     dynamic_reconfigure::Server<graph_planner::FM2PlannerConfig>* dyn_server_ = nullptr;
     dynamic_reconfigure::Server<graph_planner::FM2PlannerConfig>::CallbackType dyn_cb_;

@@ -2,7 +2,7 @@ shutdown_costmaps: false
 
 max_planning_retries: -1
 
-planner_frequency: 1.0
+planner_frequency: 3.0
 planner_patience: 3.0
 
 controller_frequency: 15.0
