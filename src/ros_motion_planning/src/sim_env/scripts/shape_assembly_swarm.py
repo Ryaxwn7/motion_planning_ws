@@ -8,11 +8,12 @@ import random
 import re
 import sys
 import time
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import rospy
 from actionlib_msgs.msg import GoalID
-from geometry_msgs.msg import Point, PoseStamped, Twist
+from geometry_msgs.msg import Point, PoseStamped, PoseWithCovarianceStamped, Twist
 from map_msgs.msg import OccupancyGridUpdate
 from nav_msgs.msg import OccupancyGrid, Odometry
 from std_msgs.msg import Bool, ColorRGBA
@@ -229,6 +230,21 @@ class ShapeTargetMode:
     NEGOTIATED = "negotiated"
     # Target shape is anchored to one shared reference center/heading.
     REFERENCE = "reference"
+
+
+@dataclass
+class RobotOdomData:
+    frame_id: str = ""
+    stamp: rospy.Time = field(default_factory=rospy.Time)
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    qx: float = 0.0
+    qy: float = 0.0
+    qz: float = 0.0
+    qw: float = 1.0
+    vel_x: float = 0.0
+    vel_y: float = 0.0
 
 
 def _normalize_shape_target_mode(mode: str) -> str:
@@ -1371,6 +1387,8 @@ class ShapeAssemblySwarm:
         self.robot_odom_topic_suffix = str(
             rospy.get_param("~robot_odom_topic_suffix", self.robot_detect_topic_suffix)
         )
+        self.robot_odom_msg_type = str(rospy.get_param("~robot_odom_msg_type", "auto")).strip().lower()
+        self.robot_velocity_topic_suffix = str(rospy.get_param("~robot_velocity_topic_suffix", "")).strip()
         self.robot_detect_timeout = max(0.0, float(rospy.get_param("~robot_detect_timeout", 8.0)))
         self.distributed_mode = bool(rospy.get_param("~distributed_mode", False))
         self.distributed_agent_namespace = str(
@@ -1524,7 +1542,8 @@ class ShapeAssemblySwarm:
         self._converged_reported = False
 
         self.odom_subs: List[rospy.Subscriber] = []
-        self.odom_msgs: List[Optional[Odometry]] = []
+        self.odom_velocity_subs: List[rospy.Subscriber] = []
+        self.odom_msgs: List[Optional[RobotOdomData]] = []
         self.local_costmap_subs: List[rospy.Subscriber] = []
         self.local_costmap_update_subs: List[rospy.Subscriber] = []
         self.local_costmap_msgs: List[Optional[OccupancyGrid]] = []
@@ -1566,12 +1585,12 @@ class ShapeAssemblySwarm:
         self._last_stop_path_planning_ids: List[int] = []
         self.tf_buffer = None
         self.tf_listener = None
-        if self.use_local_costmap_avoid and tf2_ros is not None:
+        if tf2_ros is not None:
             try:
                 self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(8.0))
                 self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
             except Exception as exc:
-                rospy.logwarn("ShapeAssembly: failed to initialize tf2 for local costmap adaptation (%s).", str(exc))
+                rospy.logwarn("ShapeAssembly: failed to initialize tf2 (%s).", str(exc))
                 self.tf_buffer = None
                 self.tf_listener = None
 
@@ -1910,6 +1929,42 @@ class ShapeAssemblySwarm:
             math.degrees(self.reference_heading),
         )
 
+    def _topic_type_map(self) -> Dict[str, str]:
+        result: Dict[str, str] = {}
+        try:
+            for topic_name, topic_type in rospy.get_published_topics():
+                result[str(topic_name)] = str(topic_type)
+        except Exception:
+            return result
+        return result
+
+    def _resolve_odom_msg_type(self, odom_topic: str, topic_type_map: Dict[str, str]) -> str:
+        configured = self.robot_odom_msg_type
+        if configured in ("odometry", "pose_with_covariance_stamped"):
+            return configured
+        detected = topic_type_map.get(odom_topic, "")
+        if detected == "geometry_msgs/PoseWithCovarianceStamped":
+            return "pose_with_covariance_stamped"
+        return "odometry"
+
+    def _build_robot_topic(self, ns: str, suffix: str) -> str:
+        clean = str(suffix).strip()
+        if not clean:
+            return ""
+        clean = clean.lstrip("/")
+        if ns and clean:
+            return f"/{ns}/{clean}"
+        if ns:
+            return f"/{ns}"
+        return f"/{clean}"
+
+    def _ensure_odom_slot(self, idx: int) -> RobotOdomData:
+        current = self.odom_msgs[idx]
+        if current is None:
+            current = RobotOdomData()
+            self.odom_msgs[idx] = current
+        return current
+
     def _detect_namespaces(self) -> List[str]:
         prefix = "/" + self.namespace_prefix
         now = time.time()
@@ -1981,6 +2036,7 @@ class ShapeAssemblySwarm:
         self.odom_msgs = [None for _ in ns_list]
         self.local_costmap_msgs = [None for _ in ns_list]
         self.odom_subs = []
+        self.odom_velocity_subs = []
         self.local_costmap_subs = []
         self.local_costmap_update_subs = []
         self.local_costmap_topics = []
@@ -1992,16 +2048,51 @@ class ShapeAssemblySwarm:
         self.cmd_pubs = [None for _ in ns_list]
         self.move_base_cancel_pubs = [None for _ in ns_list]
         costmap_suffix = self.local_costmap_topic_suffix.lstrip("/")
-        odom_suffix = self.robot_odom_topic_suffix.lstrip("/")
+        topic_type_map = self._topic_type_map()
         for idx, ns in enumerate(ns_list):
-            odom_topic = f"/{ns}/{odom_suffix}" if ns and odom_suffix else f"/{ns}" if ns else f"/{odom_suffix}" if odom_suffix else "/odom"
+            odom_topic = self._build_robot_topic(ns, self.robot_odom_topic_suffix)
             cmd_topic = f"/{ns}/cmd_vel" if ns else "/cmd_vel"
             cancel_topic = f"/{ns}/move_base/cancel" if ns else "/move_base/cancel"
             costmap_topic = f"/{ns}/{costmap_suffix}" if ns else f"/{costmap_suffix}"
             update_topic = f"{costmap_topic}_updates"
             self.local_costmap_topics.append(costmap_topic)
             self.local_costmap_update_topics.append(update_topic)
-            self.odom_subs.append(rospy.Subscriber(odom_topic, Odometry, self._odom_cb, callback_args=idx, queue_size=10))
+            odom_msg_type = self._resolve_odom_msg_type(odom_topic, topic_type_map)
+            if odom_msg_type == "pose_with_covariance_stamped":
+                self.odom_subs.append(
+                    rospy.Subscriber(odom_topic, PoseWithCovarianceStamped, self._odom_pose_cb, callback_args=idx, queue_size=10)
+                )
+                velocity_suffix = self.robot_velocity_topic_suffix or "/odom"
+                velocity_topic = self._build_robot_topic(ns, velocity_suffix)
+                velocity_type = topic_type_map.get(velocity_topic, "")
+                if velocity_type in ("", "nav_msgs/Odometry"):
+                    self.odom_velocity_subs.append(
+                        rospy.Subscriber(velocity_topic, Odometry, self._odom_twist_cb, callback_args=idx, queue_size=10)
+                    )
+                else:
+                    rospy.logwarn(
+                        "ShapeAssembly[%s]: velocity topic %s has unsupported type %s, keep zero velocity.",
+                        ns or "(no-ns)",
+                        velocity_topic,
+                        velocity_type,
+                    )
+                rospy.loginfo(
+                    "ShapeAssembly[%s]: pose topic=%s type=%s velocity topic=%s",
+                    ns or "(no-ns)",
+                    odom_topic,
+                    odom_msg_type,
+                    velocity_topic if velocity_topic else "(none)",
+                )
+            else:
+                self.odom_subs.append(
+                    rospy.Subscriber(odom_topic, Odometry, self._odom_cb, callback_args=idx, queue_size=10)
+                )
+                rospy.loginfo(
+                    "ShapeAssembly[%s]: odom topic=%s type=%s",
+                    ns or "(no-ns)",
+                    odom_topic,
+                    odom_msg_type,
+                )
             if (not self.distributed_mode) or idx == self.self_agent_index:
                 self.cmd_pubs[idx] = rospy.Publisher(cmd_topic, Twist, queue_size=10)
             if self.use_local_costmap_avoid and ((not self.distributed_mode) or idx == self.self_agent_index):
@@ -2140,13 +2231,39 @@ class ShapeAssemblySwarm:
             return None
         n = len(self.odom_msgs)
         state = RobotState(n)
+        target_frame = str(self.marker_frame).strip() or "map"
         for i, msg in enumerate(self.odom_msgs):
-            state.pos_x[i] = msg.pose.pose.position.x
-            state.pos_y[i] = msg.pose.pose.position.y
-            state.vel_x[i] = msg.twist.twist.linear.x
-            state.vel_y[i] = msg.twist.twist.linear.y
-            ori = msg.pose.pose.orientation
-            state.yaw[i] = _yaw_from_quat(ori.x, ori.y, ori.z, ori.w)
+            if msg is None:
+                return None
+            source_frame = str(msg.frame_id).strip()
+            tf_tx = 0.0
+            tf_ty = 0.0
+            tf_yaw = 0.0
+            if source_frame and target_frame and source_frame != target_frame:
+                tf_2d = self._lookup_transform_2d(target_frame, source_frame, msg.stamp)
+                if tf_2d is None:
+                    ns = self.ns_list[i] if i < len(self.ns_list) else f"robot{i+1}"
+                    rospy.logwarn_throttle(
+                        3.0,
+                        "ShapeAssembly[%s]: waiting transform %s -> %s for robot state.",
+                        ns,
+                        source_frame,
+                        target_frame,
+                    )
+                    return None
+                tf_tx, tf_ty, tf_yaw = tf_2d
+
+            cos_tf = math.cos(tf_yaw)
+            sin_tf = math.sin(tf_yaw)
+            state.pos_x[i] = cos_tf * msg.x - sin_tf * msg.y + tf_tx
+            state.pos_y[i] = sin_tf * msg.x + cos_tf * msg.y + tf_ty
+            state.yaw[i] = _limit_angle(_yaw_from_quat(msg.qx, msg.qy, msg.qz, msg.qw) + tf_yaw)
+            if self.odom_twist_in_base:
+                state.vel_x[i] = msg.vel_x
+                state.vel_y[i] = msg.vel_y
+            else:
+                state.vel_x[i] = cos_tf * msg.vel_x - sin_tf * msg.vel_y
+                state.vel_y[i] = sin_tf * msg.vel_x + cos_tf * msg.vel_y
             if self.odom_twist_in_base:
                 vx_body = state.vel_x[i]
                 vy_body = state.vel_y[i]
@@ -2156,8 +2273,43 @@ class ShapeAssemblySwarm:
         return state
 
     def _odom_cb(self, msg: Odometry, idx: int) -> None:
-        if idx < len(self.odom_msgs):
-            self.odom_msgs[idx] = msg
+        if idx >= len(self.odom_msgs):
+            return
+        odom = self._ensure_odom_slot(idx)
+        odom.frame_id = str(msg.header.frame_id)
+        odom.stamp = msg.header.stamp
+        odom.x = float(msg.pose.pose.position.x)
+        odom.y = float(msg.pose.pose.position.y)
+        odom.z = float(msg.pose.pose.position.z)
+        odom.qx = float(msg.pose.pose.orientation.x)
+        odom.qy = float(msg.pose.pose.orientation.y)
+        odom.qz = float(msg.pose.pose.orientation.z)
+        odom.qw = float(msg.pose.pose.orientation.w)
+        odom.vel_x = float(msg.twist.twist.linear.x)
+        odom.vel_y = float(msg.twist.twist.linear.y)
+
+    def _odom_pose_cb(self, msg: PoseWithCovarianceStamped, idx: int) -> None:
+        if idx >= len(self.odom_msgs):
+            return
+        odom = self._ensure_odom_slot(idx)
+        odom.frame_id = str(msg.header.frame_id)
+        odom.stamp = msg.header.stamp
+        odom.x = float(msg.pose.pose.position.x)
+        odom.y = float(msg.pose.pose.position.y)
+        odom.z = float(msg.pose.pose.position.z)
+        odom.qx = float(msg.pose.pose.orientation.x)
+        odom.qy = float(msg.pose.pose.orientation.y)
+        odom.qz = float(msg.pose.pose.orientation.z)
+        odom.qw = float(msg.pose.pose.orientation.w)
+
+    def _odom_twist_cb(self, msg: Odometry, idx: int) -> None:
+        if idx >= len(self.odom_msgs):
+            return
+        odom = self.odom_msgs[idx]
+        if odom is None:
+            return
+        odom.vel_x = float(msg.twist.twist.linear.x)
+        odom.vel_y = float(msg.twist.twist.linear.y)
 
     def _local_costmap_cb(self, msg: OccupancyGrid, idx: int) -> None:
         if idx < len(self.local_costmap_msgs):
@@ -2287,7 +2439,7 @@ class ShapeAssemblySwarm:
             odom_msg = self.odom_msgs[i] if i < len(self.odom_msgs) else None
             odom_frame = ""
             if odom_msg is not None:
-                odom_frame = str(odom_msg.header.frame_id)
+                odom_frame = str(odom_msg.frame_id)
             costmap_frame = str(msg.header.frame_id)
             if i < len(self.local_costmap_frame):
                 self.local_costmap_frame[i] = costmap_frame

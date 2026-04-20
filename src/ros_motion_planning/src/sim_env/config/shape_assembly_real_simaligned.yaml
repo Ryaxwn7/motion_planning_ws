@@ -32,7 +32,11 @@ goal_occupied_radius: 0.35
 auto_detect_robots: true
 robot_namespace_prefix: robot
 robot_detect_topic_suffix: /odom_combined
-robot_odom_topic_suffix: /odom_combined
+# Real robots expose fused pose on /robotN/robot_pose_ekf/odom_combined
+# and body-frame velocity on /robotN/odom.
+robot_odom_topic_suffix: /robot_pose_ekf/odom_combined
+robot_odom_msg_type: pose_with_covariance_stamped
+robot_velocity_topic_suffix: /odom
 robot_detect_timeout: 8.0
 num_robots: 4
 
