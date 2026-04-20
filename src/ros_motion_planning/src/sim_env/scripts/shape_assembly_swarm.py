@@ -1454,7 +1454,7 @@ class ShapeAssemblySwarm:
         self.local_costmap_unknown_is_obstacle = bool(rospy.get_param("~local_costmap_unknown_is_obstacle", False))
         self.local_costmap_avoid_radius = float(rospy.get_param("~local_costmap_avoid_radius", max(self.sim_param.r_avoid, self.sim_param.r_safe)))
         self.local_costmap_avoid_gain = float(rospy.get_param("~local_costmap_avoid_gain", self.sim_param.kappa_avoid))
-        self.local_costmap_hard_radius = float(rospy.get_param("~local_costmap_hard_radius", max(self.sim_param.r_safe, 2.0 * self.sim_param.r_body)))
+        self.local_costmap_hard_radius = float(rospy.get_param("~local_costmap_hard_radius", max(self.sim_param.r_safe, 1.5 * self.sim_param.r_body)))
         self.local_costmap_hard_gain = float(rospy.get_param("~local_costmap_hard_gain", self.sim_param.kappa_hard_avoid))
         self.local_costmap_stride = max(1, int(rospy.get_param("~local_costmap_stride", 1)))
         self.local_costmap_max_samples = max(1, int(rospy.get_param("~local_costmap_max_samples", 500)))
@@ -1797,7 +1797,7 @@ class ShapeAssemblySwarm:
         self.use_local_costmap_avoid = bool(config.use_local_costmap_avoid)
         self.local_costmap_obstacle_threshold = max(0, min(100, int(config.local_costmap_obstacle_threshold)))
         self.local_costmap_unknown_is_obstacle = bool(config.local_costmap_unknown_is_obstacle)
-        hard_radius = max(max(self.sim_param.r_safe, 2.0 * self.sim_param.r_body), float(config.local_costmap_hard_radius))
+        hard_radius = max(max(self.sim_param.r_safe, self.sim_param.r_body), float(config.local_costmap_hard_radius))
         avoid_radius = max(hard_radius, float(config.local_costmap_avoid_radius))
         self.local_costmap_hard_radius = hard_radius
         self.local_costmap_avoid_radius = avoid_radius
