@@ -159,6 +159,8 @@ class turn_on_robot
 
         string usart_port_name, robot_frame_id, gyro_frame_id, odom_frame_id; //Define the related variables //定义相关变量
         int serial_baud_rate;      //Serial communication baud rate //串口通信波特率
+        bool invert_y_cmd;         //Invert cmd_vel.linear.y before sending to the chassis //发送到底盘前是否翻转Y方向控制
+        bool invert_y_odom;        //Invert received odom Y velocity before publishing //发布前是否翻转Y方向里程计
         RECEIVE_DATA Receive_Data; //The serial port receives the data structure //串口接收数据结构体
         SEND_DATA Send_Data;       //The serial port sends the data structure //串口发送数据结构体
 

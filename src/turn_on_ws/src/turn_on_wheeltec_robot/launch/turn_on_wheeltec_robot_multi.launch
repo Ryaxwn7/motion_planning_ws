@@ -13,6 +13,8 @@
   <!--是否为akm系列车型 在语音导航功能中需要进行判断-->
   <param name="if_akm_yes_or_no" value="no"/>
   <arg name="namespace"  default=""/>
+  <arg name="invert_y_cmd" default="false"/>
+  <arg name="invert_y_odom" default="false"/>
 
   <!--是否开启导航功能 在导航相关文件中开启 此处默认不开启-->
   <arg name="navigation"  default="false"/>
@@ -28,6 +30,8 @@
   <include file="$(find turn_on_wheeltec_robot)/launch/include/base_serial_multi.launch" unless="$(arg repeat)">
 
     <arg name="robot_namespace"  value="$(arg namespace)"/>
+    <arg name="invert_y_cmd" value="$(arg invert_y_cmd)"/>
+    <arg name="invert_y_odom" value="$(arg invert_y_odom)"/>
   </include>
    
 
@@ -63,5 +67,4 @@
 
   </include>
  </launch>
-
 

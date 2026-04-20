@@ -546,6 +546,11 @@ namespace lslidar_driver
 			if (packet_bytes[2] == 0x55 && packet_bytes[3] == 0x00)
 				len = 188;
 		}
+		if (len <= 0 || len > 500)
+		{
+			ROS_WARN_THROTTLE(1.0, "Invalid serial packet length %d for lidar %s", len, lidar_name.c_str());
+			return 0;
+		}
 		while (count < len)
 		{
 			count_2 = serial_->read(packet_bytes + count, len - count);
@@ -1297,7 +1302,12 @@ namespace lslidar_driver
 						difop = true;
 					}
 				}
-				if (len <= 0 || len >= 1000 || packet->data[0] != 0xa5 || packet->data[1] != 0x5a)
+				if (len <= 0 || len > 500)
+				{
+					ROS_WARN_THROTTLE(1.0, "Invalid network packet length %d for lidar %s", len, lidar_name.c_str());
+					continue;
+				}
+				if (packet->data[0] != 0xa5 || packet->data[1] != 0x5a)
 					continue;
 				for (int i = 0; i < len; i++)
 				{

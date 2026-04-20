@@ -47,6 +47,7 @@ Function: The speed topic subscription Callback function, according to the subsc
 void turn_on_robot::Cmd_Vel_Callback(const geometry_msgs::Twist &twist_aux)
 {
   short  transition;  //intermediate variable //中间变量
+  const double lateral_cmd = invert_y_cmd ? -twist_aux.linear.y : twist_aux.linear.y;
 
   Send_Data.tx[0]=FRAME_HEADER; //frame head 0x7B //帧头0X7B
   Send_Data.tx[1] = 0; //set aside //预留位
@@ -280,6 +281,9 @@ bool turn_on_robot::Get_Sensor_Data()
         Robot_Vel.X = Odom_Trans(Receive_Data.rx[2],Receive_Data.rx[3]); //Get the speed of the moving chassis in the X direction //获取运动底盘X方向速度
         Robot_Vel.Y = -Odom_Trans(Receive_Data.rx[4],Receive_Data.rx[5]); //Get the speed of the moving chassis in the Y direction, The Y speed is only valid in the omnidirectional mobile robot chassis
                                                                          //获取运动底盘Y方向速度，Y速度仅在全向移动机器人底盘有效
+        if (invert_y_odom) {
+          Robot_Vel.Y = -Robot_Vel.Y;
+        }
         Robot_Vel.Z = Odom_Trans(Receive_Data.rx[6],Receive_Data.rx[7]); //Get the speed of the moving chassis in the Z direction //获取运动底盘Z方向速度   
         
         //MPU6050 stands for IMU only and does not refer to a specific model. It can be either MPU6050 or MPU9250
@@ -369,6 +373,9 @@ bool turn_on_robot::Get_Sensor_Data_New()
           
         Robot_Vel.Y = -Odom_Trans(Receive_Data.rx[4],Receive_Data.rx[5]); //Get the speed of the moving chassis in the Y direction, The Y speed is only valid in the omnidirectional mobile robot chassis
                                                                           //获取运动底盘Y方向速度，Y速度仅在全向移动机器人底盘有效
+        if (invert_y_odom) {
+          Robot_Vel.Y = -Robot_Vel.Y;
+        }
         Robot_Vel.Z = Odom_Trans(Receive_Data.rx[6],Receive_Data.rx[7]); //Get the speed of the moving chassis in the Z direction //获取运动底盘Z方向速度   
           
         //MPU6050 stands for IMU only and does not refer to a specific model. It can be either MPU6050 or MPU9250
@@ -466,6 +473,8 @@ turn_on_robot::turn_on_robot():Sampling_Time(0),Power_voltage(0)
   private_nh.param<std::string>("odom_frame_id",    odom_frame_id,    "odom_combined");      //The odometer topic corresponds to the parent TF coordinate //里程计话题对应父TF坐标
   private_nh.param<std::string>("robot_frame_id",   robot_frame_id,   "base_footprint"); //The odometer topic corresponds to sub-TF coordinates //里程计话题对应子TF坐标
   private_nh.param<std::string>("gyro_frame_id",    gyro_frame_id,    "gyro_link"); //IMU topics correspond to TF coordinates //IMU话题对应TF坐标
+  private_nh.param<bool>       ("invert_y_cmd",     invert_y_cmd,     false); //Invert Y command before writing to the chassis //发送到底盘前翻转Y方向控制
+  private_nh.param<bool>       ("invert_y_odom",    invert_y_odom,    false); //Invert Y odometry received from the chassis //发布前翻转Y方向里程计
 
   voltage_publisher = n.advertise<std_msgs::Float32>("PowerVoltage", 10); //Create a battery-voltage topic publisher //创建电池电压话题发布者
   odom_publisher    = n.advertise<nav_msgs::Odometry>("odom", 50); //Create the odometer topic publisher //创建里程计话题发布者
@@ -475,7 +484,9 @@ turn_on_robot::turn_on_robot():Sampling_Time(0),Power_voltage(0)
   //速度控制命令订阅回调函数设置
   Cmd_Vel_Sub     = n.subscribe("cmd_vel",     100, &turn_on_robot::Cmd_Vel_Callback, this); 
 
-  ROS_INFO_STREAM("Data ready"); //Prompt message //提示信息
+  ROS_INFO_STREAM("Data ready"
+                  << " invert_y_cmd=" << (invert_y_cmd ? "true" : "false")
+                  << " invert_y_odom=" << (invert_y_odom ? "true" : "false")); //Prompt message //提示信息
   
   try
   { 

@@ -8,11 +8,12 @@ import random
 import re
 import sys
 import time
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import rospy
 from actionlib_msgs.msg import GoalID
-from geometry_msgs.msg import Point, PoseStamped, Twist
+from geometry_msgs.msg import Point, PoseStamped, PoseWithCovarianceStamped, Twist
 from map_msgs.msg import OccupancyGridUpdate
 from nav_msgs.msg import OccupancyGrid, Odometry
 from std_msgs.msg import Bool, ColorRGBA
@@ -142,6 +143,7 @@ class RobotState:
         self.vel_x = [0.0] * swarm_size
         self.vel_y = [0.0] * swarm_size
         self.yaw = [0.0] * swarm_size
+        self.yaw_rate = [0.0] * swarm_size
 
 
 class ReferState:
@@ -229,6 +231,22 @@ class ShapeTargetMode:
     NEGOTIATED = "negotiated"
     # Target shape is anchored to one shared reference center/heading.
     REFERENCE = "reference"
+
+
+@dataclass
+class RobotOdomData:
+    frame_id: str = ""
+    stamp: rospy.Time = field(default_factory=rospy.Time)
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    qx: float = 0.0
+    qy: float = 0.0
+    qz: float = 0.0
+    qw: float = 1.0
+    vel_x: float = 0.0
+    vel_y: float = 0.0
+    vel_wz: float = 0.0
 
 
 def _normalize_shape_target_mode(mode: str) -> str:
@@ -1345,6 +1363,9 @@ class ShapeAssemblySwarm:
         self.yaw_linear_stop_threshold = max(0.0, float(rospy.get_param("~yaw_linear_stop_threshold", 0.80)))
         if self.yaw_linear_stop_threshold < self.yaw_linear_slowdown_start:
             self.yaw_linear_stop_threshold = self.yaw_linear_slowdown_start
+        self.yaw_rate_damping = max(0.0, float(rospy.get_param("~yaw_rate_damping", 0.6)))
+        self.yaw_cmd_smooth_ratio = max(0.0, min(1.0, float(rospy.get_param("~yaw_cmd_smooth_ratio", 0.35))))
+        self.yaw_cmd_deadzone = max(0.0, float(rospy.get_param("~yaw_cmd_deadzone", 0.04)))
 
         self.enabled = rospy.get_param("~enabled", True)
         self.auto_detect = rospy.get_param("~auto_detect", True)
@@ -1371,6 +1392,8 @@ class ShapeAssemblySwarm:
         self.robot_odom_topic_suffix = str(
             rospy.get_param("~robot_odom_topic_suffix", self.robot_detect_topic_suffix)
         )
+        self.robot_odom_msg_type = str(rospy.get_param("~robot_odom_msg_type", "auto")).strip().lower()
+        self.robot_velocity_topic_suffix = str(rospy.get_param("~robot_velocity_topic_suffix", "")).strip()
         self.robot_detect_timeout = max(0.0, float(rospy.get_param("~robot_detect_timeout", 8.0)))
         self.distributed_mode = bool(rospy.get_param("~distributed_mode", False))
         self.distributed_agent_namespace = str(
@@ -1431,7 +1454,7 @@ class ShapeAssemblySwarm:
         self.local_costmap_unknown_is_obstacle = bool(rospy.get_param("~local_costmap_unknown_is_obstacle", False))
         self.local_costmap_avoid_radius = float(rospy.get_param("~local_costmap_avoid_radius", max(self.sim_param.r_avoid, self.sim_param.r_safe)))
         self.local_costmap_avoid_gain = float(rospy.get_param("~local_costmap_avoid_gain", self.sim_param.kappa_avoid))
-        self.local_costmap_hard_radius = float(rospy.get_param("~local_costmap_hard_radius", max(self.sim_param.r_safe, 2.0 * self.sim_param.r_body)))
+        self.local_costmap_hard_radius = float(rospy.get_param("~local_costmap_hard_radius", max(self.sim_param.r_safe, 1.5 * self.sim_param.r_body)))
         self.local_costmap_hard_gain = float(rospy.get_param("~local_costmap_hard_gain", self.sim_param.kappa_hard_avoid))
         self.local_costmap_stride = max(1, int(rospy.get_param("~local_costmap_stride", 1)))
         self.local_costmap_max_samples = max(1, int(rospy.get_param("~local_costmap_max_samples", 500)))
@@ -1505,6 +1528,9 @@ class ShapeAssemblySwarm:
         self.shape_marker_mode = rospy.get_param("~shape_marker_mode", "reference")
         self.odom_twist_in_base = rospy.get_param("~odom_twist_in_base", False)
         self.velocity_scale = float(rospy.get_param("~velocity_scale", 1.0))
+        self.show_cmd_components = bool(rospy.get_param("~show_cmd_components", True))
+        self.show_cmd_component_text = bool(rospy.get_param("~show_cmd_component_text", True))
+        self.component_velocity_scale = float(rospy.get_param("~component_velocity_scale", self.velocity_scale))
         self.arrow_shaft_diameter = float(rospy.get_param("~arrow_shaft_diameter", 0.04))
         self.arrow_head_diameter = float(rospy.get_param("~arrow_head_diameter", 0.08))
         self.arrow_head_length = float(rospy.get_param("~arrow_head_length", 0.12))
@@ -1524,7 +1550,8 @@ class ShapeAssemblySwarm:
         self._converged_reported = False
 
         self.odom_subs: List[rospy.Subscriber] = []
-        self.odom_msgs: List[Optional[Odometry]] = []
+        self.odom_velocity_subs: List[rospy.Subscriber] = []
+        self.odom_msgs: List[Optional[RobotOdomData]] = []
         self.local_costmap_subs: List[rospy.Subscriber] = []
         self.local_costmap_update_subs: List[rospy.Subscriber] = []
         self.local_costmap_msgs: List[Optional[OccupancyGrid]] = []
@@ -1557,6 +1584,7 @@ class ShapeAssemblySwarm:
         self.inform_index: List[int] = []
         self.prev_cmd_x: List[float] = []
         self.prev_cmd_y: List[float] = []
+        self.prev_cmd_w: List[float] = []
         self.shape_ctrl_active: List[bool] = []
         self.shape_ctrl_hold_until: List[float] = []
         self.switch_gray_values: List[float] = []
@@ -1566,12 +1594,12 @@ class ShapeAssemblySwarm:
         self._last_stop_path_planning_ids: List[int] = []
         self.tf_buffer = None
         self.tf_listener = None
-        if self.use_local_costmap_avoid and tf2_ros is not None:
+        if tf2_ros is not None:
             try:
                 self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(8.0))
                 self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
             except Exception as exc:
-                rospy.logwarn("ShapeAssembly: failed to initialize tf2 for local costmap adaptation (%s).", str(exc))
+                rospy.logwarn("ShapeAssembly: failed to initialize tf2 (%s).", str(exc))
                 self.tf_buffer = None
                 self.tf_listener = None
 
@@ -1750,6 +1778,9 @@ class ShapeAssemblySwarm:
         self.yaw_linear_slowdown_start = max(0.0, float(config.yaw_linear_slowdown_start))
         self.yaw_linear_stop_threshold = max(self.yaw_linear_slowdown_start, float(config.yaw_linear_stop_threshold))
         config.yaw_linear_stop_threshold = self.yaw_linear_stop_threshold
+        self.yaw_rate_damping = max(0.0, float(config.yaw_rate_damping))
+        self.yaw_cmd_smooth_ratio = max(0.0, min(1.0, float(config.yaw_cmd_smooth_ratio)))
+        self.yaw_cmd_deadzone = max(0.0, float(config.yaw_cmd_deadzone))
 
         self.velocity_scale = max(0.0, float(config.velocity_scale))
         self.force_move_base_mode = bool(config.force_move_base_mode)
@@ -1766,7 +1797,7 @@ class ShapeAssemblySwarm:
         self.use_local_costmap_avoid = bool(config.use_local_costmap_avoid)
         self.local_costmap_obstacle_threshold = max(0, min(100, int(config.local_costmap_obstacle_threshold)))
         self.local_costmap_unknown_is_obstacle = bool(config.local_costmap_unknown_is_obstacle)
-        hard_radius = max(max(self.sim_param.r_safe, 2.0 * self.sim_param.r_body), float(config.local_costmap_hard_radius))
+        hard_radius = max(max(self.sim_param.r_safe, self.sim_param.r_body), float(config.local_costmap_hard_radius))
         avoid_radius = max(hard_radius, float(config.local_costmap_avoid_radius))
         self.local_costmap_hard_radius = hard_radius
         self.local_costmap_avoid_radius = avoid_radius
@@ -1910,6 +1941,42 @@ class ShapeAssemblySwarm:
             math.degrees(self.reference_heading),
         )
 
+    def _topic_type_map(self) -> Dict[str, str]:
+        result: Dict[str, str] = {}
+        try:
+            for topic_name, topic_type in rospy.get_published_topics():
+                result[str(topic_name)] = str(topic_type)
+        except Exception:
+            return result
+        return result
+
+    def _resolve_odom_msg_type(self, odom_topic: str, topic_type_map: Dict[str, str]) -> str:
+        configured = self.robot_odom_msg_type
+        if configured in ("odometry", "pose_with_covariance_stamped"):
+            return configured
+        detected = topic_type_map.get(odom_topic, "")
+        if detected == "geometry_msgs/PoseWithCovarianceStamped":
+            return "pose_with_covariance_stamped"
+        return "odometry"
+
+    def _build_robot_topic(self, ns: str, suffix: str) -> str:
+        clean = str(suffix).strip()
+        if not clean:
+            return ""
+        clean = clean.lstrip("/")
+        if ns and clean:
+            return f"/{ns}/{clean}"
+        if ns:
+            return f"/{ns}"
+        return f"/{clean}"
+
+    def _ensure_odom_slot(self, idx: int) -> RobotOdomData:
+        current = self.odom_msgs[idx]
+        if current is None:
+            current = RobotOdomData()
+            self.odom_msgs[idx] = current
+        return current
+
     def _detect_namespaces(self) -> List[str]:
         prefix = "/" + self.namespace_prefix
         now = time.time()
@@ -1981,6 +2048,7 @@ class ShapeAssemblySwarm:
         self.odom_msgs = [None for _ in ns_list]
         self.local_costmap_msgs = [None for _ in ns_list]
         self.odom_subs = []
+        self.odom_velocity_subs = []
         self.local_costmap_subs = []
         self.local_costmap_update_subs = []
         self.local_costmap_topics = []
@@ -1992,16 +2060,51 @@ class ShapeAssemblySwarm:
         self.cmd_pubs = [None for _ in ns_list]
         self.move_base_cancel_pubs = [None for _ in ns_list]
         costmap_suffix = self.local_costmap_topic_suffix.lstrip("/")
-        odom_suffix = self.robot_odom_topic_suffix.lstrip("/")
+        topic_type_map = self._topic_type_map()
         for idx, ns in enumerate(ns_list):
-            odom_topic = f"/{ns}/{odom_suffix}" if ns and odom_suffix else f"/{ns}" if ns else f"/{odom_suffix}" if odom_suffix else "/odom"
+            odom_topic = self._build_robot_topic(ns, self.robot_odom_topic_suffix)
             cmd_topic = f"/{ns}/cmd_vel" if ns else "/cmd_vel"
             cancel_topic = f"/{ns}/move_base/cancel" if ns else "/move_base/cancel"
             costmap_topic = f"/{ns}/{costmap_suffix}" if ns else f"/{costmap_suffix}"
             update_topic = f"{costmap_topic}_updates"
             self.local_costmap_topics.append(costmap_topic)
             self.local_costmap_update_topics.append(update_topic)
-            self.odom_subs.append(rospy.Subscriber(odom_topic, Odometry, self._odom_cb, callback_args=idx, queue_size=10))
+            odom_msg_type = self._resolve_odom_msg_type(odom_topic, topic_type_map)
+            if odom_msg_type == "pose_with_covariance_stamped":
+                self.odom_subs.append(
+                    rospy.Subscriber(odom_topic, PoseWithCovarianceStamped, self._odom_pose_cb, callback_args=idx, queue_size=10)
+                )
+                velocity_suffix = self.robot_velocity_topic_suffix or "/odom"
+                velocity_topic = self._build_robot_topic(ns, velocity_suffix)
+                velocity_type = topic_type_map.get(velocity_topic, "")
+                if velocity_type in ("", "nav_msgs/Odometry"):
+                    self.odom_velocity_subs.append(
+                        rospy.Subscriber(velocity_topic, Odometry, self._odom_twist_cb, callback_args=idx, queue_size=10)
+                    )
+                else:
+                    rospy.logwarn(
+                        "ShapeAssembly[%s]: velocity topic %s has unsupported type %s, keep zero velocity.",
+                        ns or "(no-ns)",
+                        velocity_topic,
+                        velocity_type,
+                    )
+                rospy.loginfo(
+                    "ShapeAssembly[%s]: pose topic=%s type=%s velocity topic=%s",
+                    ns or "(no-ns)",
+                    odom_topic,
+                    odom_msg_type,
+                    velocity_topic if velocity_topic else "(none)",
+                )
+            else:
+                self.odom_subs.append(
+                    rospy.Subscriber(odom_topic, Odometry, self._odom_cb, callback_args=idx, queue_size=10)
+                )
+                rospy.loginfo(
+                    "ShapeAssembly[%s]: odom topic=%s type=%s",
+                    ns or "(no-ns)",
+                    odom_topic,
+                    odom_msg_type,
+                )
             if (not self.distributed_mode) or idx == self.self_agent_index:
                 self.cmd_pubs[idx] = rospy.Publisher(cmd_topic, Twist, queue_size=10)
             if self.use_local_costmap_avoid and ((not self.distributed_mode) or idx == self.self_agent_index):
@@ -2113,6 +2216,7 @@ class ShapeAssemblySwarm:
 
         self.prev_cmd_x = [0.0] * n
         self.prev_cmd_y = [0.0] * n
+        self.prev_cmd_w = [0.0] * n
         if self.control_strategy == ControlStrategy.MOVE_BASE_THEN_SHAPE:
             self.shape_ctrl_active = [False] * n
         else:
@@ -2140,13 +2244,40 @@ class ShapeAssemblySwarm:
             return None
         n = len(self.odom_msgs)
         state = RobotState(n)
+        target_frame = str(self.marker_frame).strip() or "map"
         for i, msg in enumerate(self.odom_msgs):
-            state.pos_x[i] = msg.pose.pose.position.x
-            state.pos_y[i] = msg.pose.pose.position.y
-            state.vel_x[i] = msg.twist.twist.linear.x
-            state.vel_y[i] = msg.twist.twist.linear.y
-            ori = msg.pose.pose.orientation
-            state.yaw[i] = _yaw_from_quat(ori.x, ori.y, ori.z, ori.w)
+            if msg is None:
+                return None
+            source_frame = str(msg.frame_id).strip()
+            tf_tx = 0.0
+            tf_ty = 0.0
+            tf_yaw = 0.0
+            if source_frame and target_frame and source_frame != target_frame:
+                tf_2d = self._lookup_transform_2d(target_frame, source_frame, msg.stamp)
+                if tf_2d is None:
+                    ns = self.ns_list[i] if i < len(self.ns_list) else f"robot{i+1}"
+                    rospy.logwarn_throttle(
+                        3.0,
+                        "ShapeAssembly[%s]: waiting transform %s -> %s for robot state.",
+                        ns,
+                        source_frame,
+                        target_frame,
+                    )
+                    return None
+                tf_tx, tf_ty, tf_yaw = tf_2d
+
+            cos_tf = math.cos(tf_yaw)
+            sin_tf = math.sin(tf_yaw)
+            state.pos_x[i] = cos_tf * msg.x - sin_tf * msg.y + tf_tx
+            state.pos_y[i] = sin_tf * msg.x + cos_tf * msg.y + tf_ty
+            state.yaw[i] = _limit_angle(_yaw_from_quat(msg.qx, msg.qy, msg.qz, msg.qw) + tf_yaw)
+            state.yaw_rate[i] = float(msg.vel_wz)
+            if self.odom_twist_in_base:
+                state.vel_x[i] = msg.vel_x
+                state.vel_y[i] = msg.vel_y
+            else:
+                state.vel_x[i] = cos_tf * msg.vel_x - sin_tf * msg.vel_y
+                state.vel_y[i] = sin_tf * msg.vel_x + cos_tf * msg.vel_y
             if self.odom_twist_in_base:
                 vx_body = state.vel_x[i]
                 vy_body = state.vel_y[i]
@@ -2156,8 +2287,45 @@ class ShapeAssemblySwarm:
         return state
 
     def _odom_cb(self, msg: Odometry, idx: int) -> None:
-        if idx < len(self.odom_msgs):
-            self.odom_msgs[idx] = msg
+        if idx >= len(self.odom_msgs):
+            return
+        odom = self._ensure_odom_slot(idx)
+        odom.frame_id = str(msg.header.frame_id)
+        odom.stamp = msg.header.stamp
+        odom.x = float(msg.pose.pose.position.x)
+        odom.y = float(msg.pose.pose.position.y)
+        odom.z = float(msg.pose.pose.position.z)
+        odom.qx = float(msg.pose.pose.orientation.x)
+        odom.qy = float(msg.pose.pose.orientation.y)
+        odom.qz = float(msg.pose.pose.orientation.z)
+        odom.qw = float(msg.pose.pose.orientation.w)
+        odom.vel_x = float(msg.twist.twist.linear.x)
+        odom.vel_y = float(msg.twist.twist.linear.y)
+        odom.vel_wz = float(msg.twist.twist.angular.z)
+
+    def _odom_pose_cb(self, msg: PoseWithCovarianceStamped, idx: int) -> None:
+        if idx >= len(self.odom_msgs):
+            return
+        odom = self._ensure_odom_slot(idx)
+        odom.frame_id = str(msg.header.frame_id)
+        odom.stamp = msg.header.stamp
+        odom.x = float(msg.pose.pose.position.x)
+        odom.y = float(msg.pose.pose.position.y)
+        odom.z = float(msg.pose.pose.position.z)
+        odom.qx = float(msg.pose.pose.orientation.x)
+        odom.qy = float(msg.pose.pose.orientation.y)
+        odom.qz = float(msg.pose.pose.orientation.z)
+        odom.qw = float(msg.pose.pose.orientation.w)
+
+    def _odom_twist_cb(self, msg: Odometry, idx: int) -> None:
+        if idx >= len(self.odom_msgs):
+            return
+        odom = self.odom_msgs[idx]
+        if odom is None:
+            return
+        odom.vel_x = float(msg.twist.twist.linear.x)
+        odom.vel_y = float(msg.twist.twist.linear.y)
+        odom.vel_wz = float(msg.twist.twist.angular.z)
 
     def _local_costmap_cb(self, msg: OccupancyGrid, idx: int) -> None:
         if idx < len(self.local_costmap_msgs):
@@ -2287,7 +2455,7 @@ class ShapeAssemblySwarm:
             odom_msg = self.odom_msgs[i] if i < len(self.odom_msgs) else None
             odom_frame = ""
             if odom_msg is not None:
-                odom_frame = str(odom_msg.header.frame_id)
+                odom_frame = str(odom_msg.frame_id)
             costmap_frame = str(msg.header.frame_id)
             if i < len(self.local_costmap_frame):
                 self.local_costmap_frame[i] = costmap_frame
@@ -2756,6 +2924,8 @@ class ShapeAssemblySwarm:
         for pub in self.cmd_pubs:
             if pub is not None:
                 pub.publish(Twist())
+        if self.prev_cmd_w:
+            self.prev_cmd_w = [0.0] * len(self.prev_cmd_w)
 
     def _parse_debug_indices(self) -> List[int]:
         if not self.debug_log_robot_indices:
@@ -2975,7 +3145,17 @@ class ShapeAssemblySwarm:
                 angular_cmd[i] = 0.0
                 continue
             target_rate = target_hvel[i] if i < len(target_hvel) else 0.0
-            cmd = self.sim_param.kappa_track_head * yaw_err[i] + target_rate
+            current_rate = robot_state.yaw_rate[i] if i < len(robot_state.yaw_rate) else 0.0
+            cmd = (
+                self.sim_param.kappa_track_head * yaw_err[i]
+                + target_rate
+                - self.yaw_rate_damping * current_rate
+            )
+            if self.yaw_cmd_smooth_ratio > 0.0 and i < len(self.prev_cmd_w):
+                ratio = self.yaw_cmd_smooth_ratio
+                cmd = ratio * cmd + (1.0 - ratio) * self.prev_cmd_w[i]
+            if abs(cmd) < self.yaw_cmd_deadzone:
+                cmd = 0.0
             angular_cmd[i] = max(-self.sim_param.hvel_max, min(self.sim_param.hvel_max, cmd))
         return yaw_err, angular_cmd
 
@@ -3225,6 +3405,16 @@ class ShapeAssemblySwarm:
         shape_dyn: Optional[ShapeDyn] = None,
         enter_goals: Optional[List[Tuple[float, float, float]]] = None,
         metric: Optional[SwarmMetric] = None,
+        cmd_sum_x: Optional[List[float]] = None,
+        cmd_sum_y: Optional[List[float]] = None,
+        cmd_enter_x: Optional[List[float]] = None,
+        cmd_enter_y: Optional[List[float]] = None,
+        cmd_explore_x: Optional[List[float]] = None,
+        cmd_explore_y: Optional[List[float]] = None,
+        cmd_interact_x: Optional[List[float]] = None,
+        cmd_interact_y: Optional[List[float]] = None,
+        cmd_obs_x: Optional[List[float]] = None,
+        cmd_obs_y: Optional[List[float]] = None,
     ) -> None:
         if not self.publish_markers or self.marker_pub is None:
             return
@@ -3268,6 +3458,40 @@ class ShapeAssemblySwarm:
             m.id = marker_id
             m.action = Marker.DELETE
             return m
+
+        def _append_vector_arrow(
+            ns: str,
+            marker_id: int,
+            base_x: float,
+            base_y: float,
+            vec_x: float,
+            vec_y: float,
+            z: float,
+            color: ColorRGBA,
+            scale_factor: float,
+            shaft_ratio: float = 0.7,
+        ) -> None:
+            arrow = Marker()
+            arrow.header.frame_id = self.marker_frame
+            arrow.header.stamp = now
+            arrow.ns = ns
+            arrow.id = marker_id
+            arrow.type = Marker.ARROW
+            arrow.action = Marker.ADD
+            arrow.scale.x = max(1e-3, self.arrow_shaft_diameter * shaft_ratio)
+            arrow.scale.y = max(1e-3, self.arrow_head_diameter * shaft_ratio)
+            arrow.scale.z = max(1e-3, self.arrow_head_length * shaft_ratio)
+            arrow.color = color
+            dx = float(vec_x) * scale_factor
+            dy = float(vec_y) * scale_factor
+            if abs(dx) < 1e-6 and abs(dy) < 1e-6:
+                dx = 0.001
+                dy = 0.0
+            arrow.points = [
+                Point(x=base_x, y=base_y, z=z),
+                Point(x=base_x + dx, y=base_y + dy, z=z),
+            ]
+            markers.markers.append(arrow)
 
         black_marker = Marker()
         black_marker.header.frame_id = self.marker_frame
@@ -3632,6 +3856,70 @@ class ShapeAssemblySwarm:
                 markers.markers.append(_mk_delete("heading_target", i))
                 markers.markers.append(_mk_delete("heading_err", i))
 
+        component_specs = [
+            ("cmd_enter", cmd_enter_x, cmd_enter_y, 0.18, ColorRGBA(r=0.10, g=0.95, b=1.00, a=0.80)),
+            ("cmd_explore", cmd_explore_x, cmd_explore_y, 0.22, ColorRGBA(r=0.25, g=0.45, b=1.00, a=0.80)),
+            ("cmd_interact", cmd_interact_x, cmd_interact_y, 0.26, ColorRGBA(r=1.00, g=0.55, b=0.10, a=0.80)),
+            ("cmd_obstacle", cmd_obs_x, cmd_obs_y, 0.30, ColorRGBA(r=1.00, g=0.20, b=0.20, a=0.85)),
+            ("cmd_sum", cmd_sum_x, cmd_sum_y, 0.34, ColorRGBA(r=0.75, g=0.75, b=0.75, a=0.80)),
+            ("cmd_final", cmd_x, cmd_y, 0.38, ColorRGBA(r=1.00, g=1.00, b=1.00, a=0.95)),
+        ]
+        if self.show_cmd_components:
+            scale = self.component_velocity_scale
+            for i in range(self.sim_param.swarm_size):
+                base_x = robot_state.pos_x[i]
+                base_y = robot_state.pos_y[i]
+                for ns, vec_x_list, vec_y_list, z, color in component_specs:
+                    if vec_x_list is None or vec_y_list is None:
+                        markers.markers.append(_mk_delete(ns, i))
+                        continue
+                    _append_vector_arrow(
+                        ns,
+                        i,
+                        base_x,
+                        base_y,
+                        vec_x_list[i],
+                        vec_y_list[i],
+                        z,
+                        color,
+                        scale,
+                        0.55 if ns != "cmd_final" else 0.75,
+                    )
+
+                if self.show_cmd_component_text:
+                    comp_text = Marker()
+                    comp_text.header.frame_id = self.marker_frame
+                    comp_text.header.stamp = now
+                    comp_text.ns = "cmd_component_text"
+                    comp_text.id = i
+                    comp_text.type = Marker.TEXT_VIEW_FACING
+                    comp_text.action = Marker.ADD
+                    comp_text.scale.z = max(0.08, self.speed_text_size * 0.9)
+                    comp_text.color = ColorRGBA(r=0.95, g=0.95, b=0.95, a=0.90)
+                    comp_text.pose.position.x = base_x
+                    comp_text.pose.position.y = base_y
+                    comp_text.pose.position.z = self.speed_text_z + 0.34
+                    enter_speed = math.hypot(cmd_enter_x[i], cmd_enter_y[i]) if cmd_enter_x is not None and cmd_enter_y is not None else 0.0
+                    explore_speed = math.hypot(cmd_explore_x[i], cmd_explore_y[i]) if cmd_explore_x is not None and cmd_explore_y is not None else 0.0
+                    interact_speed = math.hypot(cmd_interact_x[i], cmd_interact_y[i]) if cmd_interact_x is not None and cmd_interact_y is not None else 0.0
+                    obs_speed = math.hypot(cmd_obs_x[i], cmd_obs_y[i]) if cmd_obs_x is not None and cmd_obs_y is not None else 0.0
+                    sum_speed = math.hypot(cmd_sum_x[i], cmd_sum_y[i]) if cmd_sum_x is not None and cmd_sum_y is not None else 0.0
+                    final_speed = math.hypot(cmd_x[i], cmd_y[i])
+                    comp_text.text = (
+                        f"E:{enter_speed:.2f} X:{explore_speed:.2f} "
+                        f"I:{interact_speed:.2f} O:{obs_speed:.2f} "
+                        f"S:{sum_speed:.2f} F:{final_speed:.2f}"
+                    )
+                    markers.markers.append(comp_text)
+                else:
+                    markers.markers.append(_mk_delete("cmd_component_text", i))
+        else:
+            for ns, _vec_x_list, _vec_y_list, _z, _color in component_specs:
+                for i in range(self.sim_param.swarm_size):
+                    markers.markers.append(_mk_delete(ns, i))
+            for i in range(self.sim_param.swarm_size):
+                markers.markers.append(_mk_delete("cmd_component_text", i))
+
         if self.show_metric_text and metric is not None:
             metric_marker = Marker()
             metric_marker.header.frame_id = self.marker_frame
@@ -3747,6 +4035,8 @@ class ShapeAssemblySwarm:
             cmd_enter_y[i] + cmd_explore_y[i] + cmd_interact_y[i] + cmd_obs_y[i]
             for i in range(self.sim_param.swarm_size)
         ]
+        cmd_sum_x = list(cmd_x)
+        cmd_sum_y = list(cmd_y)
 
         cmd_x, cmd_y = enforce_safety_barrier(self.sim_param, neigh, cmd_x, cmd_y)
         cmd_x, cmd_y = limit_speed(cmd_x, cmd_y, self.sim_param.vel_max)
@@ -3806,6 +4096,7 @@ class ShapeAssemblySwarm:
             twist.angular.y = 0.0
             twist.angular.z = 0.0 if hold_active else angular_cmd[i]
             pub.publish(twist)
+        self.prev_cmd_w = list(angular_cmd)
 
         metric = compute_swarm_metric(
             self.sim_param,
@@ -3845,7 +4136,27 @@ class ShapeAssemblySwarm:
             self.switch_gray_values,
             local_obs_nearest,
         )
-        self._publish_markers(robot_state, cmd_x, cmd_y, target_head, yaw_err, neigh, shape_dyn, enter_goals, metric)
+        self._publish_markers(
+            robot_state,
+            cmd_x,
+            cmd_y,
+            target_head,
+            yaw_err,
+            neigh,
+            shape_dyn,
+            enter_goals,
+            metric,
+            cmd_sum_x,
+            cmd_sum_y,
+            cmd_enter_x,
+            cmd_enter_y,
+            cmd_explore_x,
+            cmd_explore_y,
+            cmd_interact_x,
+            cmd_interact_y,
+            cmd_obs_x,
+            cmd_obs_y,
+        )
 
 
 if __name__ == "__main__":
