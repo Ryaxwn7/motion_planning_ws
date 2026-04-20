@@ -15,6 +15,7 @@
  * ********************************************************
  */
 #include <pluginlib/class_list_macros.h>
+#include <std_msgs/Float64.h>
 #include <tf2/utils.h>
 
 #include "graph_planner.h"
@@ -139,6 +140,7 @@ void GraphPlanner::initialize(std::string name)
 
     // register planning publisher
     plan_pub_ = private_nh.advertise<nav_msgs::Path>("plan", 1);
+    arrival_time_pub_ = private_nh.advertise<std_msgs::Float64>("arrival_time", 1);
 
     // register explorer visualization publisher
     expand_pub_ = private_nh.advertise<nav_msgs::OccupancyGrid>("expand", 1);
@@ -308,6 +310,18 @@ bool GraphPlanner::makePlan(const geometry_msgs::PoseStamped& start, const geome
 
   // publish visulization plan
   publishPlan(plan);
+
+  if (planner_name_ == "fm2")
+  {
+    auto fm2_planner = std::dynamic_pointer_cast<global_planner::FM2_Planner>(g_planner_);
+    double arrival_time = 0.0;
+    if (fm2_planner && fm2_planner->getLastArrivalTime(arrival_time))
+    {
+      std_msgs::Float64 msg;
+      msg.data = arrival_time;
+      arrival_time_pub_.publish(msg);
+    }
+  }
 
   return !plan.empty();
 }

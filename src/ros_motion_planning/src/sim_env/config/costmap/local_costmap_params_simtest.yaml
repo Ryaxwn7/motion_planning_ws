@@ -2,8 +2,8 @@ local_costmap:
   global_frame: odom
   robot_base_frame: base_footprint
 
-  update_frequency: 8.0 #8.0 on car
-  publish_frequency: 8.0 #8.0 on car
+  update_frequency: 10.0 #8.0 on car
+  publish_frequency: 10.0 #8.0 on car
   transform_tolerance: 0.5  
 
   rolling_window: true
