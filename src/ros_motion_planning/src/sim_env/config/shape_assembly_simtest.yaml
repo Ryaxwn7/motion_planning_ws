@@ -82,6 +82,10 @@ kappa_consensus: 1.2
 cmd_smooth_ratio: 0.32
 cmd_smooth_use_odom: true
 cmd_scale: 1.0
+yaw_correction_enabled: true
+yaw_tolerance: 0.05
+yaw_linear_slowdown_start: 0.35
+yaw_linear_stop_threshold: 0.80
 shape_vel_max: 1.0
 
 # Shape source
