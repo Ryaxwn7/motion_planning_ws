@@ -848,9 +848,34 @@ bool FM2_Planner::applyDynamicObstacleUncertainty(
     return changed_cells > 0;
 }
 
+bool FM2_Planner::updateLastArrivalTime(const int query_idx) {
+    last_arrival_time_ = -1.0;
+    if (query_idx < 0 || query_idx >= grid_.size()) {
+        return false;
+    }
+
+    const double arrival_time = grid_.getCell(query_idx).getValue();
+    if (!std::isfinite(arrival_time) || arrival_time < 0.0) {
+        return false;
+    }
+
+    last_arrival_time_ = arrival_time;
+    return true;
+}
+
+bool FM2_Planner::getLastArrivalTime(double& arrival_time) const {
+    if (!std::isfinite(last_arrival_time_) || last_arrival_time_ < 0.0) {
+        return false;
+    }
+
+    arrival_time = last_arrival_time_;
+    return true;
+}
+
 bool FM2_Planner::plan(const Node& start, const Node& goal, std::vector<Node>& path , std::vector<Node>& expand) {
     path.clear();
     expand.clear();
+    last_arrival_time_ = -1.0;
 
     std::vector<int> init_point = {grid2Index(start.x(), start.y())};
     const int goal_idx = grid2Index(goal.x(), goal.y());
@@ -910,6 +935,11 @@ bool FM2_Planner::plan(const Node& start, const Node& goal, std::vector<Node>& p
         return false;
     }
 
+    const int eta_query_idx = use_gather_style_ ? goal_idx : init_point.front();
+    if (!updateLastArrivalTime(eta_query_idx)) {
+        ROS_WARN_THROTTLE(1.0, "FM2: failed to extract arrival time at idx=%d", eta_query_idx);
+    }
+
     for (size_t i = 0; i < fm2_path.size(); ++i) {
         Node node;
         node.set_x(static_cast<int>(fm2_path[i][0]));
@@ -934,6 +964,7 @@ bool FM2_Planner::plan(costmap_2d::Costmap2D* costmap, const Node& start, const 
 {
     path.clear();
     expand.clear();
+    last_arrival_time_ = -1.0;
 
     std::vector<int> init_point = {grid2Index(start.x(), start.y())};
     const int goal_idx = grid2Index(goal.x(), goal.y());
@@ -998,6 +1029,11 @@ bool FM2_Planner::plan(costmap_2d::Costmap2D* costmap, const Node& start, const 
         ROS_ERROR("FM2: computePath failed");
         recoverGrid();
         return false;
+    }
+
+    const int eta_query_idx = use_gather_style_ ? goal_idx : init_point.front();
+    if (!updateLastArrivalTime(eta_query_idx)) {
+        ROS_WARN_THROTTLE(1.0, "FM2: failed to extract arrival time at idx=%d", eta_query_idx);
     }
 
     for (size_t i = 0; i < fm2_path.size(); ++i) {
