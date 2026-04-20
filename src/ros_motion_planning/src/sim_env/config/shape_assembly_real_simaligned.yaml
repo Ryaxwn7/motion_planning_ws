@@ -31,7 +31,7 @@ goal_occupied_radius: 0.35
 # Aliases matching fm2_gather/laun.launch include arg names.
 auto_detect_robots: true
 robot_namespace_prefix: robot
-robot_detect_topic_suffix: /odom_combined
+robot_detect_topic_suffix: /odom
 # Real robots expose fused pose on /robotN/robot_pose_ekf/odom_combined
 # and body-frame velocity on /robotN/odom.
 robot_odom_topic_suffix: /robot_pose_ekf/odom_combined
