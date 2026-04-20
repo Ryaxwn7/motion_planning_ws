@@ -15,7 +15,7 @@ use_fm2_gather: true
 publish_center_goal_only: true
 gather_center_topic: /gather_center
 fm2_auto_detect_robots: true
-fm2_robot_detect_topic_suffix: /odom_combined
+fm2_robot_detect_topic_suffix: /odom
 fm2_robot_detect_timeout: 8.0
 replan_mode: event
 periodic_interval: 5.0
