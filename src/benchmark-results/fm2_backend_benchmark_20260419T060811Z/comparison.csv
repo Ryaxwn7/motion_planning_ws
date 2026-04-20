@@ -1,0 +1,4 @@
+metric,esdf_count,esdf_mean_ms,fmm_count,fmm_mean_ms,delta_ms,delta_percent
+planning_time,20,2.904331,21,3.141747,-0.237416,-7.56
+distance_field_update_time,20,3.021702,21,3.363672,-0.341970,-10.17
+velocity_map_time,20,0.000000,21,0.000000,0.000000,nan

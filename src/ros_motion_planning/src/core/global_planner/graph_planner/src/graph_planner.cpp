@@ -141,6 +141,9 @@ void GraphPlanner::initialize(std::string name)
     // register planning publisher
     plan_pub_ = private_nh.advertise<nav_msgs::Path>("plan", 1);
     arrival_time_pub_ = private_nh.advertise<std_msgs::Float64>("arrival_time", 1);
+    planning_time_pub_ = private_nh.advertise<std_msgs::Float64>("planning_time", 1);
+    distance_field_time_pub_ = private_nh.advertise<std_msgs::Float64>("distance_field_update_time", 1);
+    velocity_map_time_pub_ = private_nh.advertise<std_msgs::Float64>("velocity_map_time", 1);
 
     // register explorer visualization publisher
     expand_pub_ = private_nh.advertise<nav_msgs::OccupancyGrid>("expand", 1);
@@ -254,6 +257,7 @@ bool GraphPlanner::makePlan(const geometry_msgs::PoseStamped& start, const geome
   Node goal_node(g_goal_x, g_goal_y, 0, 0, g_planner_->grid2Index(g_goal_x, g_goal_y), -1);
 
   // planning
+  const ros::WallTime planning_t0 = ros::WallTime::now();
   if (planner_name_ == "voronoi")
   {
     if (!voronoi_layer_exist)
@@ -288,6 +292,7 @@ bool GraphPlanner::makePlan(const geometry_msgs::PoseStamped& start, const geome
 
   else
     path_found = g_planner_->plan(start_node, goal_node, path, expand);
+  const double planning_time_ms = (ros::WallTime::now() - planning_t0).toSec() * 1000.0;
 
   // convert path to ros plan
   if (path_found)
@@ -311,6 +316,10 @@ bool GraphPlanner::makePlan(const geometry_msgs::PoseStamped& start, const geome
   // publish visulization plan
   publishPlan(plan);
 
+  std_msgs::Float64 planning_time_msg;
+  planning_time_msg.data = planning_time_ms;
+  planning_time_pub_.publish(planning_time_msg);
+
   if (planner_name_ == "fm2")
   {
     auto fm2_planner = std::dynamic_pointer_cast<global_planner::FM2_Planner>(g_planner_);
@@ -320,6 +329,20 @@ bool GraphPlanner::makePlan(const geometry_msgs::PoseStamped& start, const geome
       std_msgs::Float64 msg;
       msg.data = arrival_time;
       arrival_time_pub_.publish(msg);
+    }
+    double distance_field_time = 0.0;
+    if (fm2_planner && fm2_planner->getLastDistanceUpdateTimeMs(distance_field_time))
+    {
+      std_msgs::Float64 msg;
+      msg.data = distance_field_time;
+      distance_field_time_pub_.publish(msg);
+    }
+    double velocity_map_time = 0.0;
+    if (fm2_planner && fm2_planner->getLastVelocityMapTimeMs(velocity_map_time))
+    {
+      std_msgs::Float64 msg;
+      msg.data = velocity_map_time;
+      velocity_map_time_pub_.publish(msg);
     }
   }
 

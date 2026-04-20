@@ -1,0 +1,4 @@
+metric,esdf_count,esdf_mean_ms,fmm_count,fmm_mean_ms,delta_ms,delta_percent
+planning_time,,,,,,
+distance_field_update_time,,,,,,
+velocity_map_time,,,,,,

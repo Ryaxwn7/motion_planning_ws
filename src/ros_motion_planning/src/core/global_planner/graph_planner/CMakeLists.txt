@@ -58,6 +58,7 @@ include_directories(
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
   src/graph_planner.cpp
+  src/incremental_esdf_2d.cpp
   src/fm2_planner.cpp
   src/fm2star_planner.cpp
   src/a_star_my.cpp
@@ -80,3 +81,16 @@ target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
   ${X11_LIBRARIES}
 )
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_incremental_esdf_2d
+    test/test_incremental_esdf_2d.cpp
+  )
+  if(TARGET test_incremental_esdf_2d)
+    target_link_libraries(test_incremental_esdf_2d
+      ${PROJECT_NAME}
+      ${catkin_LIBRARIES}
+      ${X11_LIBRARIES}
+    )
+  endif()
+endif()

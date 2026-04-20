@@ -22,6 +22,8 @@
     <arg name="robot" default="turtlebot3_waffle" />
     <!-- global path planner name -->
     <arg name="global_planner" default="a_star" />
+    <!-- fm2 backend: -1 means use YAML value, 0=fmm, 1=esdf_fiesta_2d -->
+    <arg name="fm2_distance_field_backend" default="-1" />
     <!-- local planner name -->
     <arg name="local_planner" default="dwa" />
 
@@ -83,6 +85,8 @@
                     or arg('global_planner')=='fm2star'
                     or arg('global_planner')=='sfmm2'
                 )" />
+        <param name="GraphPlanner/fm2/distance_field_backend" value="$(arg fm2_distance_field_backend)"
+            if="$(eval (arg('global_planner')=='fm2' or arg('global_planner')=='fm2star' or arg('global_planner')=='sfmm2') and arg('fm2_distance_field_backend')!='-1')" />
 
         <!-- sample search -->
         <param name="base_global_planner" value="sample_planner/SamplePlanner"

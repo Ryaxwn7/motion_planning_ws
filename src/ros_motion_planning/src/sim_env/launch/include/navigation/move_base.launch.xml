@@ -18,6 +18,7 @@
   <arg name="robot_namespace" default=""/>
   <arg name="start_ns" default="false" />
   <arg name="global_planner" default="a_star" />
+  <arg name="fm2_distance_field_backend" default="-1" />
   <arg name="local_planner" default="dwa" />
   <arg name="extra_scan_namespace_1" default="" />
   <arg name="extra_scan_namespace_2" default="" />
@@ -78,6 +79,8 @@
               or arg('global_planner')=='fm2'
               or arg('global_planner')=='fm2star'
           )" />
+    <param name="GraphPlanner/fm2/distance_field_backend" value="$(arg fm2_distance_field_backend)"
+      if="$(eval (arg('global_planner')=='fm2' or arg('global_planner')=='fm2star') and arg('fm2_distance_field_backend')!='-1')" />
 
     <!-- sample search -->
     <param name="base_global_planner" value="sample_planner/SamplePlanner"

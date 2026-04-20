@@ -13,6 +13,9 @@ GraphPlanner:
   voronoi_map: false
   # fm2 / fm2star planner params
   fm2:
+    # 0 = legacy first-stage FMM distance field
+    # 1 = incremental ESDF (FIESTA-style 2D backend)
+    distance_field_backend: 1
     v_max: 1.0
     velocity_alpha: 0.2
     velocity_dmax: 0.5

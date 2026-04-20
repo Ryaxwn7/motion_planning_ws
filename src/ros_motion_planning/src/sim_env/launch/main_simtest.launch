@@ -7,8 +7,8 @@
 		<arg name="robot_number" value="4" />
 		<arg name="rviz_file" value="view_multi.rviz" />
 		<arg name="debug" value="false" />
-		<arg name="gui" value="true" />
-		<arg name="headless" value="false" />
-		<arg name="use_rviz" value="true" />
+		<arg name="gui" value="false" />
+		<arg name="headless" value="true" />
+		<arg name="use_rviz" value="false" />
 		</include>
 	</launch>

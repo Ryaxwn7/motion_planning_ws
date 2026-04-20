@@ -41,6 +41,23 @@ double clampDouble(const double value, const double min_v, const double max_v) {
 int clampInt(const int value, const int min_v, const int max_v) {
     return std::max(min_v, std::min(value, max_v));
 }
+
+FM2_Planner::DistanceFieldBackend parseDistanceFieldBackend(const int raw_value) {
+    return (raw_value == static_cast<int>(FM2_Planner::DistanceFieldBackend::FMM))
+               ? FM2_Planner::DistanceFieldBackend::FMM
+               : FM2_Planner::DistanceFieldBackend::ESDF_FIESTA_2D;
+}
+
+const char* distanceFieldBackendName(const FM2_Planner::DistanceFieldBackend backend) {
+    switch (backend) {
+        case FM2_Planner::DistanceFieldBackend::FMM:
+            return "fmm";
+        case FM2_Planner::DistanceFieldBackend::ESDF_FIESTA_2D:
+            return "esdf_fiesta_2d";
+        default:
+            return "unknown";
+    }
+}
 }  // namespace
 
 FM2_Planner::FM2_Planner(costmap_2d::Costmap2D* costmap) : GlobalPlanner(costmap) {
@@ -74,6 +91,8 @@ void FM2_Planner::loadParams(const ros::NodeHandle& nh) {
     nh.param("fm2/velocity_mode", velocity_mode_, 0);
     nh.param("fm2/velocity_sigmoid_k", velocity_sigmoid_k_, 0.15);
     nh.param("fm2/velocity_sigmoid_b", velocity_sigmoid_b_, 0.0);
+    int distance_field_backend = static_cast<int>(DistanceFieldBackend::ESDF_FIESTA_2D);
+    nh.param("fm2/distance_field_backend", distance_field_backend, distance_field_backend);
     nh.param("fm2/use_gather_style", use_gather_style_, true);
 
     nh.param("fm2/use_dynamic_obstacle_uncertainty", use_dynamic_obstacle_uncertainty_, true);
@@ -102,6 +121,7 @@ void FM2_Planner::loadParams(const ros::NodeHandle& nh) {
     velocity_mode_ = clampInt(velocity_mode_, 0, 1);
     velocity_sigmoid_k_ = clampDouble(velocity_sigmoid_k_, 0.0, 10.0);
     velocity_sigmoid_b_ = clampDouble(velocity_sigmoid_b_, 0.0, 10.0);
+    distance_field_backend_ = parseDistanceFieldBackend(clampInt(distance_field_backend, 0, 1));
 
     dynamic_obstacle_threshold_ = clampInt(dynamic_obstacle_threshold_, 0, 255);
     dynamic_obstacle_inflation_radius_ = clampDouble(dynamic_obstacle_inflation_radius_, 0.0, 5.0);
@@ -141,6 +161,7 @@ void FM2_Planner::reconfigureCB(graph_planner::FM2PlannerConfig& config, uint32_
     config.velocity_mode = clampInt(config.velocity_mode, 0, 1);
     config.velocity_sigmoid_k = clampDouble(config.velocity_sigmoid_k, 0.0, 10.0);
     config.velocity_sigmoid_b = clampDouble(config.velocity_sigmoid_b, 0.0, 10.0);
+    config.distance_field_backend = clampInt(config.distance_field_backend, 0, 1);
 
     config.dynamic_obstacle_threshold = clampInt(config.dynamic_obstacle_threshold, 0, 255);
     config.dynamic_obstacle_inflation_radius = clampDouble(config.dynamic_obstacle_inflation_radius, 0.0, 5.0);
@@ -163,6 +184,7 @@ void FM2_Planner::reconfigureCB(graph_planner::FM2PlannerConfig& config, uint32_
     velocity_mode_ = config.velocity_mode;
     velocity_sigmoid_k_ = config.velocity_sigmoid_k;
     velocity_sigmoid_b_ = config.velocity_sigmoid_b;
+    distance_field_backend_ = parseDistanceFieldBackend(config.distance_field_backend);
     use_gather_style_ = config.use_gather_style;
 
     use_dynamic_obstacle_uncertainty_ = config.use_dynamic_obstacle_uncertainty;
@@ -202,6 +224,7 @@ void FM2_Planner::reconfigureCB(graph_planner::FM2PlannerConfig& config, uint32_
                  dynamic_obstacle_track_match_radius_,
                  dynamic_obstacle_track_ttl_,
                  static_obstacle_noise_reject_cells_);
+        ROS_INFO("FM2: distance backend=%s", distanceFieldBackendName(distance_field_backend_));
     }
 }
 
@@ -234,6 +257,8 @@ void FM2_Planner::initializeFastMarching(costmap_2d::Costmap2D* costmap) {
     dimsize_ = {nx_, ny_};
     grid_.resize(dimsize_);
     grid_.setLeafSize(resolution_);
+    esdf_.reset(nx_, ny_, resolution_);
+    last_fused_occupancy_.clear();
 
     fm2_sources_.clear();
     for (int i = 0; i < ns_; ++i) {
@@ -304,6 +329,8 @@ void FM2_Planner::initializeFastMarchingROS(costmap_2d::Costmap2DROS* costmap_ro
     dimsize_ = {nx_, ny_};
     grid_.resize(dimsize_);
     grid_.setLeafSize(resolution_);
+    esdf_.reset(nx_, ny_, resolution_);
+    last_fused_occupancy_.clear();
 
     fm2_sources_.clear();
     for (int i = 0; i < ns_; ++i) {
@@ -370,13 +397,21 @@ bool FM2_Planner::updateGrid(costmap_2d::Costmap2D* costmap)
     if (static_costmap_ == global_costmap_) {
         rebuildStaticObstacleProximityMask();
     }
+    esdf_.reset(nx_, ny_, resolution_);
+    last_fused_occupancy_.clear();
     invalidateVelocityCache();
     return true;
 }
 
 void FM2_Planner::invalidateVelocityCache() {
+    base_distance_map_.clear();
     base_velocity_map_.clear();
     base_velocity_ready_ = false;
+    last_inserted_cells_ = 0;
+    last_deleted_cells_ = 0;
+    last_distance_update_ms_ = 0.0;
+    last_velocity_map_ms_ = 0.0;
+    esdf_uncertainty_warned_ = false;
     uncertainty_kernel_cache_.clear();
     uncertainty_kernel_resolution_ = -1.0;
     dynamic_obstacle_tracks_.clear();
@@ -618,6 +653,268 @@ double FM2_Planner::getVelocityReference(const std::vector<double>& velocity_map
     return (vmax_ref > 1e-6) ? vmax_ref : std::max(1e-3, v_max_);
 }
 
+bool FM2_Planner::buildFusedOccupancy(
+    const costmap_2d::Costmap2D* costmap,
+    std::vector<uint8_t>& fused_occ) {
+    fused_occ.assign(static_cast<std::size_t>(std::max(0, ns_)), 0);
+    if (ns_ <= 0) {
+        return false;
+    }
+
+    for (int i = 0; i < ns_; ++i) {
+        bool occupied = false;
+        if (static_costmap_ != nullptr) {
+            const unsigned char value = static_costmap_[i];
+            occupied = (value >= lethal_cost_) || (value == costmap_2d::NO_INFORMATION);
+        } else if (global_costmap_ != nullptr) {
+            const unsigned char value = global_costmap_[i];
+            occupied = (value >= lethal_cost_) || (value == costmap_2d::NO_INFORMATION);
+        }
+        fused_occ[static_cast<std::size_t>(i)] = occupied ? 1 : 0;
+    }
+
+    if (obstacle_layer_ != nullptr) {
+        boost::unique_lock<boost::recursive_mutex> lock(*(obstacle_layer_->getMutex()));
+        const unsigned char* obstacle_map = obstacle_layer_->getCharMap();
+        if (obstacle_map != nullptr) {
+            for (int i = 0; i < ns_; ++i) {
+                if (isDynamicObstacleCost(obstacle_map[i])) {
+                    fused_occ[static_cast<std::size_t>(i)] = 1;
+                }
+            }
+        }
+        return true;
+    }
+
+    if (costmap != nullptr) {
+        const unsigned char* merged_map = costmap->getCharMap();
+        if (merged_map != nullptr) {
+            for (int i = 0; i < ns_; ++i) {
+                const unsigned char value = merged_map[i];
+                if (value >= lethal_cost_ || value == costmap_2d::NO_INFORMATION) {
+                    fused_occ[static_cast<std::size_t>(i)] = 1;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+void FM2_Planner::applyOccupancyFromCharMap(const unsigned char* map_data) {
+    if (map_data == nullptr) {
+        return;
+    }
+    fm2_sources_.clear();
+    fm2_sources_.reserve(std::max(1, ns_ / 8));
+    for (int i = 0; i < ns_; ++i) {
+        const bool is_occupied =
+            (map_data[i] >= lethal_cost_) || (map_data[i] == costmap_2d::NO_INFORMATION);
+        grid_.getCell(i).setOccupancy(!is_occupied);
+        if (is_occupied) {
+            fm2_sources_.push_back(i);
+        }
+    }
+}
+
+void FM2_Planner::applyFusedOccupancyToGrid(const std::vector<uint8_t>& fused_occ) {
+    if (fused_occ.size() != static_cast<std::size_t>(ns_)) {
+        return;
+    }
+    fm2_sources_.clear();
+    fm2_sources_.reserve(fused_occ.size() / 8);
+    for (int i = 0; i < ns_; ++i) {
+        const bool is_occupied = fused_occ[static_cast<std::size_t>(i)] != 0;
+        grid_.getCell(i).setOccupancy(!is_occupied);
+        if (is_occupied) {
+            fm2_sources_.push_back(i);
+        }
+    }
+}
+
+bool FM2_Planner::buildVelocityMapFromDistance(const std::vector<double>& distance_map) {
+    if (distance_map.size() != static_cast<std::size_t>(ns_)) {
+        ROS_ERROR("FM2: distance map size mismatch for velocity build");
+        return false;
+    }
+
+    ros::WallTime t0 = ros::WallTime::now();
+    base_distance_map_ = distance_map;
+    base_velocity_map_.assign(distance_map.size(), 0.0);
+
+    const double vmax = (v_max_ > 0.0) ? v_max_ : 1.0;
+    const double dr = std::max(0.0, robot_radius_);
+    double dmax = velocity_dmax_;
+    if (dmax <= 0.0) {
+        dmax = 0.0;
+        for (const double dist : distance_map) {
+            if (std::isfinite(dist) && dist > dmax) {
+                dmax = dist;
+            }
+        }
+    }
+    if (dmax <= dr) {
+        dmax = dr + std::max(1e-6, resolution_);
+    }
+
+    const double alpha = clampDouble(velocity_alpha_, 0.0, 1.0);
+    const double v_min = alpha * vmax;
+    for (int i = 0; i < ns_; ++i) {
+        const bool occupied = grid_.getCell(i).isOccupied();
+        if (occupied) {
+            base_velocity_map_[static_cast<std::size_t>(i)] = 0.0;
+            grid_.getCell(i).setVelocity(0.0);
+            continue;
+        }
+        const double dist = distance_map[static_cast<std::size_t>(i)];
+        if (!std::isfinite(dist) || dist <= dr) {
+            base_velocity_map_[static_cast<std::size_t>(i)] = 0.0;
+        } else if (dist < dmax) {
+            if (velocity_mode_ == 1) {
+                const double e = 1.0 + std::exp(-velocity_sigmoid_k_ * (dist - dr) + velocity_sigmoid_b_);
+                base_velocity_map_[static_cast<std::size_t>(i)] = vmax / e;
+            } else {
+                const double ratio = (dist - dr) / (dmax - dr);
+                base_velocity_map_[static_cast<std::size_t>(i)] = v_min + (vmax - v_min) * ratio;
+            }
+        } else {
+            if (velocity_mode_ == 1) {
+                const double e = 1.0 + std::exp(-velocity_sigmoid_k_ * (dist - dr) + velocity_sigmoid_b_);
+                base_velocity_map_[static_cast<std::size_t>(i)] = vmax / e;
+            } else {
+                base_velocity_map_[static_cast<std::size_t>(i)] = vmax;
+            }
+        }
+        grid_.getCell(i).setVelocity(static_cast<float>(base_velocity_map_[static_cast<std::size_t>(i)]));
+    }
+
+    last_velocity_map_ms_ = (ros::WallTime::now() - t0).toSec() * 1000.0;
+    base_velocity_ready_ = true;
+    return true;
+}
+
+bool FM2_Planner::ensureBaseVelocityMapFMM(const std::vector<int>& init_point, const int goal_idx) {
+    if (base_velocity_ready_ && base_velocity_map_.size() == static_cast<std::size_t>(ns_)) {
+        return true;
+    }
+
+    ros::WallTime t0 = ros::WallTime::now();
+    if (!recoverGrid()) {
+        ROS_ERROR("FM2: recoverGrid failed before base velocity compute");
+        return false;
+    }
+
+    FastMarching2<nDGridMap<FMCell, 2>> fm2;
+    fm2.setVelocityScale(v_max_);
+    fm2.setVelocityProfile(velocity_alpha_, velocity_dmax_);
+    fm2.setRobotRadius(robot_radius_);
+    fm2.setVelocityMode(velocity_mode_);
+    fm2.setVelocitySigmoid(velocity_sigmoid_k_, velocity_sigmoid_b_);
+    fm2.setEnvironment(&grid_);
+    fm2.setInitialAndGoalPoints(init_point, fm2_sources_, goal_idx);
+
+    const double saturate_distance = (velocity_dmax_ > 0.0) ? velocity_dmax_ : -1.0;
+    fm2.computeFM2_velocity(saturate_distance);
+    base_velocity_map_ = fm2.getVelocityMap();
+    base_distance_map_.clear();
+    base_velocity_ready_ = (base_velocity_map_.size() == static_cast<std::size_t>(ns_));
+    last_inserted_cells_ = 0;
+    last_deleted_cells_ = 0;
+    last_distance_update_ms_ = (ros::WallTime::now() - t0).toSec() * 1000.0;
+    last_velocity_map_ms_ = 0.0;
+
+    if (!recoverGrid()) {
+        ROS_ERROR("FM2: recoverGrid failed after base velocity compute");
+        return false;
+    }
+
+    if (!base_velocity_ready_) {
+        ROS_ERROR("FM2: base velocity map compute failed");
+        return false;
+    }
+
+    if (debug_log_) {
+        ROS_INFO("FM2: base velocity map initialized with FMM (%zu cells)", base_velocity_map_.size());
+    }
+    return true;
+}
+
+bool FM2_Planner::ensureBaseVelocityMapESDF(const costmap_2d::Costmap2D* costmap) {
+    std::vector<uint8_t> fused_occ;
+    if (!buildFusedOccupancy(costmap, fused_occ)) {
+        ROS_ERROR("FM2: failed to build fused occupancy for ESDF backend");
+        return false;
+    }
+    applyFusedOccupancyToGrid(fused_occ);
+
+    ros::WallTime t0 = ros::WallTime::now();
+    bool full_rebuild = force_full_occupancy_refresh_
+                        || !esdf_.initialized()
+                        || esdf_.width() != nx_
+                        || esdf_.height() != ny_
+                        || std::abs(esdf_.resolution() - resolution_) > 1e-9
+                        || last_fused_occupancy_.size() != fused_occ.size();
+    std::vector<int> inserted;
+    std::vector<int> deleted;
+    if (full_rebuild) {
+        esdf_.reset(nx_, ny_, resolution_);
+        esdf_.initializeFromOccupancy(fused_occ);
+        last_fused_occupancy_ = fused_occ;
+        last_inserted_cells_ = 0;
+        last_deleted_cells_ = 0;
+        base_velocity_ready_ = false;
+    } else {
+        inserted.reserve(fused_occ.size() / 32);
+        deleted.reserve(fused_occ.size() / 32);
+        for (int idx = 0; idx < ns_; ++idx) {
+            const uint8_t current = fused_occ[static_cast<std::size_t>(idx)];
+            const uint8_t prev = last_fused_occupancy_[static_cast<std::size_t>(idx)];
+            if (current == prev) {
+                continue;
+            }
+            if (current != 0) {
+                inserted.push_back(idx);
+            } else {
+                deleted.push_back(idx);
+            }
+        }
+        if (!inserted.empty() || !deleted.empty()) {
+            esdf_.updateFromDiff(inserted, deleted);
+            last_fused_occupancy_ = fused_occ;
+            base_velocity_ready_ = false;
+        }
+        last_inserted_cells_ = static_cast<int>(inserted.size());
+        last_deleted_cells_ = static_cast<int>(deleted.size());
+    }
+
+    last_distance_update_ms_ = (ros::WallTime::now() - t0).toSec() * 1000.0;
+    if (!base_velocity_ready_) {
+        if (!buildVelocityMapFromDistance(esdf_.getDistanceMap())) {
+            return false;
+        }
+    }
+
+    if (debug_log_) {
+        ROS_INFO(
+            "FM2[esdf]: rebuild=%s inserted=%d deleted=%d df_ms=%.3f vel_ms=%.3f",
+            full_rebuild ? "true" : "false",
+            last_inserted_cells_,
+            last_deleted_cells_,
+            last_distance_update_ms_,
+            last_velocity_map_ms_);
+    }
+    return true;
+}
+
+bool FM2_Planner::ensureBaseVelocityMap(
+    const costmap_2d::Costmap2D* costmap,
+    const std::vector<int>& init_point,
+    const int goal_idx) {
+    if (distance_field_backend_ == DistanceFieldBackend::ESDF_FIESTA_2D) {
+        return ensureBaseVelocityMapESDF(costmap);
+    }
+    return ensureBaseVelocityMapFMM(init_point, goal_idx);
+}
+
 const std::vector<FM2_Planner::UncertaintyKernelCell>&
 FM2_Planner::getUncertaintyKernel(int hard_cells, int soft_cells) {
     hard_cells = std::max(0, hard_cells);
@@ -685,46 +982,6 @@ int FM2_Planner::applyUncertaintyKernelAt(
         }
     }
     return changed;
-}
-
-bool FM2_Planner::ensureBaseVelocityMap(const std::vector<int>& init_point, const int goal_idx) {
-    if (base_velocity_ready_ && base_velocity_map_.size() == static_cast<std::size_t>(ns_)) {
-        return true;
-    }
-
-    if (!recoverGrid()) {
-        ROS_ERROR("FM2: recoverGrid failed before base velocity compute");
-        return false;
-    }
-
-    FastMarching2<nDGridMap<FMCell, 2>> fm2;
-    fm2.setVelocityScale(v_max_);
-    fm2.setVelocityProfile(velocity_alpha_, velocity_dmax_);
-    fm2.setRobotRadius(robot_radius_);
-    fm2.setVelocityMode(velocity_mode_);
-    fm2.setVelocitySigmoid(velocity_sigmoid_k_, velocity_sigmoid_b_);
-    fm2.setEnvironment(&grid_);
-    fm2.setInitialAndGoalPoints(init_point, fm2_sources_, goal_idx);
-
-    const double saturate_distance = (velocity_dmax_ > 0.0) ? velocity_dmax_ : -1.0;
-    fm2.computeFM2_velocity(saturate_distance);
-    base_velocity_map_ = fm2.getVelocityMap();
-    base_velocity_ready_ = (base_velocity_map_.size() == static_cast<std::size_t>(ns_));
-
-    if (!recoverGrid()) {
-        ROS_ERROR("FM2: recoverGrid failed after base velocity compute");
-        return false;
-    }
-
-    if (!base_velocity_ready_) {
-        ROS_ERROR("FM2: base velocity map compute failed");
-        return false;
-    }
-
-    if (debug_log_) {
-        ROS_INFO("FM2: base velocity map initialized (%zu cells)", base_velocity_map_.size());
-    }
-    return true;
 }
 
 bool FM2_Planner::applyDynamicObstacleUncertainty(
@@ -872,24 +1129,59 @@ bool FM2_Planner::getLastArrivalTime(double& arrival_time) const {
     return true;
 }
 
+bool FM2_Planner::getLastDistanceUpdateTimeMs(double& time_ms) const {
+    if (!std::isfinite(last_distance_update_ms_) || last_distance_update_ms_ < 0.0) {
+        return false;
+    }
+    time_ms = last_distance_update_ms_;
+    return true;
+}
+
+bool FM2_Planner::getLastVelocityMapTimeMs(double& time_ms) const {
+    if (!std::isfinite(last_velocity_map_ms_) || last_velocity_map_ms_ < 0.0) {
+        return false;
+    }
+    time_ms = last_velocity_map_ms_;
+    return true;
+}
+
 bool FM2_Planner::plan(const Node& start, const Node& goal, std::vector<Node>& path , std::vector<Node>& expand) {
     path.clear();
     expand.clear();
     last_arrival_time_ = -1.0;
+    const ros::WallTime plan_t0 = ros::WallTime::now();
 
     std::vector<int> init_point = {grid2Index(start.x(), start.y())};
     const int goal_idx = grid2Index(goal.x(), goal.y());
 
-    if (!recoverGrid()) {
-        ROS_ERROR("FM2: recoverGrid failed");
-        return false;
-    }
-    if (!ensureBaseVelocityMap(init_point, goal_idx)) {
-        return false;
+    if (distance_field_backend_ == DistanceFieldBackend::ESDF_FIESTA_2D) {
+        if (!ensureBaseVelocityMap(nullptr, init_point, goal_idx)) {
+            return false;
+        }
+        if (!recoverGrid()) {
+            ROS_ERROR("FM2: recoverGrid failed");
+            return false;
+        }
+    } else {
+        applyOccupancyFromCharMap(static_costmap_ != nullptr ? static_costmap_ : global_costmap_);
+        if (!recoverGrid()) {
+            ROS_ERROR("FM2: recoverGrid failed");
+            return false;
+        }
+        if (!ensureBaseVelocityMap(nullptr, init_point, goal_idx)) {
+            return false;
+        }
     }
 
     std::vector<double> runtime_velocity_map = base_velocity_map_;
-    applyDynamicObstacleUncertainty(nullptr, runtime_velocity_map);
+    if (distance_field_backend_ == DistanceFieldBackend::ESDF_FIESTA_2D) {
+        if (use_dynamic_obstacle_uncertainty_ && !esdf_uncertainty_warned_) {
+            ROS_WARN("FM2: ESDF backend ignores dynamic obstacle uncertainty kernel and uses fused occupancy directly.");
+            esdf_uncertainty_warned_ = true;
+        }
+    } else {
+        applyDynamicObstacleUncertainty(nullptr, runtime_velocity_map);
+    }
 
     FastMarching2<nDGridMap<FMCell, 2>> fm2;
     fm2.setVelocityScale(v_max_);
@@ -901,11 +1193,13 @@ bool FM2_Planner::plan(const Node& start, const Node& goal, std::vector<Node>& p
     fm2.setInitialAndGoalPoints(init_point, fm2_sources_, goal_idx);
 
     const double saturate_distance = (velocity_dmax_ > 0.0) ? velocity_dmax_ : -1.0;
+    const ros::WallTime second_fm_t0 = ros::WallTime::now();
     if (use_gather_style_) {
         fm2.computeFM2_gather_v(init_point, runtime_velocity_map, saturate_distance);
     } else {
         fm2.computeFM2_v(runtime_velocity_map, saturate_distance);
     }
+    const double second_fm_ms = (ros::WallTime::now() - second_fm_t0).toSec() * 1000.0;
 
     if (debug_dump_velocity_) {
         dumpVelocityMapCsv(debug_velocity_path_);
@@ -956,6 +1250,19 @@ bool FM2_Planner::plan(const Node& start, const Node& goal, std::vector<Node>& p
         return false;
     }
 
+    if (debug_log_) {
+        const double total_ms = (ros::WallTime::now() - plan_t0).toSec() * 1000.0;
+        ROS_INFO(
+            "FM2[%s]: ins=%d del=%d df_ms=%.3f vel_ms=%.3f second_fm_ms=%.3f total_ms=%.3f",
+            distanceFieldBackendName(distance_field_backend_),
+            last_inserted_cells_,
+            last_deleted_cells_,
+            last_distance_update_ms_,
+            last_velocity_map_ms_,
+            second_fm_ms,
+            total_ms);
+    }
+
     return !path.empty();
 }
 
@@ -965,6 +1272,7 @@ bool FM2_Planner::plan(costmap_2d::Costmap2D* costmap, const Node& start, const 
     path.clear();
     expand.clear();
     last_arrival_time_ = -1.0;
+    const ros::WallTime plan_t0 = ros::WallTime::now();
 
     std::vector<int> init_point = {grid2Index(start.x(), start.y())};
     const int goal_idx = grid2Index(goal.x(), goal.y());
@@ -976,16 +1284,36 @@ bool FM2_Planner::plan(costmap_2d::Costmap2D* costmap, const Node& start, const 
         }
     }
 
-    if (!recoverGrid()) {
-        ROS_ERROR("FM2: recoverGrid failed");
-        return false;
-    }
-    if (!ensureBaseVelocityMap(init_point, goal_idx)) {
-        return false;
+    if (distance_field_backend_ == DistanceFieldBackend::ESDF_FIESTA_2D) {
+        if (!ensureBaseVelocityMap(costmap, init_point, goal_idx)) {
+            return false;
+        }
+        if (!recoverGrid()) {
+            ROS_ERROR("FM2: recoverGrid failed");
+            return false;
+        }
+    } else {
+        if (!force_full_occupancy_refresh_) {
+            applyOccupancyFromCharMap(static_costmap_ != nullptr ? static_costmap_ : global_costmap_);
+        }
+        if (!recoverGrid()) {
+            ROS_ERROR("FM2: recoverGrid failed");
+            return false;
+        }
+        if (!ensureBaseVelocityMap(costmap, init_point, goal_idx)) {
+            return false;
+        }
     }
 
     std::vector<double> runtime_velocity_map = base_velocity_map_;
-    applyDynamicObstacleUncertainty(costmap, runtime_velocity_map);
+    if (distance_field_backend_ == DistanceFieldBackend::ESDF_FIESTA_2D) {
+        if (use_dynamic_obstacle_uncertainty_ && !esdf_uncertainty_warned_) {
+            ROS_WARN("FM2: ESDF backend ignores dynamic obstacle uncertainty kernel and uses fused occupancy directly.");
+            esdf_uncertainty_warned_ = true;
+        }
+    } else {
+        applyDynamicObstacleUncertainty(costmap, runtime_velocity_map);
+    }
 
     FastMarching2<nDGridMap<FMCell, 2>> fm2;
     fm2.setVelocityScale(v_max_);
@@ -997,11 +1325,13 @@ bool FM2_Planner::plan(costmap_2d::Costmap2D* costmap, const Node& start, const 
     fm2.setInitialAndGoalPoints(init_point, fm2_sources_, goal_idx);
 
     const double saturate_distance = (velocity_dmax_ > 0.0) ? velocity_dmax_ : -1.0;
+    const ros::WallTime second_fm_t0 = ros::WallTime::now();
     if (use_gather_style_) {
         fm2.computeFM2_gather_v(init_point, runtime_velocity_map, saturate_distance);
     } else {
         fm2.computeFM2_v(runtime_velocity_map, saturate_distance);
     }
+    const double second_fm_ms = (ros::WallTime::now() - second_fm_t0).toSec() * 1000.0;
 
     if (debug_dump_velocity_) {
         dumpVelocityMapCsv(debug_velocity_path_);
@@ -1051,6 +1381,19 @@ bool FM2_Planner::plan(costmap_2d::Costmap2D* costmap, const Node& start, const 
     if (!recoverGrid()) {
         ROS_ERROR("FM2: recoverGrid failed after planning");
         return false;
+    }
+
+    if (debug_log_) {
+        const double total_ms = (ros::WallTime::now() - plan_t0).toSec() * 1000.0;
+        ROS_INFO(
+            "FM2[%s]: ins=%d del=%d df_ms=%.3f vel_ms=%.3f second_fm_ms=%.3f total_ms=%.3f",
+            distanceFieldBackendName(distance_field_backend_),
+            last_inserted_cells_,
+            last_deleted_cells_,
+            last_distance_update_ms_,
+            last_velocity_map_ms_,
+            second_fm_ms,
+            total_ms);
     }
 
     return !path.empty();

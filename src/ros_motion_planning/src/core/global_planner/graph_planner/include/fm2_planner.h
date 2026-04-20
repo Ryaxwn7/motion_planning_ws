@@ -23,6 +23,7 @@
 #include "fastmarching/ndgridmap/ndgridmap.hpp"
 #include "fastmarching/io/gridplotter.hpp"
 #include "graph_planner/FM2PlannerConfig.h"
+#include "incremental_esdf_2d.h"
 
 
 
@@ -31,6 +32,10 @@ namespace global_planner {
 class FM2_Planner : public GlobalPlanner 
 {
 public:
+    enum class DistanceFieldBackend {
+        FMM = 0,
+        ESDF_FIESTA_2D = 1,
+    };
 
     FM2_Planner(costmap_2d::Costmap2D* costmap);
     FM2_Planner(costmap_2d::Costmap2DROS* costmapROS, costmap_2d::Costmap2D* costmap);
@@ -40,6 +45,8 @@ public:
     bool plan(const Node& start, const Node& goal, std::vector<Node>& path, std::vector<Node>& expand) override;
     bool plan(costmap_2d::Costmap2D* costmap, const Node& start, const Node& goal, std::vector<Node>& path, std::vector<Node>& expand);
     bool getLastArrivalTime(double& arrival_time) const;
+    bool getLastDistanceUpdateTimeMs(double& time_ms) const;
+    bool getLastVelocityMapTimeMs(double& time_ms) const;
 
 private:
     struct UncertaintyKernelCell {
@@ -70,7 +77,13 @@ private:
     bool recoverGrid();//重置非障碍物grid
     bool resetGrid();//重置所有grid
     bool updateGrid(costmap_2d::Costmap2D* costmap);
-    bool ensureBaseVelocityMap(const std::vector<int>& init_point, int goal_idx);
+    bool ensureBaseVelocityMap(const costmap_2d::Costmap2D* costmap, const std::vector<int>& init_point, int goal_idx);
+    bool ensureBaseVelocityMapFMM(const std::vector<int>& init_point, int goal_idx);
+    bool ensureBaseVelocityMapESDF(const costmap_2d::Costmap2D* costmap);
+    void applyOccupancyFromCharMap(const unsigned char* map_data);
+    bool buildFusedOccupancy(const costmap_2d::Costmap2D* costmap, std::vector<uint8_t>& fused_occ);
+    void applyFusedOccupancyToGrid(const std::vector<uint8_t>& fused_occ);
+    bool buildVelocityMapFromDistance(const std::vector<double>& distance_map);
     bool applyDynamicObstacleUncertainty(const costmap_2d::Costmap2D* costmap, std::vector<double>& velocity_map);
     bool updateLastArrivalTime(int query_idx);
     bool isDynamicObstacleCost(unsigned char cost) const;
@@ -107,8 +120,17 @@ private:
     nDGridMap<FMCell, 2> grid_;
     std::vector<int> fm2_sources_;
     std::array<int, 2> dimsize_;
+    DistanceFieldBackend distance_field_backend_ = DistanceFieldBackend::FMM;
+    graph_planner::IncrementalEsdf2D esdf_;
+    std::vector<uint8_t> last_fused_occupancy_;
+    std::vector<double> base_distance_map_;
     std::vector<double> base_velocity_map_;
     bool base_velocity_ready_ = false;
+    bool esdf_uncertainty_warned_ = false;
+    int last_inserted_cells_ = 0;
+    int last_deleted_cells_ = 0;
+    double last_distance_update_ms_ = 0.0;
+    double last_velocity_map_ms_ = 0.0;
     std::map<long long, std::vector<UncertaintyKernelCell>> uncertainty_kernel_cache_;
     double uncertainty_kernel_resolution_ = -1.0;
     int static_obstacle_noise_reject_cells_ = 4;

@@ -3,7 +3,7 @@
 	<arg name="agent_number" default="4" />
 	<arg name="agent_id" default="4" />
 	<arg name="spawn_wait_for" default="" />
-	<arg name="map_to_odom" default="amcl" />
+	<arg name="map_to_odom" default="gazebo" />
 	<arg name="use_move_base" default="true" />
 	<arg name="robot1_type" value="mini_mec" />
 	<arg name="robot1_global_planner" value="fm2" />

@@ -117,6 +117,9 @@ protected:
   std::shared_ptr<global_planner::GlobalPlanner> g_planner_;  // global graph planner
   ros::Publisher plan_pub_;                                   // path planning publisher
   ros::Publisher arrival_time_pub_;                           // FM2 arrival time publisher
+  ros::Publisher planning_time_pub_;                          // planning time publisher
+  ros::Publisher distance_field_time_pub_;                    // FM2 distance-field update time publisher
+  ros::Publisher velocity_map_time_pub_;                      // FM2 velocity-map build time publisher
   ros::Publisher expand_pub_;                                 // nodes explorer publisher
   ros::ServiceServer make_plan_srv_;                          // planning service
 
