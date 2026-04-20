@@ -143,6 +143,7 @@ class RobotState:
         self.vel_x = [0.0] * swarm_size
         self.vel_y = [0.0] * swarm_size
         self.yaw = [0.0] * swarm_size
+        self.yaw_rate = [0.0] * swarm_size
 
 
 class ReferState:
@@ -245,6 +246,7 @@ class RobotOdomData:
     qw: float = 1.0
     vel_x: float = 0.0
     vel_y: float = 0.0
+    vel_wz: float = 0.0
 
 
 def _normalize_shape_target_mode(mode: str) -> str:
@@ -1361,6 +1363,9 @@ class ShapeAssemblySwarm:
         self.yaw_linear_stop_threshold = max(0.0, float(rospy.get_param("~yaw_linear_stop_threshold", 0.80)))
         if self.yaw_linear_stop_threshold < self.yaw_linear_slowdown_start:
             self.yaw_linear_stop_threshold = self.yaw_linear_slowdown_start
+        self.yaw_rate_damping = max(0.0, float(rospy.get_param("~yaw_rate_damping", 0.6)))
+        self.yaw_cmd_smooth_ratio = max(0.0, min(1.0, float(rospy.get_param("~yaw_cmd_smooth_ratio", 0.35))))
+        self.yaw_cmd_deadzone = max(0.0, float(rospy.get_param("~yaw_cmd_deadzone", 0.04)))
 
         self.enabled = rospy.get_param("~enabled", True)
         self.auto_detect = rospy.get_param("~auto_detect", True)
@@ -1579,6 +1584,7 @@ class ShapeAssemblySwarm:
         self.inform_index: List[int] = []
         self.prev_cmd_x: List[float] = []
         self.prev_cmd_y: List[float] = []
+        self.prev_cmd_w: List[float] = []
         self.shape_ctrl_active: List[bool] = []
         self.shape_ctrl_hold_until: List[float] = []
         self.switch_gray_values: List[float] = []
@@ -1772,6 +1778,9 @@ class ShapeAssemblySwarm:
         self.yaw_linear_slowdown_start = max(0.0, float(config.yaw_linear_slowdown_start))
         self.yaw_linear_stop_threshold = max(self.yaw_linear_slowdown_start, float(config.yaw_linear_stop_threshold))
         config.yaw_linear_stop_threshold = self.yaw_linear_stop_threshold
+        self.yaw_rate_damping = max(0.0, float(config.yaw_rate_damping))
+        self.yaw_cmd_smooth_ratio = max(0.0, min(1.0, float(config.yaw_cmd_smooth_ratio)))
+        self.yaw_cmd_deadzone = max(0.0, float(config.yaw_cmd_deadzone))
 
         self.velocity_scale = max(0.0, float(config.velocity_scale))
         self.force_move_base_mode = bool(config.force_move_base_mode)
@@ -2207,6 +2216,7 @@ class ShapeAssemblySwarm:
 
         self.prev_cmd_x = [0.0] * n
         self.prev_cmd_y = [0.0] * n
+        self.prev_cmd_w = [0.0] * n
         if self.control_strategy == ControlStrategy.MOVE_BASE_THEN_SHAPE:
             self.shape_ctrl_active = [False] * n
         else:
@@ -2261,6 +2271,7 @@ class ShapeAssemblySwarm:
             state.pos_x[i] = cos_tf * msg.x - sin_tf * msg.y + tf_tx
             state.pos_y[i] = sin_tf * msg.x + cos_tf * msg.y + tf_ty
             state.yaw[i] = _limit_angle(_yaw_from_quat(msg.qx, msg.qy, msg.qz, msg.qw) + tf_yaw)
+            state.yaw_rate[i] = float(msg.vel_wz)
             if self.odom_twist_in_base:
                 state.vel_x[i] = msg.vel_x
                 state.vel_y[i] = msg.vel_y
@@ -2290,6 +2301,7 @@ class ShapeAssemblySwarm:
         odom.qw = float(msg.pose.pose.orientation.w)
         odom.vel_x = float(msg.twist.twist.linear.x)
         odom.vel_y = float(msg.twist.twist.linear.y)
+        odom.vel_wz = float(msg.twist.twist.angular.z)
 
     def _odom_pose_cb(self, msg: PoseWithCovarianceStamped, idx: int) -> None:
         if idx >= len(self.odom_msgs):
@@ -2313,6 +2325,7 @@ class ShapeAssemblySwarm:
             return
         odom.vel_x = float(msg.twist.twist.linear.x)
         odom.vel_y = float(msg.twist.twist.linear.y)
+        odom.vel_wz = float(msg.twist.twist.angular.z)
 
     def _local_costmap_cb(self, msg: OccupancyGrid, idx: int) -> None:
         if idx < len(self.local_costmap_msgs):
@@ -2911,6 +2924,8 @@ class ShapeAssemblySwarm:
         for pub in self.cmd_pubs:
             if pub is not None:
                 pub.publish(Twist())
+        if self.prev_cmd_w:
+            self.prev_cmd_w = [0.0] * len(self.prev_cmd_w)
 
     def _parse_debug_indices(self) -> List[int]:
         if not self.debug_log_robot_indices:
@@ -3130,7 +3145,17 @@ class ShapeAssemblySwarm:
                 angular_cmd[i] = 0.0
                 continue
             target_rate = target_hvel[i] if i < len(target_hvel) else 0.0
-            cmd = self.sim_param.kappa_track_head * yaw_err[i] + target_rate
+            current_rate = robot_state.yaw_rate[i] if i < len(robot_state.yaw_rate) else 0.0
+            cmd = (
+                self.sim_param.kappa_track_head * yaw_err[i]
+                + target_rate
+                - self.yaw_rate_damping * current_rate
+            )
+            if self.yaw_cmd_smooth_ratio > 0.0 and i < len(self.prev_cmd_w):
+                ratio = self.yaw_cmd_smooth_ratio
+                cmd = ratio * cmd + (1.0 - ratio) * self.prev_cmd_w[i]
+            if abs(cmd) < self.yaw_cmd_deadzone:
+                cmd = 0.0
             angular_cmd[i] = max(-self.sim_param.hvel_max, min(self.sim_param.hvel_max, cmd))
         return yaw_err, angular_cmd
 
@@ -4071,6 +4096,7 @@ class ShapeAssemblySwarm:
             twist.angular.y = 0.0
             twist.angular.z = 0.0 if hold_active else angular_cmd[i]
             pub.publish(twist)
+        self.prev_cmd_w = list(angular_cmd)
 
         metric = compute_swarm_metric(
             self.sim_param,
