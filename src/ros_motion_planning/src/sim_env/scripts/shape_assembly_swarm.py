@@ -1523,6 +1523,9 @@ class ShapeAssemblySwarm:
         self.shape_marker_mode = rospy.get_param("~shape_marker_mode", "reference")
         self.odom_twist_in_base = rospy.get_param("~odom_twist_in_base", False)
         self.velocity_scale = float(rospy.get_param("~velocity_scale", 1.0))
+        self.show_cmd_components = bool(rospy.get_param("~show_cmd_components", True))
+        self.show_cmd_component_text = bool(rospy.get_param("~show_cmd_component_text", True))
+        self.component_velocity_scale = float(rospy.get_param("~component_velocity_scale", self.velocity_scale))
         self.arrow_shaft_diameter = float(rospy.get_param("~arrow_shaft_diameter", 0.04))
         self.arrow_head_diameter = float(rospy.get_param("~arrow_head_diameter", 0.08))
         self.arrow_head_length = float(rospy.get_param("~arrow_head_length", 0.12))
@@ -3377,6 +3380,16 @@ class ShapeAssemblySwarm:
         shape_dyn: Optional[ShapeDyn] = None,
         enter_goals: Optional[List[Tuple[float, float, float]]] = None,
         metric: Optional[SwarmMetric] = None,
+        cmd_sum_x: Optional[List[float]] = None,
+        cmd_sum_y: Optional[List[float]] = None,
+        cmd_enter_x: Optional[List[float]] = None,
+        cmd_enter_y: Optional[List[float]] = None,
+        cmd_explore_x: Optional[List[float]] = None,
+        cmd_explore_y: Optional[List[float]] = None,
+        cmd_interact_x: Optional[List[float]] = None,
+        cmd_interact_y: Optional[List[float]] = None,
+        cmd_obs_x: Optional[List[float]] = None,
+        cmd_obs_y: Optional[List[float]] = None,
     ) -> None:
         if not self.publish_markers or self.marker_pub is None:
             return
@@ -3420,6 +3433,40 @@ class ShapeAssemblySwarm:
             m.id = marker_id
             m.action = Marker.DELETE
             return m
+
+        def _append_vector_arrow(
+            ns: str,
+            marker_id: int,
+            base_x: float,
+            base_y: float,
+            vec_x: float,
+            vec_y: float,
+            z: float,
+            color: ColorRGBA,
+            scale_factor: float,
+            shaft_ratio: float = 0.7,
+        ) -> None:
+            arrow = Marker()
+            arrow.header.frame_id = self.marker_frame
+            arrow.header.stamp = now
+            arrow.ns = ns
+            arrow.id = marker_id
+            arrow.type = Marker.ARROW
+            arrow.action = Marker.ADD
+            arrow.scale.x = max(1e-3, self.arrow_shaft_diameter * shaft_ratio)
+            arrow.scale.y = max(1e-3, self.arrow_head_diameter * shaft_ratio)
+            arrow.scale.z = max(1e-3, self.arrow_head_length * shaft_ratio)
+            arrow.color = color
+            dx = float(vec_x) * scale_factor
+            dy = float(vec_y) * scale_factor
+            if abs(dx) < 1e-6 and abs(dy) < 1e-6:
+                dx = 0.001
+                dy = 0.0
+            arrow.points = [
+                Point(x=base_x, y=base_y, z=z),
+                Point(x=base_x + dx, y=base_y + dy, z=z),
+            ]
+            markers.markers.append(arrow)
 
         black_marker = Marker()
         black_marker.header.frame_id = self.marker_frame
@@ -3784,6 +3831,70 @@ class ShapeAssemblySwarm:
                 markers.markers.append(_mk_delete("heading_target", i))
                 markers.markers.append(_mk_delete("heading_err", i))
 
+        component_specs = [
+            ("cmd_enter", cmd_enter_x, cmd_enter_y, 0.18, ColorRGBA(r=0.10, g=0.95, b=1.00, a=0.80)),
+            ("cmd_explore", cmd_explore_x, cmd_explore_y, 0.22, ColorRGBA(r=0.25, g=0.45, b=1.00, a=0.80)),
+            ("cmd_interact", cmd_interact_x, cmd_interact_y, 0.26, ColorRGBA(r=1.00, g=0.55, b=0.10, a=0.80)),
+            ("cmd_obstacle", cmd_obs_x, cmd_obs_y, 0.30, ColorRGBA(r=1.00, g=0.20, b=0.20, a=0.85)),
+            ("cmd_sum", cmd_sum_x, cmd_sum_y, 0.34, ColorRGBA(r=0.75, g=0.75, b=0.75, a=0.80)),
+            ("cmd_final", cmd_x, cmd_y, 0.38, ColorRGBA(r=1.00, g=1.00, b=1.00, a=0.95)),
+        ]
+        if self.show_cmd_components:
+            scale = self.component_velocity_scale
+            for i in range(self.sim_param.swarm_size):
+                base_x = robot_state.pos_x[i]
+                base_y = robot_state.pos_y[i]
+                for ns, vec_x_list, vec_y_list, z, color in component_specs:
+                    if vec_x_list is None or vec_y_list is None:
+                        markers.markers.append(_mk_delete(ns, i))
+                        continue
+                    _append_vector_arrow(
+                        ns,
+                        i,
+                        base_x,
+                        base_y,
+                        vec_x_list[i],
+                        vec_y_list[i],
+                        z,
+                        color,
+                        scale,
+                        0.55 if ns != "cmd_final" else 0.75,
+                    )
+
+                if self.show_cmd_component_text:
+                    comp_text = Marker()
+                    comp_text.header.frame_id = self.marker_frame
+                    comp_text.header.stamp = now
+                    comp_text.ns = "cmd_component_text"
+                    comp_text.id = i
+                    comp_text.type = Marker.TEXT_VIEW_FACING
+                    comp_text.action = Marker.ADD
+                    comp_text.scale.z = max(0.08, self.speed_text_size * 0.9)
+                    comp_text.color = ColorRGBA(r=0.95, g=0.95, b=0.95, a=0.90)
+                    comp_text.pose.position.x = base_x
+                    comp_text.pose.position.y = base_y
+                    comp_text.pose.position.z = self.speed_text_z + 0.34
+                    enter_speed = math.hypot(cmd_enter_x[i], cmd_enter_y[i]) if cmd_enter_x is not None and cmd_enter_y is not None else 0.0
+                    explore_speed = math.hypot(cmd_explore_x[i], cmd_explore_y[i]) if cmd_explore_x is not None and cmd_explore_y is not None else 0.0
+                    interact_speed = math.hypot(cmd_interact_x[i], cmd_interact_y[i]) if cmd_interact_x is not None and cmd_interact_y is not None else 0.0
+                    obs_speed = math.hypot(cmd_obs_x[i], cmd_obs_y[i]) if cmd_obs_x is not None and cmd_obs_y is not None else 0.0
+                    sum_speed = math.hypot(cmd_sum_x[i], cmd_sum_y[i]) if cmd_sum_x is not None and cmd_sum_y is not None else 0.0
+                    final_speed = math.hypot(cmd_x[i], cmd_y[i])
+                    comp_text.text = (
+                        f"E:{enter_speed:.2f} X:{explore_speed:.2f} "
+                        f"I:{interact_speed:.2f} O:{obs_speed:.2f} "
+                        f"S:{sum_speed:.2f} F:{final_speed:.2f}"
+                    )
+                    markers.markers.append(comp_text)
+                else:
+                    markers.markers.append(_mk_delete("cmd_component_text", i))
+        else:
+            for ns, _vec_x_list, _vec_y_list, _z, _color in component_specs:
+                for i in range(self.sim_param.swarm_size):
+                    markers.markers.append(_mk_delete(ns, i))
+            for i in range(self.sim_param.swarm_size):
+                markers.markers.append(_mk_delete("cmd_component_text", i))
+
         if self.show_metric_text and metric is not None:
             metric_marker = Marker()
             metric_marker.header.frame_id = self.marker_frame
@@ -3899,6 +4010,8 @@ class ShapeAssemblySwarm:
             cmd_enter_y[i] + cmd_explore_y[i] + cmd_interact_y[i] + cmd_obs_y[i]
             for i in range(self.sim_param.swarm_size)
         ]
+        cmd_sum_x = list(cmd_x)
+        cmd_sum_y = list(cmd_y)
 
         cmd_x, cmd_y = enforce_safety_barrier(self.sim_param, neigh, cmd_x, cmd_y)
         cmd_x, cmd_y = limit_speed(cmd_x, cmd_y, self.sim_param.vel_max)
@@ -3997,7 +4110,27 @@ class ShapeAssemblySwarm:
             self.switch_gray_values,
             local_obs_nearest,
         )
-        self._publish_markers(robot_state, cmd_x, cmd_y, target_head, yaw_err, neigh, shape_dyn, enter_goals, metric)
+        self._publish_markers(
+            robot_state,
+            cmd_x,
+            cmd_y,
+            target_head,
+            yaw_err,
+            neigh,
+            shape_dyn,
+            enter_goals,
+            metric,
+            cmd_sum_x,
+            cmd_sum_y,
+            cmd_enter_x,
+            cmd_enter_y,
+            cmd_explore_x,
+            cmd_explore_y,
+            cmd_interact_x,
+            cmd_interact_y,
+            cmd_obs_x,
+            cmd_obs_y,
+        )
 
 
 if __name__ == "__main__":

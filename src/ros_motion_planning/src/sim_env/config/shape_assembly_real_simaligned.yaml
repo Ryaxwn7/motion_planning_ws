@@ -187,6 +187,9 @@ velocity_source: odom
 cmd_in_map_frame: true
 odom_twist_in_base: false
 velocity_scale: 1.0
+show_cmd_components: true
+show_cmd_component_text: true
+component_velocity_scale: 1.0
 arrow_shaft_diameter: 0.04
 arrow_head_diameter: 0.08
 arrow_head_length: 0.12
