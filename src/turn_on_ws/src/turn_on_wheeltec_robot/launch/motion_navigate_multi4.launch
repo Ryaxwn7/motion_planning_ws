@@ -5,6 +5,8 @@
     <arg name="agent_id" default="4" /><!--修改机器人编号 9.14-->
     <arg name="start_ns" default="true" /><!--多机器人启用命名空间,各节点在对应命名空间下 9.14-->
     <arg name="robot_namespace" default="robot$(arg agent_id)" />
+    <arg name="invert_y_cmd" default="false" />
+    <arg name="invert_y_odom" default="false" />
     <arg name="robot_ids" default="USE_YAML_SENTINEL" />
     <arg name="global_planner" default="fm2"/>
     <arg name="local_planner" default="my"/>
@@ -65,6 +67,8 @@
     <!--开启底层节点-->
     <include file="$(find turn_on_wheeltec_robot)/launch/turn_on_wheeltec_robot_multi.launch" >
         <arg name="namespace" value="$(arg robot_namespace)"/>
+        <arg name="invert_y_cmd" value="$(arg invert_y_cmd)"/>
+        <arg name="invert_y_odom" value="$(arg invert_y_odom)"/>
     </include>
     
     <!--开启雷达-->

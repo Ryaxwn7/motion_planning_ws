@@ -15,7 +15,7 @@ use_fm2_gather: true
 publish_center_goal_only: true
 gather_center_topic: /gather_center
 fm2_auto_detect_robots: true
-fm2_robot_detect_topic_suffix: /odom_combined
+fm2_robot_detect_topic_suffix: /odom
 fm2_robot_detect_timeout: 8.0
 replan_mode: event
 periodic_interval: 5.0
@@ -26,13 +26,17 @@ long_path_replan_min_length: 3.0
 format_radius: 0.3
 enable_stable_len_replan: false
 use_goal_occupied_peer_fallback: true
-goal_occupied_radius: 0.35
+goal_occupied_radius: 0.3
 
 # Aliases matching fm2_gather/laun.launch include arg names.
 auto_detect_robots: true
 robot_namespace_prefix: robot
-robot_detect_topic_suffix: /odom_combined
-robot_odom_topic_suffix: /odom_combined
+robot_detect_topic_suffix: /odom
+# Real robots expose fused pose on /robotN/robot_pose_ekf/odom_combined
+# and body-frame velocity on /robotN/odom.
+robot_odom_topic_suffix: /robot_pose_ekf/odom_combined
+robot_odom_msg_type: pose_with_covariance_stamped
+robot_velocity_topic_suffix: /odom
 robot_detect_timeout: 8.0
 num_robots: 4
 
@@ -44,37 +48,37 @@ sim_dt: 0.0
 # Swarm parameters
 r_body: 0.24
 r_safe: 0.30
-r_avoid: 0.35
+r_avoid: 0.33
 r_sense: 1.5
-vel_max: 0.7
+vel_max: 0.3
 leader_fraction: 1.0
 
 # Negotiation gains
 kappa_conse_pos: 1.6
 kappa_track_pos: 3.0
 kappa_conse_head: 1.6
-kappa_track_head: 3.0
+kappa_track_head: 1.0
 alpha: 0.8
 hvel_max: 1.57079632679
 
 # Enter / explore / interact gains
 kappa_enter: 4.0
 kappa_explore_1: 1.0
-kappa_explore_2: 8.0
-kappa_avoid: 8.0
-kappa_hard_avoid: 10.0
+kappa_explore_2: 3.0
+kappa_avoid: 5.0
+kappa_hard_avoid: 5.0
 kappa_consensus: 1.2
 
 # Output shaping
 cmd_smooth_ratio: 0.32
 cmd_smooth_use_odom: true
 cmd_scale: 0.5
-cmd_deadzone: 0.04
+cmd_deadzone: 0.01
 yaw_correction_enabled: true
 yaw_tolerance: 0.05
 yaw_linear_slowdown_start: 0.35
 yaw_linear_stop_threshold: 0.80
-shape_vel_max: 1.0
+shape_vel_max: 0.5
 
 # Shape source
 shape_source: mat
@@ -102,7 +106,7 @@ control_strategy: move_base_then_shape
 shape_target_mode: reference
 force_move_base_mode: false
 force_move_base_mode_topic: shape_assembly/force_move_base_mode
-switch_gray_threshold: 0.8
+switch_gray_threshold: 0.95
 cancel_move_base_on_switch: true
 cancel_grace_period: 0.35
 stop_path_planning_on_shape_takeover: false
@@ -117,7 +121,7 @@ local_costmap_topic_suffix: move_base/local_costmap/costmap
 local_costmap_obstacle_threshold: 80
 local_costmap_unknown_is_obstacle: false
 local_costmap_avoid_radius: 0.30
-local_costmap_avoid_gain: 7.0
+local_costmap_avoid_gain: 4.0
 local_costmap_hard_radius: 0.25
 local_costmap_hard_gain: 9.0
 local_costmap_stride: 1
@@ -183,6 +187,9 @@ velocity_source: odom
 cmd_in_map_frame: true
 odom_twist_in_base: false
 velocity_scale: 1.0
+show_cmd_components: true
+show_cmd_component_text: true
+component_velocity_scale: 1.0
 arrow_shaft_diameter: 0.04
 arrow_head_diameter: 0.08
 arrow_head_length: 0.12

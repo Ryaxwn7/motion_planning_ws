@@ -21,6 +21,7 @@ catkin_package(
 )
 
 catkin_install_python(PROGRAMS
+  scripts/host_control_ui.py
   scripts/shape_task_supervisor.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

@@ -157,5 +157,6 @@ echo "[start_robot] Using config file: ${_config_file}"
 printf '[start_robot] Launch args:'
 printf ' %q' "${robot_args[@]}"
 printf '\\n'
-
+sudo /etc/init.d/ntp stop
+sudo ntpdate 192.168.1.104
 exec roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch   "${robot_args[@]}"
