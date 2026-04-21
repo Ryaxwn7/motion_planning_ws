@@ -23,6 +23,7 @@
 #include "fastmarching/ndgridmap/ndgridmap.hpp"
 #include "fastmarching/io/gridplotter.hpp"
 #include "graph_planner/FM2PlannerConfig.h"
+#include "felzenszwalb_edt_2d.h"
 #include "incremental_esdf_2d.h"
 
 
@@ -35,6 +36,7 @@ public:
     enum class DistanceFieldBackend {
         FMM = 0,
         ESDF_FIESTA_2D = 1,
+        ESDF_FELZENSZWALB_2D = 2,
     };
 
     FM2_Planner(costmap_2d::Costmap2D* costmap);
@@ -79,7 +81,8 @@ private:
     bool updateGrid(costmap_2d::Costmap2D* costmap);
     bool ensureBaseVelocityMap(const costmap_2d::Costmap2D* costmap, const std::vector<int>& init_point, int goal_idx);
     bool ensureBaseVelocityMapFMM(const std::vector<int>& init_point, int goal_idx);
-    bool ensureBaseVelocityMapESDF(const costmap_2d::Costmap2D* costmap);
+    bool ensureBaseVelocityMapESDFFiesta(const costmap_2d::Costmap2D* costmap);
+    bool ensureBaseVelocityMapESDFFelzenszwalb(const costmap_2d::Costmap2D* costmap);
     void applyOccupancyFromCharMap(const unsigned char* map_data);
     bool buildFusedOccupancy(const costmap_2d::Costmap2D* costmap, std::vector<uint8_t>& fused_occ);
     void applyFusedOccupancyToGrid(const std::vector<uint8_t>& fused_occ);
@@ -122,6 +125,7 @@ private:
     std::array<int, 2> dimsize_;
     DistanceFieldBackend distance_field_backend_ = DistanceFieldBackend::FMM;
     graph_planner::IncrementalEsdf2D esdf_;
+    graph_planner::FelzenszwalbEdt2D felzenszwalb_edt_;
     std::vector<uint8_t> last_fused_occupancy_;
     std::vector<double> base_distance_map_;
     std::vector<double> base_velocity_map_;

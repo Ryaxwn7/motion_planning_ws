@@ -13,7 +13,7 @@ for arg in "${args[@]}"; do
 done
 
 if [[ "${has_backend}" -eq 0 ]]; then
-  args=("fm2_distance_field_backend:=1" "${args[@]}")
+  args=("fm2_distance_field_backend:=2" "${args[@]}")
 fi
 
 exec "${SCRIPT_DIR}/shape_assembly_5x10_d2.sh" "${args[@]}"

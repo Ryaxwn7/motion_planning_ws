@@ -13,6 +13,7 @@ OUT_DIR="${BENCHMARK_OUTPUT_DIR:-${SCRIPT_DIR}/../../benchmark-results/fm2_backe
 COLLECTOR="${SCRIPT_DIR}/fm2_benchmark_collect.py"
 ESDF_SCRIPT="${SCRIPT_DIR}/shape_assembly_5x10_d2_esdf.sh"
 FMM_SCRIPT="${SCRIPT_DIR}/shape_assembly_5x10_d2_fmm.sh"
+BASE_SCRIPT="${SCRIPT_DIR}/shape_assembly_5x10_d2.sh"
 
 mkdir -p "${OUT_DIR}"
 
@@ -59,6 +60,8 @@ cleanup_case() {
 run_case() {
   local backend="$1"
   local script_path="$2"
+  shift 2
+  local extra_args=("$@")
   local run_dir="${OUT_DIR}/${backend}"
   mkdir -p "${run_dir}"
 
@@ -71,7 +74,7 @@ run_case() {
 
   echo "[benchmark] starting ${backend} run"
   env SHAPE_ASSEMBLY_USER_CONFIG_BASENAME="${USER_CONFIG_BASENAME}" \
-    setsid "${script_path}" >"${launcher_log}" 2>&1 &
+    setsid "${script_path}" "${extra_args[@]}" >"${launcher_log}" 2>&1 &
   launcher_pid=$!
 
   if ! wait_for_master 60; then
@@ -109,7 +112,8 @@ run_case() {
   sleep 5
 }
 
-run_case esdf "${ESDF_SCRIPT}"
+run_case esdf_felzenszwalb "${ESDF_SCRIPT}"
+run_case esdf_fiesta "${BASE_SCRIPT}" "fm2_distance_field_backend:=1"
 run_case fmm "${FMM_SCRIPT}"
 
 python3 - "${OUT_DIR}" <<'PY'
@@ -119,8 +123,9 @@ import sys
 from pathlib import Path
 
 out_dir = Path(sys.argv[1])
+backends = ["esdf_felzenszwalb", "esdf_fiesta", "fmm"]
 summary_data = {}
-for backend in ("esdf", "fmm"):
+for backend in backends:
     path = out_dir / backend / "summary.csv"
     rows = []
     with path.open("r", encoding="utf-8") as f:
@@ -141,39 +146,67 @@ comparison_md = out_dir / "comparison.md"
 
 with comparison_csv.open("w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
-    writer.writerow(["metric", "esdf_count", "esdf_mean_ms", "fmm_count", "fmm_mean_ms", "delta_ms", "delta_percent"])
+    writer.writerow([
+        "metric",
+        "felz_count", "felz_mean_ms",
+        "fiesta_count", "fiesta_mean_ms",
+        "fmm_count", "fmm_mean_ms",
+        "felz_vs_fmm_delta_ms", "felz_vs_fmm_delta_percent",
+        "fiesta_vs_fmm_delta_ms", "fiesta_vs_fmm_delta_percent",
+        "felz_vs_fiesta_delta_ms", "felz_vs_fiesta_delta_percent",
+    ])
     for metric, _ in metrics:
-        esdf = summary_data.get("esdf", {}).get(metric)
+        felz = summary_data.get("esdf_felzenszwalb", {}).get(metric)
+        fiesta = summary_data.get("esdf_fiesta", {}).get(metric)
         fmm = summary_data.get("fmm", {}).get(metric)
-        if not esdf or not fmm:
-            writer.writerow([metric, "", "", "", "", "", ""])
+        if not felz or not fiesta or not fmm:
+            writer.writerow([metric, "", "", "", "", "", "", "", "", "", "", "", ""])
             continue
-        esdf_mean = float(esdf["mean_ms"])
+        felz_mean = float(felz["mean_ms"])
+        fiesta_mean = float(fiesta["mean_ms"])
         fmm_mean = float(fmm["mean_ms"])
-        delta_ms = esdf_mean - fmm_mean
-        delta_pct = (delta_ms / fmm_mean * 100.0) if abs(fmm_mean) > 1e-9 else math.nan
-        writer.writerow([metric, esdf["count"], f"{esdf_mean:.6f}", fmm["count"], f"{fmm_mean:.6f}", f"{delta_ms:.6f}", f"{delta_pct:.2f}"])
+        felz_vs_fmm_ms = felz_mean - fmm_mean
+        fiesta_vs_fmm_ms = fiesta_mean - fmm_mean
+        felz_vs_fiesta_ms = felz_mean - fiesta_mean
+        felz_vs_fmm_pct = (felz_vs_fmm_ms / fmm_mean * 100.0) if abs(fmm_mean) > 1e-9 else math.nan
+        fiesta_vs_fmm_pct = (fiesta_vs_fmm_ms / fmm_mean * 100.0) if abs(fmm_mean) > 1e-9 else math.nan
+        felz_vs_fiesta_pct = (felz_vs_fiesta_ms / fiesta_mean * 100.0) if abs(fiesta_mean) > 1e-9 else math.nan
+        writer.writerow([
+            metric,
+            felz["count"], f"{felz_mean:.6f}",
+            fiesta["count"], f"{fiesta_mean:.6f}",
+            fmm["count"], f"{fmm_mean:.6f}",
+            f"{felz_vs_fmm_ms:.6f}", f"{felz_vs_fmm_pct:.2f}",
+            f"{fiesta_vs_fmm_ms:.6f}", f"{fiesta_vs_fmm_pct:.2f}",
+            f"{felz_vs_fiesta_ms:.6f}", f"{felz_vs_fiesta_pct:.2f}",
+        ])
 
 lines = [
     "# FM2 Backend Benchmark",
     "",
     f"Output directory: `{out_dir}`",
     "",
-    "| Metric | ESDF count | ESDF mean ms | FMM count | FMM mean ms | Delta ms | Delta % |",
-    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    "| Metric | Felzenszwalb count | Felzenszwalb mean ms | FIESTA count | FIESTA mean ms | FMM count | FMM mean ms | Felz vs FMM | FIESTA vs FMM | Felz vs FIESTA |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
 ]
 for metric, label in metrics:
-    esdf = summary_data.get("esdf", {}).get(metric)
+    felz = summary_data.get("esdf_felzenszwalb", {}).get(metric)
+    fiesta = summary_data.get("esdf_fiesta", {}).get(metric)
     fmm = summary_data.get("fmm", {}).get(metric)
-    if not esdf or not fmm:
-        lines.append(f"| {label} | - | - | - | - | - | - |")
+    if not felz or not fiesta or not fmm:
+        lines.append(f"| {label} | - | - | - | - | - | - | - | - | - |")
         continue
-    esdf_mean = float(esdf["mean_ms"])
+    felz_mean = float(felz["mean_ms"])
+    fiesta_mean = float(fiesta["mean_ms"])
     fmm_mean = float(fmm["mean_ms"])
-    delta_ms = esdf_mean - fmm_mean
-    delta_pct = (delta_ms / fmm_mean * 100.0) if abs(fmm_mean) > 1e-9 else math.nan
+    felz_vs_fmm_ms = felz_mean - fmm_mean
+    fiesta_vs_fmm_ms = fiesta_mean - fmm_mean
+    felz_vs_fiesta_ms = felz_mean - fiesta_mean
+    felz_vs_fmm_pct = (felz_vs_fmm_ms / fmm_mean * 100.0) if abs(fmm_mean) > 1e-9 else math.nan
+    fiesta_vs_fmm_pct = (fiesta_vs_fmm_ms / fmm_mean * 100.0) if abs(fmm_mean) > 1e-9 else math.nan
+    felz_vs_fiesta_pct = (felz_vs_fiesta_ms / fiesta_mean * 100.0) if abs(fiesta_mean) > 1e-9 else math.nan
     lines.append(
-        f"| {label} | {esdf['count']} | {esdf_mean:.3f} | {fmm['count']} | {fmm_mean:.3f} | {delta_ms:.3f} | {delta_pct:.2f}% |"
+        f"| {label} | {felz['count']} | {felz_mean:.3f} | {fiesta['count']} | {fiesta_mean:.3f} | {fmm['count']} | {fmm_mean:.3f} | {felz_vs_fmm_ms:.3f} ({felz_vs_fmm_pct:.2f}%) | {fiesta_vs_fmm_ms:.3f} ({fiesta_vs_fmm_pct:.2f}%) | {felz_vs_fiesta_ms:.3f} ({felz_vs_fiesta_pct:.2f}%) |"
     )
 
 comparison_md.write_text("\n".join(lines) + "\n", encoding="utf-8")

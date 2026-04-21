@@ -14,6 +14,7 @@ velocity_alpha: 0.2
 velocity_dmax: 0.5
 robot_radius: 0.25
 velocity_mode: 1
+distance_field_backend: 0  # 0: FMM obstacle-distance field, 1: exact 2D EDT/ESDF-style distance field
 velocity_sigmoid_k: 1.5
 velocity_sigmoid_b: 0.0
 space_inflation_radius: 0.02

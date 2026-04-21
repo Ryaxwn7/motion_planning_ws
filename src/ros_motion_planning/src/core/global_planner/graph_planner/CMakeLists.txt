@@ -58,6 +58,7 @@ include_directories(
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
   src/graph_planner.cpp
+  src/felzenszwalb_edt_2d.cpp
   src/incremental_esdf_2d.cpp
   src/fm2_planner.cpp
   src/fm2star_planner.cpp
@@ -88,6 +89,17 @@ if(CATKIN_ENABLE_TESTING)
   )
   if(TARGET test_incremental_esdf_2d)
     target_link_libraries(test_incremental_esdf_2d
+      ${PROJECT_NAME}
+      ${catkin_LIBRARIES}
+      ${X11_LIBRARIES}
+    )
+  endif()
+
+  catkin_add_gtest(test_felzenszwalb_edt_2d
+    test/test_felzenszwalb_edt_2d.cpp
+  )
+  if(TARGET test_felzenszwalb_edt_2d)
+    target_link_libraries(test_felzenszwalb_edt_2d
       ${PROJECT_NAME}
       ${catkin_LIBRARIES}
       ${X11_LIBRARIES}

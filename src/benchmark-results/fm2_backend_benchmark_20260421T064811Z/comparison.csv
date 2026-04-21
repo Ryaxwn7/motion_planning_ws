@@ -1,0 +1,4 @@
+metric,felz_count,felz_mean_ms,fiesta_count,fiesta_mean_ms,fmm_count,fmm_mean_ms,felz_vs_fmm_delta_ms,felz_vs_fmm_delta_percent,fiesta_vs_fmm_delta_ms,fiesta_vs_fmm_delta_percent,felz_vs_fiesta_delta_ms,felz_vs_fiesta_delta_percent
+planning_time,12,3.822348,12,4.054676,15,3.018878,0.803470,26.61,1.035797,34.31,-0.232327,-5.73
+distance_field_update_time,12,3.522979,12,4.287436,15,2.676909,0.846070,31.61,1.610527,60.16,-0.764457,-17.83
+velocity_map_time,12,0.000000,12,0.000000,15,0.000000,0.000000,nan,0.000000,nan,0.000000,nan

@@ -64,6 +64,7 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
             velocity_mode_ = 0;
             velocity_sigmoid_k_ = 0.15;
             velocity_sigmoid_b_ = 0.0;
+            distance_field_backend_ = 0;
         };
 
         virtual ~FastMarching2 <grid_t, heap_t> () {};
@@ -145,6 +146,11 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
         virtual void setVelocitySigmoid(const double k, const double b) {
             velocity_sigmoid_k_ = k;
             velocity_sigmoid_b_ = b;
+        }
+
+        // 距离场后端：0=FMM，1=二维精确欧氏距离变换（EDT/ESDF-style）
+        virtual void setDistanceFieldBackend(const int backend) {
+            distance_field_backend_ = (backend == 1) ? 1 : 0;
         }
 
         // 兼容旧接口：近似映射到新参数。
@@ -310,11 +316,11 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
          */
         void computeVelocitiesMap
         (bool saturate = false) {
-            FastMarching< grid_t, heap_t> fmm;
-
-            fmm.setEnvironment(grid_);
-            fmm.setInitialPoints(fmm2_sources_);
-            fmm.computeFM();
+            if (distance_field_backend_ == 1) {
+                computeObstacleDistanceMapEsdf();
+            } else {
+                computeObstacleDistanceMapFmm();
+            }
 
             const double vmax = (velocity_scale_ > 0.0) ? velocity_scale_ : 1.0;
             const double dr = (robot_radius_ > 0.0) ? robot_radius_ : 0.0;
@@ -385,6 +391,113 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
             }
         }
 
+        void computeObstacleDistanceMapFmm() {
+            FastMarching< grid_t, heap_t> fmm;
+            fmm.setEnvironment(grid_);
+            fmm.setInitialPoints(fmm2_sources_);
+            fmm.computeFM();
+        }
+
+        static double computeSquaredDistanceIntersection(const std::vector<double>& input,
+                                                         const int i,
+                                                         const int q) {
+            const double fi = input[static_cast<std::size_t>(i)];
+            const double fq = input[static_cast<std::size_t>(q)];
+            return ((fq + static_cast<double>(q * q)) - (fi + static_cast<double>(i * i))) /
+                   (2.0 * static_cast<double>(q - i));
+        }
+
+        static void computeSquaredDistanceTransform1D(const std::vector<double>& input,
+                                                      std::vector<double>* output) {
+            const int n = static_cast<int>(input.size());
+            if (n <= 0 || output == nullptr) {
+                return;
+            }
+
+            constexpr double kLarge = 1e20;
+            std::vector<int> v(static_cast<std::size_t>(n), 0);
+            std::vector<double> z(static_cast<std::size_t>(n + 1), 0.0);
+            int k = 0;
+            v[0] = 0;
+            z[0] = -kLarge;
+            z[1] = kLarge;
+
+            for (int q = 1; q < n; ++q) {
+                double s = computeSquaredDistanceIntersection(input, v[static_cast<std::size_t>(k)], q);
+                while (k > 0 && s <= z[static_cast<std::size_t>(k)]) {
+                    --k;
+                    s = computeSquaredDistanceIntersection(input, v[static_cast<std::size_t>(k)], q);
+                }
+                ++k;
+                v[static_cast<std::size_t>(k)] = q;
+                z[static_cast<std::size_t>(k)] = s;
+                z[static_cast<std::size_t>(k + 1)] = kLarge;
+            }
+
+            output->assign(static_cast<std::size_t>(n), kLarge);
+            k = 0;
+            for (int q = 0; q < n; ++q) {
+                while (z[static_cast<std::size_t>(k + 1)] < static_cast<double>(q)) {
+                    ++k;
+                }
+                const int vk = v[static_cast<std::size_t>(k)];
+                const double diff = static_cast<double>(q - vk);
+                (*output)[static_cast<std::size_t>(q)] =
+                    diff * diff + input[static_cast<std::size_t>(vk)];
+            }
+        }
+
+        void computeObstacleDistanceMapEsdf() {
+            const auto dims = grid_->getDimSizes();
+            const int width = static_cast<int>(dims[0]);
+            const int height = static_cast<int>(dims[1]);
+            if (width <= 0 || height <= 0) {
+                return;
+            }
+
+            constexpr double kLarge = 1e20;
+            const std::size_t total = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+            std::vector<double> column_pass(total, kLarge);
+
+            for (int x = 0; x < width; ++x) {
+                std::vector<double> input(static_cast<std::size_t>(height), kLarge);
+                std::vector<double> output;
+                for (int y = 0; y < height; ++y) {
+                    const int idx = y * width + x;
+                    if (grid_->getCell(idx).isOccupied()) {
+                        input[static_cast<std::size_t>(y)] = 0.0;
+                    }
+                }
+                computeSquaredDistanceTransform1D(input, &output);
+                for (int y = 0; y < height; ++y) {
+                    column_pass[static_cast<std::size_t>(y * width + x)] =
+                        output[static_cast<std::size_t>(y)];
+                }
+            }
+
+            const double leaf = grid_->getLeafSize();
+            const double resolved_leaf = (leaf > 0.0) ? leaf : 1.0;
+
+            for (int y = 0; y < height; ++y) {
+                std::vector<double> input(static_cast<std::size_t>(width), kLarge);
+                std::vector<double> output;
+                for (int x = 0; x < width; ++x) {
+                    input[static_cast<std::size_t>(x)] =
+                        column_pass[static_cast<std::size_t>(y * width + x)];
+                }
+                computeSquaredDistanceTransform1D(input, &output);
+                for (int x = 0; x < width; ++x) {
+                    const int idx = y * width + x;
+                    const double squared_distance = output[static_cast<std::size_t>(x)];
+                    if (squared_distance >= kLarge * 0.5) {
+                        grid_->getCell(idx).setValue(std::numeric_limits<double>::infinity());
+                    } else {
+                        grid_->getCell(idx).setValue(std::sqrt(squared_distance) * resolved_leaf);
+                    }
+                }
+            }
+        }
+
     protected:
         grid_t* grid_; /*!< Main container. */
 
@@ -400,6 +513,7 @@ template < class grid_t, class heap_t = FMPriorityQueue<FMCell>  >  class FastMa
         int velocity_mode_;
         double velocity_sigmoid_k_;
         double velocity_sigmoid_b_;
+        int distance_field_backend_;
 };
 
 #endif /* FASTMARCHING2_H_*/

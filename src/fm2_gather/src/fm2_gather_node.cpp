@@ -115,6 +115,7 @@ double velocity_alpha = 0.2;
 double velocity_dmax = 0.5;
 double robot_radius = 0.25;
 int velocity_mode = 1;
+int distance_field_backend = 0;
 double velocity_sigmoid_k = 1.5;
 double velocity_sigmoid_b = 0.0;
 double space_inflation_radius = 0.02;
@@ -167,6 +168,11 @@ std::string makeRobotTopic(const int robot_id, const std::string& topic_suffix)
         suffix = "/" + suffix;
     }
     return makeRobotNamespace(robot_id) + suffix;
+}
+
+const char* distanceFieldBackendName(const int backend)
+{
+    return (backend == 1) ? "esdf_edt" : "fmm";
 }
 
 struct UncertaintyKernelCell {
@@ -1488,6 +1494,7 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
         fm2_1.setVelocityProfile(velocity_alpha, velocity_dmax);
         fm2_1.setRobotRadius(robot_radius);
         fm2_1.setVelocityMode(velocity_mode);
+        fm2_1.setDistanceFieldBackend(distance_field_backend);
         fm2_1.setVelocitySigmoid(velocity_sigmoid_k, velocity_sigmoid_b);
         fm2_1.setEnvironment(grid_ptrs[0].get());
         fm2_1.setInitialAndGoalPoints(init_points[0], fm2_sources, -1);
@@ -1529,6 +1536,7 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
         fm2_solver->setVelocityProfile(velocity_alpha, velocity_dmax);
         fm2_solver->setRobotRadius(robot_radius);
         fm2_solver->setVelocityMode(velocity_mode);
+        fm2_solver->setDistanceFieldBackend(distance_field_backend);
         fm2_solver->setVelocitySigmoid(velocity_sigmoid_k, velocity_sigmoid_b);
         fm2_solver->setEnvironment(grid_ptrs[i].get());
         fm2_solver->setInitialAndGoalPoints(init_points[i], fm2_sources, -1);
@@ -1643,6 +1651,7 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
         fm2_solver->setVelocityProfile(velocity_alpha, velocity_dmax);
         fm2_solver->setRobotRadius(robot_radius);
         fm2_solver->setVelocityMode(velocity_mode);
+        fm2_solver->setDistanceFieldBackend(distance_field_backend);
         fm2_solver->setVelocitySigmoid(velocity_sigmoid_k, velocity_sigmoid_b);
         fm2_solver->setEnvironment(grid_sum_ptr.get()); //! 注意这里
         fm2_solver->setInitialAndGoalPoints(init_points[0], fm2_sources, -1);
@@ -2017,6 +2026,7 @@ int main(int argc, char** argv)
     nh.param("velocity_dmax", velocity_dmax, velocity_dmax);
     nh.param("robot_radius", robot_radius, robot_radius);
     nh.param("velocity_mode", velocity_mode, velocity_mode);
+    nh.param("distance_field_backend", distance_field_backend, distance_field_backend);
     nh.param("velocity_sigmoid_k", velocity_sigmoid_k, velocity_sigmoid_k);
     nh.param("velocity_sigmoid_b", velocity_sigmoid_b, velocity_sigmoid_b);
     nh.param("space_inflation_radius", space_inflation_radius, space_inflation_radius);
@@ -2112,6 +2122,7 @@ int main(int argc, char** argv)
     velocity_dmax = std::max(0.0, velocity_dmax);
     robot_radius = std::max(0.0, robot_radius);
     velocity_mode = (velocity_mode == 1) ? 1 : 0;
+    distance_field_backend = (distance_field_backend == 1) ? 1 : 0;
     velocity_sigmoid_k = std::max(0.0, velocity_sigmoid_k);
     velocity_sigmoid_b = std::max(0.0, velocity_sigmoid_b);
     goal_occupied_staging_radius = std::max(-1.0, goal_occupied_staging_radius);
@@ -2135,6 +2146,9 @@ int main(int argc, char** argv)
            velocity_map_topic_prefix.back() == '/') {
         velocity_map_topic_prefix.pop_back();
     }
+    ROS_INFO("[FM2 Gather] distance_field_backend=%s(%d)",
+             distanceFieldBackendName(distance_field_backend),
+             distance_field_backend);
     if (arrival_time_topic_prefix.empty()) {
         arrival_time_topic_prefix = "/fm2_gather/arrival_time";
     }
