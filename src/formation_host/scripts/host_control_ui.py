@@ -16,8 +16,13 @@ import rospy
 import tkinter as tk
 from formation_msgs.msg import RobotFormationStatus, ShapeTask
 from nav_msgs.msg import Odometry
-from std_msgs.msg import UInt8
+from std_msgs.msg import Bool, UInt8
 from tkinter import messagebox, scrolledtext, ttk
+
+try:
+    from dynamic_reconfigure.client import Client as DynamicReconfigureClient
+except Exception:
+    DynamicReconfigureClient = None
 
 
 PHASE_LABELS = {
@@ -179,6 +184,7 @@ class RosInterface:
         self.current_ids: List[int] = []
         self.robot_odom_subs = {}
         self.robot_status_subs = {}
+        self.robot_force_move_base_pubs = {}
         self.global_subs = []
 
     def ensure_node(self) -> bool:
@@ -212,6 +218,7 @@ class RosInterface:
             sub = self.robot_status_subs.pop(rid, None)
             if sub is not None:
                 sub.unregister()
+            self.robot_force_move_base_pubs.pop(rid, None)
 
         for rid in sorted(target_set - current_ids):
             self.robot_odom_subs[rid] = rospy.Subscriber(
@@ -227,6 +234,12 @@ class RosInterface:
                 self._robot_status_cb,
                 callback_args=rid,
                 queue_size=20,
+            )
+            self.robot_force_move_base_pubs[rid] = rospy.Publisher(
+                f"/robot{rid}/shape_assembly/force_move_base_mode",
+                Bool,
+                queue_size=1,
+                latch=True,
             )
 
         self.current_ids = target_ids
@@ -245,6 +258,40 @@ class RosInterface:
         rospy.set_param("/shape_task_supervisor/shape_type", str(shape_type).strip())
         rospy.set_param("/shape_task_supervisor/shape_scale", float(shape_scale))
         return True
+
+    def set_force_move_base(self, robot_ids: List[int], enabled: bool) -> bool:
+        if not self.ensure_node():
+            return False
+        self.reconfigure_robot_subs(robot_ids)
+        any_success = False
+        errors = []
+        for rid in sorted(set(robot_ids)):
+            pub = self.robot_force_move_base_pubs.get(rid)
+            if pub is None:
+                pub = rospy.Publisher(
+                    f"/robot{rid}/shape_assembly/force_move_base_mode",
+                    Bool,
+                    queue_size=1,
+                    latch=True,
+                )
+                self.robot_force_move_base_pubs[rid] = pub
+            try:
+                pub.publish(Bool(data=bool(enabled)))
+                any_success = True
+            except Exception as exc:
+                errors.append(f"robot{rid} topic publish failed: {exc}")
+            try:
+                if DynamicReconfigureClient is None:
+                    errors.append(f"robot{rid} dynreconf unavailable in host UI environment")
+                else:
+                    client = DynamicReconfigureClient(f"/robot{rid}/shape_assembly_swarm", timeout=1.0)
+                    client.update_configuration({"force_move_base_mode": bool(enabled)})
+                    any_success = True
+            except Exception as exc:
+                errors.append(f"robot{rid} dynreconf failed: {exc}")
+        if errors:
+            self.app.on_force_move_base_feedback(errors)
+        return any_success
 
     def _task_cb(self, msg: ShapeTask) -> None:
         self.app.on_shape_task(msg)
@@ -294,6 +341,8 @@ class HostControlUI:
         self.gather_status_var = tk.StringVar(value="Gather: unknown")
         self.task_status_var = tk.StringVar(value="Task: none")
         self.config_status_var = tk.StringVar(value="Config: loaded")
+        self.force_move_base_status_var = tk.StringVar(value="Force MoveBase: unknown")
+        self.last_force_move_base: Optional[bool] = None
 
         self._build_ui()
         self._sync_agent_number_from_ids()
@@ -326,7 +375,7 @@ class HostControlUI:
 
         button_frame = ttk.Frame(config_frame)
         button_frame.grid(row=1, column=0, columnspan=8, sticky="ew", padx=8, pady=(0, 8))
-        for idx in range(5):
+        for idx in range(7):
             button_frame.columnconfigure(idx, weight=1)
 
         ttk.Button(button_frame, text="Start Host", command=self._start_host).grid(row=0, column=0, sticky="ew", padx=4)
@@ -334,7 +383,9 @@ class HostControlUI:
         ttk.Button(button_frame, text="Apply Shape", command=self._apply_shape).grid(row=0, column=2, sticky="ew", padx=4)
         ttk.Button(button_frame, text="Send Gather=2", command=self._send_gather_signal).grid(row=0, column=3, sticky="ew", padx=4)
         ttk.Button(button_frame, text="Refresh Monitors", command=self._refresh_monitor_ids).grid(row=0, column=4, sticky="ew", padx=4)
-        ttk.Button(button_frame, text="Hot Reload Config", command=self._hot_reload_config).grid(row=1, column=0, columnspan=5, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(button_frame, text="Force MoveBase ON", command=self._force_move_base_on).grid(row=0, column=5, sticky="ew", padx=4)
+        ttk.Button(button_frame, text="Force MoveBase OFF", command=self._force_move_base_off).grid(row=0, column=6, sticky="ew", padx=4)
+        ttk.Button(button_frame, text="Hot Reload Config", command=self._hot_reload_config).grid(row=1, column=0, columnspan=7, sticky="ew", padx=4, pady=(6, 0))
 
         summary_frame = ttk.LabelFrame(self.root, text="Host Summary")
         summary_frame.grid(row=1, column=0, sticky="nsew", padx=12, pady=6)
@@ -345,6 +396,7 @@ class HostControlUI:
         ttk.Label(summary_frame, textvariable=self.gather_status_var).grid(row=1, column=0, sticky="w", padx=8, pady=4)
         ttk.Label(summary_frame, textvariable=self.task_status_var).grid(row=1, column=1, sticky="w", padx=8, pady=4)
         ttk.Label(summary_frame, textvariable=self.config_status_var).grid(row=2, column=0, sticky="w", padx=8, pady=4)
+        ttk.Label(summary_frame, textvariable=self.force_move_base_status_var).grid(row=2, column=1, sticky="w", padx=8, pady=4)
         ttk.Label(
             summary_frame,
             text="start_host.sh -> shape_assembly_real_robot.sh -> shape_assembly_host.launch -> fm2_gather + shape_task_supervisor",
@@ -522,6 +574,28 @@ class HostControlUI:
             return
         self._append_log("[ui] Published /gather_signal = 2\n")
 
+    def _set_force_move_base(self, enabled: bool) -> None:
+        robot_ids = self.get_configured_robot_ids()
+        if not robot_ids:
+            messagebox.showwarning("No Robots", "Configured robot_ids is empty or invalid.")
+            return
+        if not self.ros.set_force_move_base(robot_ids, enabled):
+            messagebox.showwarning(
+                "ROS Offline",
+                "ROS master is not ready or shape_assembly_swarm dynamic_reconfigure is unavailable.",
+            )
+            return
+        self.last_force_move_base = bool(enabled)
+        state = "ON" if enabled else "OFF"
+        self.force_move_base_status_var.set(f"Force MoveBase: {state}")
+        self._append_log("[ui] Set force_move_base_mode={} for robots {}\n".format(str(enabled).lower(), robot_ids))
+
+    def _force_move_base_on(self) -> None:
+        self._set_force_move_base(True)
+
+    def _force_move_base_off(self) -> None:
+        self._set_force_move_base(False)
+
     def _reload_config_snapshot(self) -> None:
         self.config_snapshot = load_host_config_snapshot(self.config_file, self.ws_root)
         self.config_mtime = self.config_file.stat().st_mtime if self.config_file.exists() else None
@@ -615,6 +689,12 @@ class HostControlUI:
                 self.robot_table.insert("", "end", iid=item_id, values=values)
 
     def _refresh_task_summary(self) -> None:
+        if self.last_force_move_base is None:
+            self.force_move_base_status_var.set("Force MoveBase: unknown")
+        elif self.last_force_move_base:
+            self.force_move_base_status_var.set("Force MoveBase: ON")
+        else:
+            self.force_move_base_status_var.set("Force MoveBase: OFF")
         if self.last_gather_started == 1:
             self.gather_status_var.set("Gather: started")
         elif self.last_gather_started == 0:
@@ -663,6 +743,13 @@ class HostControlUI:
         state["phase_label"] = PHASE_LABELS.get(int(msg.phase), f"Phase{int(msg.phase)}")
         state["shape_active"] = bool(msg.shape_active)
         state["note"] = msg.note or "-"
+
+    def on_force_move_base_feedback(self, errors: List[str]) -> None:
+        if not errors:
+            return
+        self._append_log("[ui] force_move_base warnings:\n")
+        for item in errors:
+            self._append_log(f"  - {item}\n")
 
     def on_close(self) -> None:
         self._stop_host()
