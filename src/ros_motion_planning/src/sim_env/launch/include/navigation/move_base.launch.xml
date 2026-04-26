@@ -19,6 +19,7 @@
   <arg name="start_ns" default="false" />
   <arg name="global_planner" default="a_star" />
   <arg name="fm2_distance_field_backend" default="-1" />
+  <arg name="graph_planner_config" default="$(find sim_env)/config/planner/graph_planner_params.yaml" />
   <arg name="local_planner" default="dwa" />
   <arg name="extra_scan_namespace_1" default="" />
   <arg name="extra_scan_namespace_2" default="" />
@@ -63,7 +64,7 @@
               or arg('global_planner')=='fm2'
               or arg('global_planner')=='fm2star'
           )" />
-    <rosparam file="$(find sim_env)/config/planner/graph_planner_params.yaml" command="load"
+    <rosparam file="$(arg graph_planner_config)" command="load"
       if="$(eval arg('global_planner')=='a_star'
               or arg('global_planner')=='jps' 
               or arg('global_planner')=='gbfs'

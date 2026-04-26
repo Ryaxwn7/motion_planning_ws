@@ -1,0 +1,135 @@
+script:
+  start_roscore: false
+  roscore_wait: 8.0
+
+ros:
+  master_uri: "http://192.168.1.104:11311"
+  ip: ""
+
+map_server:
+  map_file: "${WS_ROOT}/src/turn_on_ws/src/turn_on_wheeltec_robot/map/5x10_2026.yaml"
+
+shape_assembly_real_robot:
+  launch_map_server: true
+  auto_start_gather: false
+  start_gather_delay: 2.0
+  start_gather_wait_started: 5.0
+  start_gather_wait_connections: 2.0
+  start_gather_repeat: 3
+  start_gather_rate: 5.0
+
+shape_assembly_host:
+  agent_number: 6
+  robot_ids: [1, 2, 3, 4, 5, 6]
+  enable_map_combine: true
+
+formation_host:
+  shape_type: rectangle
+  shape_heading: 0.0
+  shape_scale: 1.0
+  shape_source: mat
+  shape_library_root: "${WS_ROOT}/src/ros_motion_planning/src/sim_env/shape_images"
+  shape_mat_path: ""
+  shape_resolution: 80
+  ring_inner_ratio: 0.25
+  ring_outer_ratio: 0.4
+  gray_width: 4
+  r_avoid: 0.35
+  shape_black_threshold: 1.0e-6
+  publish_target_markers: true
+  target_marker_topic: /shape_assembly/target_markers
+  staging_radius: 0.0
+  auto_shape_heading: true
+  auto_shape_heading_map_topic: /map
+  auto_shape_heading_angle_step_deg: 15.0
+  auto_shape_heading_obstacle_threshold: 80
+  auto_shape_heading_unknown_is_obstacle: true
+  auto_shape_heading_shape_stride: 2
+  auto_shape_heading_min_improve: 0.01
+  auto_shape_heading_yaw_bias: 0.02
+  auto_shape_heading_oob_is_obstacle: true
+  publish_center_goal_only: true
+  robot_namespace_prefix: robot
+  robot_detect_topic_suffix: /odom_combined
+  robot_odom_topic_suffix: /odom_combined
+  external_center_goal_topic: /shape_assembly/center_goal_cmd
+  external_center_sync_wait: 0.5
+  replan_mode: event
+  periodic_interval: 5.0
+  cooldown: 0.5
+  per_robot_cooldown: 0.5
+  max_len_growth_ratio: 1.4
+  long_path_replan_min_length: 3.0
+  format_radius: 0.3
+  enable_stable_len_replan: false
+  use_goal_occupied_peer_fallback: true
+  goal_occupied_radius: 0.35
+  loop_hz: 10.0
+
+fm2_gather:
+  robot_ids: [1, 2, 3, 4, 5, 6]
+  num_robots: 6
+  robot_weights: [1, 1, 1, 1, 1, 1]
+  auto_detect_robots: true
+  robot_namespace_prefix: robot
+  robot_detect_topic_suffix: /odom_combined
+  robot_odom_topic_suffix: /odom_combined
+  robot_detect_timeout: 8.0
+  dominantrate: 0.01
+  hypo: 0.45
+  mission: fastest
+  v_max: 1.0
+  velocity_alpha: 0.2
+  velocity_dmax: 0.5
+  robot_radius: 0.25
+  velocity_mode: 1
+  distance_field_backend: 1
+  velocity_sigmoid_k: 1.5
+  velocity_sigmoid_b: 0.0
+  space_inflation_radius: 0.02
+  gather_radius: -1.0
+  goal_occupied_staging_radius: -1.0
+  goal_occupied_staging_margin: 0.25
+  publish_center_goal_only: true
+  gather_center_topic: /gather_center
+  external_center_goal_topic: /shape_assembly/center_goal_cmd
+  external_center_sync_wait: 0.5
+  debug_on: false
+  plot_on: false
+  use_combined_map: true
+  combined_map_topic: /combined_map
+  base_map_topic: /map
+  use_dynamic_obstacle_planning_grid: false
+  use_dynamic_obstacle_velocity_layer: true
+  dynamic_obstacle_topic_suffix: move_base/local_costmap/costmap
+  dynamic_obstacle_threshold: 80
+  dynamic_obstacle_unknown_is_obstacle: false
+  dynamic_obstacle_timeout: 1.0
+  dynamic_obstacle_inflation_radius: 0.2
+  dynamic_obstacle_uncertainty_radius: 0.6
+  dynamic_obstacle_self_ignore_radius: 0.25
+  dynamic_obstacle_ignore_swarm_robots: true
+  dynamic_obstacle_swarm_ignore_radius: 0.35
+  dynamic_obstacle_stride: 1
+  dynamic_obstacle_max_samples: 800
+  use_peer_robot_uncertainty_layer: false
+  peer_robot_hard_radius: 0.2
+  peer_robot_uncertainty_radius: 0.6
+  peer_robot_speed_radius_gain: 0.3
+  peer_robot_uncertainty_max_radius: 1.2
+  peer_robot_speed_filter_alpha: 0.35
+  publish_velocity_maps: false
+  velocity_map_topic_prefix: /fm2_gather/velocity_map
+  publish_arrival_time_maps: false
+  arrival_time_topic_prefix: /fm2_gather/arrival_time
+  background_map_topic: /map
+  robot_costmap_topic_suffix: move_base/global_costmap/costmap
+  robot_costmap_update_topic_suffix: move_base/global_costmap/costmap_updates
+  map_combine_obstacle_threshold: 80
+  map_combine_unknown_is_obstacle: false
+  map_combine_costmap_timeout: 1.0
+  map_combine_robot_clear_radius: 0.35
+  map_combine_robot_clear_history_size: 5
+  map_combine_rate: 10.0
+  publish_combined_occupancy: true
+  combined_occupancy_topic: /combined_map_occ

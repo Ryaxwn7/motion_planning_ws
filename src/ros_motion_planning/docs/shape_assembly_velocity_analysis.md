@@ -16,7 +16,7 @@
 
 当前工程里最常用的两套参数文件是：
 
-- [shape_assembly_real_simaligned.yaml](/home/yxw/motion_planning_ws/src/ros_motion_planning/src/sim_env/config/shape_assembly_real_simaligned.yaml:1)
+- [shape_assembly_real_simaligned.yaml](../src/sim_env/config/shape_assembly_real_simaligned.yaml:1)
 - [shape_assembly_simtest.yaml](/home/yxw/motion_planning_ws/src/ros_motion_planning/src/sim_env/config/shape_assembly_simtest.yaml:1)
 
 ## 2. 总体控制链
@@ -46,7 +46,9 @@
 
 可以把最终控制律概括成：
 
-`u_i = sat( u_enter,i + u_explore,i + u_interact,i + u_obs,i )`
+$$
+u_i = \operatorname{sat}\!\left(u_{\mathrm{enter},i} + u_{\mathrm{explore},i} + u_{\mathrm{interact},i} + u_{\mathrm{obs},i}\right)
+$$
 
 然后再经过：
 
@@ -102,7 +104,9 @@
 
 `grid` 的计算是：
 
-`grid = sqrt((pi / 4) * (N / black_num)) * r_avoid * scale`
+$$
+\mathrm{grid} = \sqrt{\frac{\pi}{4}\cdot\frac{N}{\mathrm{black\_num}}}\; r_{\mathrm{avoid}} \cdot \mathrm{scale}
+$$
 
 其中：
 
@@ -117,7 +121,13 @@
 
 每个机器人都有一份“当前时刻属于自己的目标形状投影”：
 
-`[rx, ry]^T = R(head_i) [base_x, base_y]^T + [pos_x_i, pos_y_i]^T`
+$$
+r_x = \cos(\mathrm{head}_i)\,\mathrm{base}_x - \sin(\mathrm{head}_i)\,\mathrm{base}_y + \mathrm{pos}_{x,i}
+$$
+
+$$
+r_y = \sin(\mathrm{head}_i)\,\mathrm{base}_x + \cos(\mathrm{head}_i)\,\mathrm{base}_y + \mathrm{pos}_{y,i}
+$$
 
 其中 `R(head_i)` 是二维旋转矩阵。
 
@@ -138,7 +148,7 @@
 
 同时记录：
 
-- `d_mtr[i][j] = ||p_j - p_i||`
+- $d_{\mathrm{mtr}}[i][j] = \|p_j - p_i\|$
 - `rx_mtr[i][j] = x_j - x_i`
 - `ry_mtr[i][j] = y_j - y_i`
 
@@ -156,31 +166,49 @@
 
 对每个机器人，先计算邻域位置误差均值：
 
-`e_x,i = (1 / |N_i|) * sum_{j in N_i} (x_j^s - x_i^s)`
+$$
+e_{x,i} = \frac{1}{|N_i|}\sum_{j \in N_i}\left(x_j^s - x_i^s\right)
+$$
 
-`e_y,i = (1 / |N_i|) * sum_{j in N_i} (y_j^s - y_i^s)`
+$$
+e_{y,i} = \frac{1}{|N_i|}\sum_{j \in N_i}\left(y_j^s - y_i^s\right)
+$$
 
 然后得到共识项：
 
-`u_cons,x = kappa_conse_pos * sign(e_x) * |e_x|^alpha`
+$$
+u_{\mathrm{cons},x} = \kappa_{\mathrm{conse\_pos}} \, \operatorname{sign}(e_x)\, |e_x|^{\alpha}
+$$
 
-`u_cons,y = kappa_conse_pos * sign(e_y) * |e_y|^alpha`
+$$
+u_{\mathrm{cons},y} = \kappa_{\mathrm{conse\_pos}} \, \operatorname{sign}(e_y)\, |e_y|^{\alpha}
+$$
 
 以及参考跟踪项：
 
-`u_track,x = kappa_track_pos * (x_ref - x_i^s) + v_ref,x`
+$$
+u_{\mathrm{track},x} = \kappa_{\mathrm{track\_pos}}\left(x_{\mathrm{ref}} - x_i^s\right) + v_{\mathrm{ref},x}
+$$
 
-`u_track,y = kappa_track_pos * (y_ref - y_i^s) + v_ref,y`
+$$
+u_{\mathrm{track},y} = \kappa_{\mathrm{track\_pos}}\left(y_{\mathrm{ref}} - y_i^s\right) + v_{\mathrm{ref},y}
+$$
 
 未被 inform 的机器人不直接跟踪参考中心，而是跟踪邻居平均速度：
 
-`u_align = average(v_j^s)`
+$$
+u_{\mathrm{align}} = \operatorname{average}(v_j^s)
+$$
 
 最终：
 
-`u_shape,x = -u_cons,x + inform_i * u_track,x + (1 - inform_i) * u_align,x`
+$$
+u_{\mathrm{shape},x} = -u_{\mathrm{cons},x} + \mathrm{inform}_i \, u_{\mathrm{track},x} + (1-\mathrm{inform}_i)\, u_{\mathrm{align},x}
+$$
 
-`u_shape,y = -u_cons,y + inform_i * u_track,y + (1 - inform_i) * u_align,y`
+$$
+u_{\mathrm{shape},y} = -u_{\mathrm{cons},y} + \mathrm{inform}_i \, u_{\mathrm{track},y} + (1-\mathrm{inform}_i)\, u_{\mathrm{align},y}
+$$
 
 代码见：
 
@@ -192,25 +220,37 @@
 - `u_track` 将有信息的 agent 拉向全局参考中心
 - `u_align` 让无信息 agent 通过局部速度一致性传播参考信息
 
-其中 `sign(e) |e|^alpha` 在 `0 < alpha < 1` 时属于非线性有限时间收敛风格的反馈，比纯线性项在小误差区域更“硬”。
+其中 $\operatorname{sign}(e)\,|e|^\alpha$ 在 $0 < \alpha < 1$ 时属于非线性有限时间收敛风格的反馈，比纯线性项在小误差区域更“硬”。
 
 ### 5.2 姿态协商 `negotiate_orientation`
 
 姿态部分完全同构，只是把位置换成 heading：
 
-`e_h,i = (1 / |N_i|) * sum_{j in N_i} (h_j^s - h_i^s)`
+$$
+e_{h,i} = \frac{1}{|N_i|}\sum_{j \in N_i}\left(h_j^s - h_i^s\right)
+$$
 
-`u_cons,h = kappa_conse_head * sign(e_h) * |e_h|^alpha`
+$$
+u_{\mathrm{cons},h} = \kappa_{\mathrm{conse\_head}} \, \operatorname{sign}(e_h)\, |e_h|^{\alpha}
+$$
 
-`u_track,h = kappa_track_head * (h_ref - h_i^s) + omega_ref`
+$$
+u_{\mathrm{track},h} = \kappa_{\mathrm{track\_head}}\left(h_{\mathrm{ref}} - h_i^s\right) + \omega_{\mathrm{ref}}
+$$
 
-`u_align,h = average(hvel_j^s)`
+$$
+u_{\mathrm{align},h} = \operatorname{average}(hvel_j^s)
+$$
 
-`u_h = -u_cons,h + inform_i * u_track,h + (1 - inform_i) * u_align,h`
+$$
+u_h = -u_{\mathrm{cons},h} + \mathrm{inform}_i \, u_{\mathrm{track},h} + (1-\mathrm{inform}_i)\, u_{\mathrm{align},h}
+$$
 
 再限幅到：
 
-`|u_h| <= hvel_max`
+$$
+|u_h| \le hvel_{\max}
+$$
 
 代码见：
 
@@ -222,7 +262,9 @@
 
 真正给机器人平移速度的主要四项是：
 
-`u_xy = u_enter + u_explore + u_interact + u_obs`
+$$
+u_{xy} = u_{\mathrm{enter}} + u_{\mathrm{explore}} + u_{\mathrm{interact}} + u_{\mathrm{obs}}
+$$
 
 ### 6.1 Entering 项
 
@@ -242,17 +284,29 @@
 
 控制式为：
 
-`dx = goal_x - x_i`
+$$
+d_x = \mathrm{goal}_x - x_i
+$$
 
-`dy = goal_y - y_i`
+$$
+d_y = \mathrm{goal}_y - y_i
+$$
 
-`dist = ||[dx, dy]||`
+$$
+\mathrm{dist} = \left\|\begin{bmatrix} d_x & d_y \end{bmatrix}\right\|
+$$
 
-`scale = gray_color`
+$$
+\mathrm{scale} = \mathrm{gray\_color}
+$$
 
-`u_enter,x = kappa_enter * dx * scale / dist + v_shape,x`
+$$
+u_{\mathrm{enter},x} = \kappa_{\mathrm{enter}} \frac{d_x \cdot \mathrm{scale}}{\mathrm{dist}} + v_{\mathrm{shape},x}
+$$
 
-`u_enter,y = kappa_enter * dy * scale / dist + v_shape,y`
+$$
+u_{\mathrm{enter},y} = \kappa_{\mathrm{enter}} \frac{d_y \cdot \mathrm{scale}}{\mathrm{dist}} + v_{\mathrm{shape},y}
+$$
 
 解释：
 
@@ -279,9 +333,13 @@
 
 最终控制式：
 
-`u_explore,x = kappa_explore_1 * (gf_x - x_i) + kappa_explore_2 * (ge_x - x_i)`
+$$
+u_{\mathrm{explore},x} = \kappa_{\mathrm{explore},1}(gf_x - x_i) + \kappa_{\mathrm{explore},2}(ge_x - x_i)
+$$
 
-`u_explore,y = kappa_explore_1 * (gf_y - y_i) + kappa_explore_2 * (ge_y - y_i)`
+$$
+u_{\mathrm{explore},y} = \kappa_{\mathrm{explore},1}(gf_y - y_i) + \kappa_{\mathrm{explore},2}(ge_y - y_i)
+$$
 
 这里本质是双目标线性吸引：
 
@@ -290,11 +348,17 @@
 
 而 `get_mean_point_fill/get_mean_point_expl` 又不是简单取最近点，而是加权平均：
 
-`w(d) = 1, d < 2s`
+$$
+w(d)=1,\quad d<2s
+$$
 
-`w(d) = 0, d > r`
+$$
+w(d)=0,\quad d>r
+$$
 
-`w(d) = (1 + cos(pi * (d - 2s)/(r - 2s))) / 2, otherwise`
+$$
+w(d)=\frac{1+\cos\!\left(\pi \frac{d-2s}{r-2s}\right)}{2},\quad \text{otherwise}
+$$
 
 这是一个余弦窗权重函数，作用是让局部目标点对距离更平滑，不会像最近点法那样跳变明显。
 
@@ -312,11 +376,17 @@
 
 当邻居距离小于 `r_avoid` 时：
 
-`temp = r_avoid - d_ij`
+$$
+\mathrm{temp} = r_{\mathrm{avoid}} - d_{ij}
+$$
 
-`spr = temp / dis`
+$$
+\mathrm{spr} = \frac{\mathrm{temp}}{\mathrm{dis}}
+$$
 
-`u_rep,ij = spr * (-r_ij / dis)`
+$$
+u_{\mathrm{rep},ij} = \mathrm{spr}\left(-\frac{r_{ij}}{\mathrm{dis}}\right)
+$$
 
 总和后得到 `cmd_avoid_x/y`。
 
@@ -326,11 +396,17 @@
 
 当距离小于 `hard_dist = max(r_safe, 2 * r_body)` 时，再加一层短程强屏障：
 
-`over = hard_dist - d_ij`
+$$
+\mathrm{over} = \mathrm{hard\_dist} - d_{ij}
+$$
 
-`gain = over / d_ij`
+$$
+\mathrm{gain} = \frac{\mathrm{over}}{d_{ij}}
+$$
 
-`u_hard,ij = gain * (-r_ij / d_ij)`
+$$
+u_{\mathrm{hard},ij} = \mathrm{gain}\left(-\frac{r_{ij}}{d_{ij}}\right)
+$$
 
 这项是为了解决低速挤压和穿模，属于更硬的短程 barrier。
 
@@ -338,15 +414,23 @@
 
 对邻居平均速度差：
 
-`u_cons_vel,x = (1 / |N_i|) * sum_{j in N_i} (v_i,x - v_j,x)`
+$$
+u_{\mathrm{cons\_vel},x} = \frac{1}{|N_i|}\sum_{j \in N_i}\left(v_{i,x} - v_{j,x}\right)
+$$
 
-`u_cons_vel,y = (1 / |N_i|) * sum_{j in N_i} (v_i,y - v_j,y)`
+$$
+u_{\mathrm{cons\_vel},y} = \frac{1}{|N_i|}\sum_{j \in N_i}\left(v_{i,y} - v_{j,y}\right)
+$$
 
 总 interaction 项：
 
-`u_interact,x = kappa_avoid * u_rep,x + kappa_hard_avoid * u_hard,x - kappa_consensus * u_cons_vel,x`
+$$
+u_{\mathrm{interact},x} = \kappa_{\mathrm{avoid}} u_{\mathrm{rep},x} + \kappa_{\mathrm{hard\_avoid}} u_{\mathrm{hard},x} - \kappa_{\mathrm{consensus}} u_{\mathrm{cons\_vel},x}
+$$
 
-`u_interact,y = kappa_avoid * u_rep,y + kappa_hard_avoid * u_hard,y - kappa_consensus * u_cons_vel,y`
+$$
+u_{\mathrm{interact},y} = \kappa_{\mathrm{avoid}} u_{\mathrm{rep},y} + \kappa_{\mathrm{hard\_avoid}} u_{\mathrm{hard},y} - \kappa_{\mathrm{consensus}} u_{\mathrm{cons\_vel},y}
+$$
 
 理论上这是“人工势场 + 速度共识”混合控制：
 
@@ -370,19 +454,29 @@
 
 具体形式：
 
-`closeness = (avoid_radius - dist) / avoid_radius`
+$$
+\mathrm{closeness} = \frac{\mathrm{avoid\_radius} - \mathrm{dist}}{\mathrm{avoid\_radius}}
+$$
 
-`u_obs_soft += closeness * unit_away`
+$$
+u_{\mathrm{obs,soft}} \mathrel{+}= \mathrm{closeness} \cdot \mathrm{unit\_away}
+$$
 
 若 `dist < hard_radius`：
 
-`hard = (hard_radius - dist) / dist`
+$$
+\mathrm{hard} = \frac{\mathrm{hard\_radius} - \mathrm{dist}}{\mathrm{dist}}
+$$
 
-`u_obs_hard += hard * unit_away`
+$$
+u_{\mathrm{obs,hard}} \mathrel{+}= \mathrm{hard} \cdot \mathrm{unit\_away}
+$$
 
 最后：
 
-`u_obs = local_costmap_avoid_gain * u_obs_soft + local_costmap_hard_gain * u_obs_hard`
+$$
+u_{\mathrm{obs}} = \mathrm{local\_costmap\_avoid\_gain}\,u_{\mathrm{obs,soft}} + \mathrm{local\_costmap\_hard\_gain}\,u_{\mathrm{obs,hard}}
+$$
 
 这部分和 interaction 很像，但 interaction 针对“其他机器人”，而这里针对“地图障碍物”。
 
@@ -411,11 +505,15 @@
 
 对每个机器人：
 
-`speed = sqrt(cmd_x^2 + cmd_y^2)`
+$$
+\mathrm{speed} = \sqrt{\mathrm{cmd}_x^2 + \mathrm{cmd}_y^2}
+$$
 
 若 `speed > vel_max`：
 
-`cmd <- (vel_max / speed) * cmd`
+$$
+\mathrm{cmd} \leftarrow \left(\frac{v_{\max}}{\mathrm{speed}}\right)\mathrm{cmd}
+$$
 
 代码见：
 
@@ -429,11 +527,15 @@
 
 若 `cmd_smooth_use_odom=true`：
 
-`cmd_new = ratio * cmd_raw + (1 - ratio) * v_odom`
+$$
+\mathrm{cmd}_{\mathrm{new}} = \mathrm{ratio}\cdot \mathrm{cmd}_{\mathrm{raw}} + (1-\mathrm{ratio}) \cdot v_{\mathrm{odom}}
+$$
 
 若 `false`：
 
-`cmd_new = ratio * cmd_raw + (1 - ratio) * cmd_prev`
+$$
+\mathrm{cmd}_{\mathrm{new}} = \mathrm{ratio}\cdot \mathrm{cmd}_{\mathrm{raw}} + (1-\mathrm{ratio}) \cdot \mathrm{cmd}_{\mathrm{prev}}
+$$
 
 代码见：
 
@@ -450,7 +552,9 @@
 
 平滑后还会乘 `cmd_scale`：
 
-`cmd <- cmd_scale * cmd`
+$$
+\mathrm{cmd} \leftarrow \mathrm{cmd\_scale} \cdot \mathrm{cmd}
+$$
 
 然后再做死区：
 
@@ -458,7 +562,9 @@
 
 否则：
 
-`cmd <- ((||cmd|| - deadzone) / ||cmd||) * cmd`
+$$
+\mathrm{cmd} \leftarrow \left(\frac{\|\mathrm{cmd}\| - \mathrm{deadzone}}{\|\mathrm{cmd}\|}\right)\mathrm{cmd}
+$$
 
 代码见：
 
@@ -480,7 +586,7 @@
 
 1. 灰度判据
    - 机器人进入参考形状的灰/黑区域
-   - `gray_value < switch_gray_threshold`
+   - $\mathrm{gray\_value} < \mathrm{switch\_gray\_threshold}$
 2. 参考半径判据
    - 若开启 `switch_reference_radius_enable`
    - 机器人进入参考中心附近某个半径
@@ -499,17 +605,23 @@
 
 若机器人处于 shape control：
 
-`yaw_err = wrap(target_head - yaw_robot)`
+$$
+\mathrm{yaw}_{\mathrm{err}} = \operatorname{wrap}\!\left(\mathrm{target\_head} - \mathrm{yaw}_{\mathrm{robot}}\right)
+$$
 
-若 `|yaw_err| <= yaw_tolerance`，角速度置零。
+若 $|\mathrm{yaw}_{\mathrm{err}}| \le \mathrm{yaw\_tolerance}$，角速度置零。
 
 否则：
 
-`omega = kappa_track_head * yaw_err + target_hvel`
+$$
+\omega = \kappa_{\mathrm{track\_head}} \, \mathrm{yaw}_{\mathrm{err}} + \mathrm{target\_hvel}
+$$
 
 并限幅：
 
-`|omega| <= hvel_max`
+$$
+|\omega| \le hvel_{\max}
+$$
 
 这是一条标准的 P + feedforward 角速度控制律。
 
@@ -532,9 +644,13 @@
 
 如果 `cmd_in_map_frame=true`，发布前会做二维旋转变换到机器人基座系：
 
-`v_body,x = cos(yaw) * v_map,x + sin(yaw) * v_map,y`
+$$
+v_{\mathrm{body},x} = \cos(\mathrm{yaw})\, v_{\mathrm{map},x} + \sin(\mathrm{yaw})\, v_{\mathrm{map},y}
+$$
 
-`v_body,y = -sin(yaw) * v_map,x + cos(yaw) * v_map,y`
+$$
+v_{\mathrm{body},y} = -\sin(\mathrm{yaw})\, v_{\mathrm{map},x} + \cos(\mathrm{yaw})\, v_{\mathrm{map},y}
+$$
 
 代码见：
 

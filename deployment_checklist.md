@@ -119,7 +119,7 @@
 
 ### 3.5 主机启动命令
 
-工作空间根目录同时提供了主机快捷脚本 [start_host.sh](/home/yxw/motion_planning_ws/start_host.sh)。默认读取 [config/host_start.conf](/home/yxw/motion_planning_ws/config/host_start.conf)。
+工作空间根目录同时提供了主机快捷脚本 [start_host.sh](/home/yxw/motion_planning_ws/start_host.sh)。默认读取 [config/host_param.yaml](/home/yxw/motion_planning_ws/config/host_param.yaml)。
 
 ```bash
 roslaunch turn_on_wheeltec_robot shape_assembly_host.launch \
@@ -266,7 +266,7 @@ bash src/ros_motion_planning/scripts/shape_assembly_real_robot.sh \
 
 ### 4.5 机器人启动命令
 
-工作空间根目录同时提供了机器人快捷脚本 [start_robot.sh](/home/yxw/motion_planning_ws/start_robot.sh)。默认读取 [config/robot_start.conf](/home/yxw/motion_planning_ws/config/robot_start.conf)。
+工作空间根目录同时提供了机器人快捷脚本 [start_robot.sh](/home/yxw/motion_planning_ws/start_robot.sh)。默认读取 [config/robot_param.yaml](/home/yxw/motion_planning_ws/config/robot_param.yaml)。
 
 ```bash
 ./start_robot.sh
@@ -457,8 +457,8 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
 - [host_robot_code_split.md](/home/yxw/motion_planning_ws/host_robot_code_split.md)
 - [shape_assembly_real_robot_protocol.md](/home/yxw/motion_planning_ws/shape_assembly_real_robot_protocol.md)
 - [experiment_steps.md](/home/yxw/motion_planning_ws/experiment_steps.md)
-- [config/host_start.conf](/home/yxw/motion_planning_ws/config/host_start.conf)
-- [config/robot_start.conf](/home/yxw/motion_planning_ws/config/robot_start.conf)
+- [config/host_param.yaml](/home/yxw/motion_planning_ws/config/host_param.yaml)
+- [config/robot_param.yaml](/home/yxw/motion_planning_ws/config/robot_param.yaml)
 
 
 ---

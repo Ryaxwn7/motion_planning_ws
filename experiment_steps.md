@@ -7,8 +7,8 @@
 
 默认配置文件：
 
-- 主机：[config/host_start.conf](/home/yxw/motion_planning_ws/config/host_start.conf)
-- 机器人：[config/robot_start.conf](/home/yxw/motion_planning_ws/config/robot_start.conf)
+- 主机：[config/host_param.yaml](/home/yxw/motion_planning_ws/config/host_param.yaml)
+- 机器人：[config/robot_param.yaml](/home/yxw/motion_planning_ws/config/robot_param.yaml)
 
 默认目标：
 
@@ -33,32 +33,32 @@
 
 主机编辑：
 
-- [config/host_start.conf](/home/yxw/motion_planning_ws/config/host_start.conf)
+- [config/host_param.yaml](/home/yxw/motion_planning_ws/config/host_param.yaml)
 
 至少确认：
 
-- `ROS_MASTER_URI_VALUE`
-- `ROS_IP_VALUE`
-- `HOST_LAUNCH_ARGS` 中的 `agent_number`
-- `HOST_LAUNCH_ARGS` 中的 `robot_ids`
-- `HOST_LAUNCH_ARGS` 中的 `shape_type`
+- `ros.master_uri`
+- `ros.ip`
+- `shape_assembly_host.agent_number`
+- `shape_assembly_host.robot_ids`
+- `formation_host.shape_type`
 
 每台机器人分别编辑自己的本地文件：
 
-- [config/robot_start.conf](/home/yxw/motion_planning_ws/config/robot_start.conf)
+- [config/robot_param.yaml](/home/yxw/motion_planning_ws/config/robot_param.yaml)
 
 至少确认：
 
-- `ROS_MASTER_URI_VALUE`
-- `ROS_IP_VALUE`
-- `ROBOT_LAUNCH_ARGS` 中的 `agent_id`
-- `ROBOT_LAUNCH_ARGS` 中的 `agent_number`
-- `ROBOT_LAUNCH_ARGS` 中的 `robot_ids`
+- `ros.master_uri`
+- `ros.ip`
+- `motion_navigate_multi4.agent_id`
+- `motion_navigate_multi4.agent_number`
+- `motion_navigate_multi4.robot_ids`
 
 说明：
 
-- 每台机器人都有自己本地工作空间，所以都可以用同一个路径 `config/robot_start.conf`
-- 但每台机器人里面的 `ROS_IP_VALUE` 和 `agent_id` 应该不同
+- 每台机器人都有自己本地工作空间，所以都可以用同一个路径 `config/robot_param.yaml`
+- 但每台机器人里面的 `ros.ip` 和 `motion_navigate_multi4.agent_id` 应该不同
 
 ## 3. 主机启动
 
@@ -72,7 +72,7 @@ cd /home/yxw/motion_planning_ws
 如果要临时覆盖配置文件，例如使用另一份主机配置：
 
 ```bash
-./start_host.sh config:=/home/yxw/motion_planning_ws/config/host_start.conf
+./start_host.sh config:=/home/yxw/motion_planning_ws/config/host_param.yaml
 ```
 
 如果只想临时覆盖单个参数，也可以直接附加：
@@ -93,7 +93,7 @@ cd /home/yxw/motion_planning_ws
 如果你在同一台电脑上想切换不同机器人配置，可以额外指定配置文件：
 
 ```bash
-./start_robot.sh config:=/home/yxw/motion_planning_ws/config/robot_start.conf
+./start_robot.sh config:=/home/yxw/motion_planning_ws/config/robot_param.yaml
 ```
 
 如果只想临时覆盖单个参数，也可以直接附加：

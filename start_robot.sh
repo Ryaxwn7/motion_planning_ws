@@ -7,9 +7,12 @@ cd "${ROOT_DIR}"
 source /opt/ros/noetic/setup.bash
 source "${ROOT_DIR}/devel/setup.bash"
 
-_config_file="${ROOT_DIR}/config/robot_start.conf"
+_config_file="${ROOT_DIR}/config/robot_param.yaml"
 _ros_master_uri="${ROS_MASTER_URI:-http://127.0.0.1:11311}"
 _ros_ip="${ROS_IP:-}"
+_time_sync_enabled=true
+_time_sync_server="192.168.1.104"
+_config_temp_dir=""
 robot_args=(
   "map_started:=true"
   "agent_number:=4"
@@ -28,15 +31,18 @@ usage() {
 Usage: ./start_robot.sh [script args] [motion_navigate_multi4 args]
 
 Default config file:
-  ${ROOT_DIR}/config/robot_start.conf
+  ${ROOT_DIR}/config/robot_param.yaml
 
 Script args:
-  config:=/abs/or/relative/path.conf
+  config:=/abs/or/relative/path.yaml
   ros_master_uri:=http://<HOST_IP>:11311
   ros_ip:=<ROBOT_IP>
+  time_sync_enabled:=true|false
+  time_sync_server:=<HOST_IP>
 
 All other args are forwarded to motion_navigate_multi4.launch.
 Command-line args override config file values.
+Both YAML and legacy shell `.conf` configs are supported.
 EOF
 }
 
@@ -114,8 +120,17 @@ for arg in "$@"; do
 done
 
 if [[ -f "$_config_file" ]]; then
-  # shellcheck disable=SC1090
-  source "$_config_file"
+  case "${_config_file}" in
+    *.yaml|*.yml)
+      # shellcheck disable=SC1090
+      source <(python3 "${ROOT_DIR}/src/ros_motion_planning/scripts/startup_param_loader.py" --mode robot --config "$_config_file" --ws-root "${ROOT_DIR}")
+      _config_temp_dir="${CONFIG_TEMP_DIR:-}"
+      ;;
+    *)
+      # shellcheck disable=SC1090
+      source "$_config_file"
+      ;;
+  esac
 else
   echo "[start_robot] Warning: config file not found: $_config_file" >&2
 fi
@@ -125,6 +140,12 @@ if [[ ${ROS_MASTER_URI_VALUE+x} ]]; then
 fi
 if [[ ${ROS_IP_VALUE+x} ]]; then
   _ros_ip="$ROS_IP_VALUE"
+fi
+if [[ ${TIME_SYNC_ENABLED+x} ]]; then
+  _time_sync_enabled="$TIME_SYNC_ENABLED"
+fi
+if [[ ${TIME_SYNC_SERVER+x} ]]; then
+  _time_sync_server="$TIME_SYNC_SERVER"
 fi
 if declare -p ROBOT_LAUNCH_ARGS >/dev/null 2>&1; then
   robot_args=("${ROBOT_LAUNCH_ARGS[@]}")
@@ -140,6 +161,12 @@ for arg in "$@"; do
     ros_ip:=*)
       _ros_ip="${arg#*=}"
       ;;
+    time_sync_enabled:=*)
+      _time_sync_enabled="${arg#*=}"
+      ;;
+    time_sync_server:=*)
+      _time_sync_server="${arg#*=}"
+      ;;
     *)
       merge_arg "$arg"
       ;;
@@ -153,10 +180,20 @@ if [[ -n "${_ros_ip}" ]]; then
   export ROS_IP="${_ros_ip}"
 fi
 
+_cleanup() {
+  if [[ -n "${_config_temp_dir}" && -d "${_config_temp_dir}" ]]; then
+    rm -rf "${_config_temp_dir}" || true
+  fi
+}
+
+trap _cleanup EXIT INT TERM
+
 echo "[start_robot] Using config file: ${_config_file}"
 printf '[start_robot] Launch args:'
 printf ' %q' "${robot_args[@]}"
 printf '\\n'
-sudo /etc/init.d/ntp stop
-sudo ntpdate 192.168.1.104
-exec roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch   "${robot_args[@]}"
+if [[ "${_time_sync_enabled}" == "true" && -n "${_time_sync_server}" ]]; then
+  sudo /etc/init.d/ntp stop
+  sudo ntpdate "${_time_sync_server}"
+fi
+roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch "${robot_args[@]}"

@@ -14,12 +14,12 @@
 主机：
 
 - [start_host.sh](/home/yxw/motion_planning_ws/start_host.sh)
-- 默认配置：[config/host_start.conf](/home/yxw/motion_planning_ws/config/host_start.conf)
+- 默认配置：[config/host_param.yaml](/home/yxw/motion_planning_ws/config/host_param.yaml)
 
 机器人：
 
 - [start_robot.sh](/home/yxw/motion_planning_ws/start_robot.sh)
-- 默认配置：[config/robot_start.conf](/home/yxw/motion_planning_ws/config/robot_start.conf)
+- 默认配置：[config/robot_param.yaml](/home/yxw/motion_planning_ws/config/robot_param.yaml)
 
 回退旧真实参数：
 
@@ -79,14 +79,20 @@
 
 主机默认使用：
 
-- [gather_param_real_simaligned.yaml](/home/yxw/motion_planning_ws/src/fm2_gather/config/gather_param_real_simaligned.yaml)
+- [config/host_param.yaml](/home/yxw/motion_planning_ws/config/host_param.yaml)
 
 机器人默认使用：
 
-- [shape_assembly_real_simaligned.yaml](/home/yxw/motion_planning_ws/src/ros_motion_planning/src/sim_env/config/shape_assembly_real_simaligned.yaml)
-- [my_local_planner_params_real_simaligned.yaml](/home/yxw/motion_planning_ws/src/ros_motion_planning/src/sim_env/config/planner/my_local_planner_params_real_simaligned.yaml)
-- [global_costmap_params_real_simaligned.yaml](/home/yxw/motion_planning_ws/src/ros_motion_planning/src/sim_env/config/costmap/global_costmap_params_real_simaligned.yaml)
-- [local_costmap_params_real_simaligned.yaml](/home/yxw/motion_planning_ws/src/ros_motion_planning/src/sim_env/config/costmap/local_costmap_params_real_simaligned.yaml)
+- [config/robot_param.yaml](/home/yxw/motion_planning_ws/config/robot_param.yaml)
+
+启动脚本会在运行时从这两份总配置自动物化节点级临时 YAML，包括：
+
+- `fm2_gather`
+- `shape_assembly`
+- `graph_planner`
+- `MyPlanner`
+- `global_costmap`
+- `local_costmap`
 
 配置特点：
 
@@ -117,7 +123,7 @@ cd /home/yxw/motion_planning_ws
 如果要显式指定配置：
 
 ```bash
-./start_host.sh config:=/home/yxw/motion_planning_ws/config/host_start.conf
+./start_host.sh config:=/home/yxw/motion_planning_ws/config/host_param.yaml
 ```
 
 ### 4.2 机器人
@@ -132,7 +138,7 @@ cd /home/yxw/motion_planning_ws
 如需切换机器人配置文件：
 
 ```bash
-./start_robot.sh config:=/home/yxw/motion_planning_ws/config/robot_start.conf
+./start_robot.sh config:=/home/yxw/motion_planning_ws/config/robot_param.yaml
 ```
 
 ### 4.3 人工触发聚集

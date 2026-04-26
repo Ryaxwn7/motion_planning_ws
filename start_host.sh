@@ -10,7 +10,7 @@ source "${ROOT_DIR}/devel/setup.bash"
 ROSCORE_PID=""
 HOST_STACK_PID=""
 
-_config_file="${ROOT_DIR}/config/host_start.conf"
+_config_file="${ROOT_DIR}/config/host_param.yaml"
 _start_roscore=true
 _launch_map_server=true
 _auto_start_gather=false
@@ -18,6 +18,7 @@ _roscore_wait=8.0
 _ros_master_uri="${ROS_MASTER_URI:-http://192.168.1.104:11311}"
 _ros_ip="${ROS_IP:-}"
 _map_file=""
+_config_temp_dir=""
 host_args=(
   "agent_number:=2"
   "shape_type:=rectangle"
@@ -31,10 +32,10 @@ usage() {
 Usage: ./start_host.sh [script args] [shape_assembly_host args]
 
 Default config file:
-  ${ROOT_DIR}/config/host_start.conf
+  ${ROOT_DIR}/config/host_param.yaml
 
 Script args:
-  config:=/abs/or/relative/path.conf
+  config:=/abs/or/relative/path.yaml
   start_roscore:=true|false
   launch_map_server:=true|false
   map_file:=/abs/or/relative/path.yaml
@@ -46,6 +47,7 @@ Script args:
 All other args are forwarded to shape_assembly_real_robot.sh.
 Default gather behavior is manual: keep `auto_start_gather:=false` and publish `/gather_signal` yourself.
 Command-line args override config file values.
+Both YAML and legacy shell `.conf` configs are supported.
 EOF
 }
 
@@ -123,8 +125,17 @@ for arg in "$@"; do
 done
 
 if [[ -f "$_config_file" ]]; then
-  # shellcheck disable=SC1090
-  source "$_config_file"
+  case "${_config_file}" in
+    *.yaml|*.yml)
+      # shellcheck disable=SC1090
+      source <(python3 "${ROOT_DIR}/src/ros_motion_planning/scripts/startup_param_loader.py" --mode host --config "$_config_file" --ws-root "${ROOT_DIR}")
+      _config_temp_dir="${CONFIG_TEMP_DIR:-}"
+      ;;
+    *)
+      # shellcheck disable=SC1090
+      source "$_config_file"
+      ;;
+  esac
 else
   echo "[start_host] Warning: config file not found: $_config_file" >&2
 fi
@@ -149,6 +160,21 @@ if [[ ${ROS_IP_VALUE+x} ]]; then
 fi
 if [[ ${MAP_FILE_VALUE+x} ]]; then
   _map_file="$MAP_FILE_VALUE"
+fi
+if [[ ${START_GATHER_DELAY+x} ]]; then
+  _start_gather_delay="$START_GATHER_DELAY"
+fi
+if [[ ${START_GATHER_WAIT_STARTED+x} ]]; then
+  _start_gather_wait_started="$START_GATHER_WAIT_STARTED"
+fi
+if [[ ${START_GATHER_WAIT_CONNECTIONS+x} ]]; then
+  _start_gather_wait_connections="$START_GATHER_WAIT_CONNECTIONS"
+fi
+if [[ ${START_GATHER_REPEAT+x} ]]; then
+  _start_gather_repeat="$START_GATHER_REPEAT"
+fi
+if [[ ${START_GATHER_RATE+x} ]]; then
+  _start_gather_rate="$START_GATHER_RATE"
 fi
 if declare -p HOST_LAUNCH_ARGS >/dev/null 2>&1; then
   host_args=("${HOST_LAUNCH_ARGS[@]}")
@@ -193,6 +219,9 @@ if [[ -n "${_ros_ip}" ]]; then
 fi
 
 _cleanup() {
+  if [[ -n "${_config_temp_dir}" && -d "${_config_temp_dir}" ]]; then
+    rm -rf "${_config_temp_dir}" || true
+  fi
   if [[ -n "${HOST_STACK_PID}" ]] && kill -0 "${HOST_STACK_PID}" 2>/dev/null; then
     kill "${HOST_STACK_PID}" >/dev/null 2>&1 || true
     wait "${HOST_STACK_PID}" 2>/dev/null || true
@@ -250,6 +279,11 @@ printf '\\n'
 shape_assembly_args=(
   "launch_map_server:=${_launch_map_server}"
   "auto_start_gather:=${_auto_start_gather}"
+  "start_gather_delay:=${_start_gather_delay:-2.0}"
+  "start_gather_wait_started:=${_start_gather_wait_started:-5.0}"
+  "start_gather_wait_connections:=${_start_gather_wait_connections:-2.0}"
+  "start_gather_repeat:=${_start_gather_repeat:-3}"
+  "start_gather_rate:=${_start_gather_rate:-5.0}"
 )
 if [[ -n "${_map_file}" ]]; then
   shape_assembly_args+=("map_file:=${_map_file}")

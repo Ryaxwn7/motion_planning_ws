@@ -2,7 +2,6 @@
 
 import os
 import queue
-import re
 import signal
 import subprocess
 import threading
@@ -70,30 +69,6 @@ def robot_ids_arg(robot_ids: List[int]) -> str:
     return "robot_ids:=[{}]".format(",".join(str(v) for v in robot_ids))
 
 
-def parse_host_defaults(config_path: Path) -> Dict[str, str]:
-    defaults = {
-        "agent_number": "4",
-        "robot_ids": "1,2,3,4,5,6",
-        "shape_type": "rectangle",
-        "shape_scale": "1.0",
-    }
-    if not config_path.exists():
-        return defaults
-
-    text = config_path.read_text(encoding="utf-8", errors="ignore")
-    patterns = {
-        "agent_number": r'"agent_number:=([^"]+)"',
-        "robot_ids": r'"robot_ids:=\[([^\]]*)\]"',
-        "shape_type": r'"shape_type:=([^"]+)"',
-        "shape_scale": r'"shape_scale:=([^"]+)"',
-    }
-    for key, pattern in patterns.items():
-        match = re.search(pattern, text)
-        if match:
-            defaults[key] = match.group(1).strip()
-    return defaults
-
-
 def _launch_arg_key(arg: str) -> str:
     if ":=" not in arg:
         return arg
@@ -115,6 +90,17 @@ def merge_launch_args(base_args: List[str], override_args: List[str]) -> List[st
     return merged
 
 
+def _config_load_command(config_path: Path, ws_root: Path) -> str:
+    if config_path.suffix in {".yaml", ".yml"}:
+        loader = ws_root / "src" / "ros_motion_planning" / "scripts" / "startup_param_loader.py"
+        return "source <(python3 {} --mode host --config {} --ws-root {})".format(
+            shlex.quote(str(loader)),
+            shlex.quote(str(config_path)),
+            shlex.quote(str(ws_root)),
+        )
+    return "source {}".format(shlex.quote(str(config_path)))
+
+
 def load_host_config_snapshot(config_path: Path, ws_root: Path) -> Dict[str, object]:
     snapshot: Dict[str, object] = {
         "start_roscore": "false",
@@ -131,7 +117,7 @@ def load_host_config_snapshot(config_path: Path, ws_root: Path) -> Dict[str, obj
 
     command = f"""
 set -e
-source {shlex.quote(str(config_path))}
+{_config_load_command(config_path, ws_root)}
 printf '__CFG__ START_ROSCORE=%s\\n' "${{START_ROSCORE-}}"
 printf '__CFG__ LAUNCH_MAP_SERVER=%s\\n' "${{LAUNCH_MAP_SERVER-}}"
 printf '__CFG__ AUTO_START_GATHER=%s\\n' "${{AUTO_START_GATHER-}}"
@@ -174,6 +160,26 @@ done
 
     snapshot["host_launch_args"] = host_launch_args
     return snapshot
+
+
+def parse_host_defaults(config_path: Path, ws_root: Path) -> Dict[str, str]:
+    defaults = {
+        "agent_number": "4",
+        "robot_ids": "1,2,3,4,5,6",
+        "shape_type": "rectangle",
+        "shape_scale": "1.0",
+    }
+    snapshot = load_host_config_snapshot(config_path, ws_root)
+    for arg in snapshot.get("host_launch_args", []):
+        if arg.startswith("agent_number:="):
+            defaults["agent_number"] = arg.split(":=", 1)[1].strip()
+        elif arg.startswith("robot_ids:="):
+            defaults["robot_ids"] = arg.split(":=", 1)[1].strip().strip("[]")
+        elif arg.startswith("shape_type:="):
+            defaults["shape_type"] = arg.split(":=", 1)[1].strip()
+        elif arg.startswith("shape_scale:="):
+            defaults["shape_scale"] = arg.split(":=", 1)[1].strip()
+    return defaults
 
 
 class RosInterface:
@@ -314,8 +320,8 @@ class HostControlUI:
         self.root = root
         self.ws_root = Path(__file__).resolve().parents[3]
         self.start_host_script = self.ws_root / "start_host.sh"
-        self.config_file = self.ws_root / "config" / "host_start.conf"
-        defaults = parse_host_defaults(self.config_file)
+        self.config_file = self.ws_root / "config" / "host_param.yaml"
+        defaults = parse_host_defaults(self.config_file, self.ws_root)
         self.config_snapshot = load_host_config_snapshot(self.config_file, self.ws_root)
         self.config_mtime: Optional[float] = self.config_file.stat().st_mtime if self.config_file.exists() else None
 
@@ -468,7 +474,7 @@ class HostControlUI:
 
     def _update_config_status(self) -> None:
         if not self.config_file.exists():
-            self.config_status_var.set("Config: missing config/host_start.conf")
+            self.config_status_var.set("Config: missing config/host_param.yaml")
             return
         current_mtime = self.config_file.stat().st_mtime
         if self.config_mtime is None:
@@ -476,7 +482,7 @@ class HostControlUI:
         if current_mtime > (self.config_mtime + 1e-6):
             self.config_status_var.set("Config: file changed on disk, click Hot Reload Config")
         else:
-            self.config_status_var.set("Config: synced with host_start.conf")
+            self.config_status_var.set("Config: synced with host_param.yaml")
 
     def get_configured_robot_ids(self) -> List[int]:
         try:

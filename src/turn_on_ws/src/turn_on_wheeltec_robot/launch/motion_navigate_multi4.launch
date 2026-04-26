@@ -34,6 +34,7 @@
     <arg name="publish_markers" default="USE_YAML_SENTINEL" />
     <arg name="robot_odom_topic_suffix" default="USE_YAML_SENTINEL" />
     <arg name="shape_assembly_config" default="$(find sim_env)/config/shape_assembly_real_simaligned.yaml" />
+    <arg name="graph_planner_config" default="$(find sim_env)/config/planner/graph_planner_params.yaml" />
     <arg name="my_local_planner_config" default="$(find sim_env)/config/planner/my_local_planner_params_real_simaligned.yaml" />
     <arg name="global_costmap_config" default="$(find sim_env)/config/costmap/global_costmap_params_real_simaligned.yaml" />
     <arg name="local_costmap_config" default="$(find sim_env)/config/costmap/local_costmap_params_real_simaligned.yaml" />
@@ -98,6 +99,7 @@
         <arg name="agent_number" value="$(arg agent_number)" />
         <arg name="agent_id" value="$(arg agent_id)" />
         <arg name="start_ns" value="$(arg start_ns)"/>
+        <arg name="graph_planner_config" value="$(arg graph_planner_config)" />
         <arg name="my_local_planner_config" value="$(arg my_local_planner_config)" />
         <arg name="global_costmap_config" value="$(arg global_costmap_config)" />
         <arg name="local_costmap_config" value="$(arg local_costmap_config)" />
