@@ -62,7 +62,7 @@ class AmclNomotionUpdater:
             return False
         return self.last_linear_speed <= self.linear_threshold and self.last_angular_speed <= self.angular_threshold
 
-    def _timer_cb(self, _event: rospy.TimerEvent) -> None:
+    def _timer_cb(self, _event) -> None:
         if not self._is_stationary():
             return
         try:
