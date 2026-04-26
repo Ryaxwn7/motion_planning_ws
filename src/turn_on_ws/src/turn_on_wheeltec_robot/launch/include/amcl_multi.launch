@@ -10,6 +10,11 @@
     <arg name="global_frame_id" default="map"/>
     <arg name="odom_frame_id" default="$(arg robot_namespace)/odom_combined"/>
     <arg name="base_frame_id" default="$(arg robot_namespace)/base_link"/>
+    <arg name="enable_nomotion_update" default="false"/>
+    <arg name="nomotion_update_period" default="1.0"/>
+    <arg name="nomotion_update_only_when_stationary" default="true"/>
+    <arg name="nomotion_update_linear_threshold" default="0.02"/>
+    <arg name="nomotion_update_angular_threshold" default="0.03"/>
 
     <arg name="initial_pose_x" default="0.0"/>
     <arg name="initial_pose_y" default="0.0"/>
@@ -46,8 +51,8 @@
       <param name="laser_model_type" value="likelihood_field"/>
       <!-- <param name="laser_model_type" value="beam"/> -->
       <param name="laser_likelihood_max_dist" value="2.0"/>
-      <param name="update_min_d" value="0.25"/>
-      <param name="update_min_a" value="0.2"/>
+      <param name="update_min_d" value="0.10"/>
+      <param name="update_min_a" value="0.10"/>
       <param name="odom_frame_id" value="$(arg odom_frame_id)"/>
       <param name="base_frame_id" value="$(arg base_frame_id)"/>
       <param name="global_frame_id" value="$(arg global_frame_id)"/>
@@ -61,6 +66,19 @@
       <param name="recovery_alpha_fast" value="0.0"/>
       <remap from="scan" to="$(arg scan_topic)"/>
       <remap from="map" to="/map"/>
+    </node>
+
+    <node if="$(arg enable_nomotion_update)"
+          pkg="turn_on_wheeltec_robot"
+          type="amcl_nomotion_update.py"
+          name="amcl_nomotion_update"
+          output="screen">
+      <param name="period" value="$(arg nomotion_update_period)"/>
+      <param name="only_when_stationary" value="$(arg nomotion_update_only_when_stationary)"/>
+      <param name="linear_threshold" value="$(arg nomotion_update_linear_threshold)"/>
+      <param name="angular_threshold" value="$(arg nomotion_update_angular_threshold)"/>
+      <param name="odom_topic" value="odom"/>
+      <param name="service_name" value="request_nomotion_update"/>
     </node>
 
 </launch>

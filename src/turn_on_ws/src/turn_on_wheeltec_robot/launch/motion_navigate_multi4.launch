@@ -33,6 +33,8 @@
     <arg name="distributed_marker_owner" default="" />
     <arg name="publish_markers" default="USE_YAML_SENTINEL" />
     <arg name="robot_odom_topic_suffix" default="USE_YAML_SENTINEL" />
+    <arg name="enable_amcl_nomotion_update" default="true" />
+    <arg name="amcl_nomotion_update_period" default="1.0" />
     <arg name="shape_assembly_config" default="$(find sim_env)/config/shape_assembly_real_simaligned.yaml" />
     <arg name="my_local_planner_config" default="$(find sim_env)/config/planner/my_local_planner_params_real_simaligned.yaml" />
     <arg name="global_costmap_config" default="$(find sim_env)/config/costmap/global_costmap_params_real_simaligned.yaml" />
@@ -84,6 +86,8 @@
     <include file="$(find turn_on_wheeltec_robot)/launch/include/amcl_multi.launch" >
         <arg name="robot_namespace" value="$(arg robot_namespace)" />
         <arg name="use_map_topic" value="true" />
+        <arg name="enable_nomotion_update" value="$(arg enable_amcl_nomotion_update)" />
+        <arg name="nomotion_update_period" value="$(arg amcl_nomotion_update_period)" />
         <!--arg name="tf_prefix" value="$(arg robot_namespace)"/-->
         <!--arg name="scan_topic" value="$(arg robot_namespace)/scan" /-->
         <!--arg name="odom_frame_id" value="$(arg robot_namespace)/odom_combined"/-->
