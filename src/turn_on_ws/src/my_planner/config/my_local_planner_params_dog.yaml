@@ -13,5 +13,6 @@ MyPlanner:
   target_dist: 0.2
   goal_dist_tolerance: 0.1
   goal_yaw_tolerance: 0.05
+  yaw_reference_mode: 0
   scan_topic: /scan
   base_frame_id: base

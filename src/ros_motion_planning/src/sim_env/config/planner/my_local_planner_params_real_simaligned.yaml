@@ -16,6 +16,7 @@ MyPlanner:
   adjust_r_factor: 1.0
   goal_dist_tolerance: 0.1
   goal_yaw_tolerance: 0.05
+  yaw_reference_mode: 1 # 0: 前瞻点y偏差; 1: 目标点朝向yaw
   debug_print: false
   scan_topic: /scan
   base_frame_id: base_footprint

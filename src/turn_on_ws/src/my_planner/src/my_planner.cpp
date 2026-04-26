@@ -91,6 +91,7 @@ namespace my_planner
         nh_planner.param("target_dist", m_target_dist, 0.2);
         nh_planner.param("goal_dist_tolerance", m_goal_dist_tolerance, 0.1);
         nh_planner.param("goal_yaw_tolerance", m_goal_yaw_tolerance, 0.05);
+        nh_planner.param("yaw_reference_mode", m_yaw_reference_mode, 0);
         nh_planner.param("scan_topic", m_scan_topic, std::string("/scan"));
         nh_planner.param("base_frame_id", m_base_frame_id, std::string("base_footprint"));
         nh_planner.param("odom_frame_id", m_odom_frame_id, std::string("odom_combined"));
@@ -107,6 +108,7 @@ namespace my_planner
         MY_PLANNER_DEBUG_LOG("acc_scale_rot: %f", m_acc_scale_rot);
         MY_PLANNER_DEBUG_LOG("goal_dist_tolerance: %f", m_goal_dist_tolerance);
         MY_PLANNER_DEBUG_LOG("goal_yaw_tolerance: %f", m_goal_yaw_tolerance);
+        MY_PLANNER_DEBUG_LOG("yaw_reference_mode: %d", m_yaw_reference_mode);
         MY_PLANNER_DEBUG_LOG("scan_topic: %s", m_scan_topic.c_str());
         MY_PLANNER_DEBUG_LOG("base_frame_id: %s", m_base_frame_id.c_str());
         MY_PLANNER_DEBUG_LOG("odom_frame_id: %s", m_odom_frame_id.c_str());
@@ -143,11 +145,19 @@ namespace my_planner
         m_acc_scale_rot = config.acc_scale_rot;
         m_goal_dist_tolerance = config.goal_dist_tolerance;
         m_goal_yaw_tolerance = config.goal_yaw_tolerance;
+        if (m_yaw_reference_mode != config.yaw_reference_mode)
+        {
+            error_sum = 0.0;
+            last_error = 0.0;
+            error_diff = 0.0;
+        }
+        m_yaw_reference_mode = config.yaw_reference_mode;
         debug_print_ = config.debug_print;
 
         MY_PLANNER_DEBUG_LOG(
-            "Reconfigure Request: Kp=%f, Ki=%f, Kd=%f, max_vel_trans=%f, max_vel_rot=%f, acc_scale_trans=%f, acc_scale_rot=%f, goal_dist_tolerance=%f, goal_yaw_tolerance=%f, debug_print=%s",
+            "Reconfigure Request: Kp=%f, Ki=%f, Kd=%f, max_vel_trans=%f, max_vel_rot=%f, acc_scale_trans=%f, acc_scale_rot=%f, goal_dist_tolerance=%f, goal_yaw_tolerance=%f, yaw_reference_mode=%d, debug_print=%s",
             Kp, Ki, Kd, m_max_vel_trans, m_max_vel_rot, m_acc_scale_trans, m_acc_scale_rot, m_goal_dist_tolerance, m_goal_yaw_tolerance,
+            m_yaw_reference_mode,
             debug_print_ ? "true" : "false");
     }
 
@@ -377,8 +387,17 @@ namespace my_planner
         cmd_vel.linear.y = v_y;
         
 
-        // 朝向误差通过目标点在机器人坐标系的y偏移量矫正
-        angular_error = target_pose.pose.position.y; 
+        // yaw_reference_mode:
+        // 0: use the current lookahead point's lateral offset, preserving the original behavior.
+        // 1: use the current lookahead point's orientation yaw in the robot base frame.
+        if (m_yaw_reference_mode == 1)
+        {
+            angular_error = tf2::getYaw(target_pose.pose.orientation);
+        }
+        else
+        {
+            angular_error = target_pose.pose.position.y;
+        }
         // 误差积分
         error_sum += angular_error;
         if(error_sum > 10000 || error_sum < -10000) //   防止积分溢出

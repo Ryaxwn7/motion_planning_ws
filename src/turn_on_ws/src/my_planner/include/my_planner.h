@@ -57,6 +57,7 @@ namespace my_planner
             double m_acc_scale_rot;
             double m_goal_dist_tolerance;
             double m_goal_yaw_tolerance;
+            int m_yaw_reference_mode;
             std::string m_scan_topic;
             std::string m_base_frame_id;
             std::string m_odom_frame_id;
