@@ -35,7 +35,27 @@ double y_error_diff = 0.0;
 double y_adjust = 0.0;
 double y_output = 0.0;
 
+double NormalizeAngle(double angle)
+{
+    return std::atan2(std::sin(angle), std::cos(angle));
+}
 
+double ClampAbs(double value, double limit)
+{
+    if (limit <= 0.0)
+    {
+        return value;
+    }
+    if (value > limit)
+    {
+        return limit;
+    }
+    if (value < -limit)
+    {
+        return -limit;
+    }
+    return value;
+}
 
 namespace my_planner
 {
@@ -297,13 +317,14 @@ namespace my_planner
             MY_PLANNER_DEBUG_LOG("调整目标姿态,final_yaw=%f", final_yaw);
             cmd_vel.linear.x = pose_final.pose.position.x*trans_x_factor;
             cmd_vel.linear.y = pose_final.pose.position.y*trans_y_factor;
-            cmd_vel.angular.z = final_yaw* adjust_r_factor;
+            cmd_vel.angular.z = ClampAbs(final_yaw* adjust_r_factor, m_max_vel_rot);
 
             if(abs(final_yaw) < m_goal_yaw_tolerance)
             {
                 goal_reached_ = true;
                 MY_PLANNER_DEBUG_LOG("到达目标点");
                 cmd_vel.linear.x = 0;
+                cmd_vel.linear.y = 0;
                 cmd_vel.angular.z = 0;
             }
             applyAccelerationLimits(cmd_vel);
@@ -389,10 +410,10 @@ namespace my_planner
 
         // yaw_reference_mode:
         // 0: use the current lookahead point's lateral offset, preserving the original behavior.
-        // 1: use the current lookahead point's orientation yaw in the robot base frame.
+        // 1: use the final goal pose orientation yaw in the robot base frame.
         if (m_yaw_reference_mode == 1)
         {
-            angular_error = tf2::getYaw(target_pose.pose.orientation);
+            angular_error = tf2::getYaw(pose_final.pose.orientation);
         }
         else
         {
@@ -405,9 +426,10 @@ namespace my_planner
             error_sum = 0;
         }
         // 误差微分
-        error_diff = angular_error - last_error;
+        error_diff = (m_yaw_reference_mode == 1) ? NormalizeAngle(angular_error - last_error) : (angular_error - last_error);
         //PID控制
         output = Kp * angular_error + Ki * error_sum + Kd * error_diff;
+        output = ClampAbs(output, m_max_vel_rot);
         MY_PLANNER_DEBUG_LOG("Kp=%f, Ki=%f, Kd=%f, angular_error=%f, error_sum=%f, error_diff=%f, output=%f", Kp, Ki, Kd, angular_error, error_sum, error_diff, output);
         // TODO：限制输出
         cmd_vel.angular.z = output;
