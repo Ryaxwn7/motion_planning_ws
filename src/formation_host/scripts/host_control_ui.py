@@ -14,6 +14,7 @@ from typing import Dict, List, Optional
 import rosgraph
 import rospy
 import tkinter as tk
+from actionlib_msgs.msg import GoalID
 from formation_msgs.msg import RobotFormationStatus, ShapeTask
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool, UInt8
@@ -185,6 +186,7 @@ class RosInterface:
         self.robot_odom_subs = {}
         self.robot_status_subs = {}
         self.robot_force_move_base_pubs = {}
+        self.robot_move_base_cancel_pubs = {}
         self.global_subs = []
 
     def ensure_node(self) -> bool:
@@ -219,6 +221,7 @@ class RosInterface:
             if sub is not None:
                 sub.unregister()
             self.robot_force_move_base_pubs.pop(rid, None)
+            self.robot_move_base_cancel_pubs.pop(rid, None)
 
         for rid in sorted(target_set - current_ids):
             self.robot_odom_subs[rid] = rospy.Subscriber(
@@ -241,6 +244,11 @@ class RosInterface:
                 queue_size=1,
                 latch=True,
             )
+            self.robot_move_base_cancel_pubs[rid] = rospy.Publisher(
+                f"/robot{rid}/move_base/cancel",
+                GoalID,
+                queue_size=1,
+            )
 
         self.current_ids = target_ids
 
@@ -251,6 +259,44 @@ class RosInterface:
         msg.data = 2
         self.gather_pub.publish(msg)
         return True
+
+    def stop_gather_replanning(self) -> bool:
+        if not self.ensure_node():
+            return False
+        rospy.set_param("/shape_assembly/stop_path_planning", True)
+        rospy.set_param("/shape_assembly/active_robot_ids", sorted(set(self.current_ids)))
+        return True
+
+    def cancel_move_base_goals(self, robot_ids: List[int]) -> bool:
+        if not self.ensure_node():
+            return False
+        self.reconfigure_robot_subs(robot_ids)
+        cancel_msg = GoalID()
+        cancel_msg.stamp = rospy.Time(0)
+        cancel_msg.id = ""
+
+        any_success = False
+        errors = []
+        for _ in range(3):
+            for rid in sorted(set(robot_ids)):
+                pub = self.robot_move_base_cancel_pubs.get(rid)
+                if pub is None:
+                    pub = rospy.Publisher(
+                        f"/robot{rid}/move_base/cancel",
+                        GoalID,
+                        queue_size=1,
+                    )
+                    self.robot_move_base_cancel_pubs[rid] = pub
+                try:
+                    pub.publish(cancel_msg)
+                    any_success = True
+                except Exception as exc:
+                    errors.append(f"robot{rid} move_base cancel failed: {exc}")
+            time.sleep(0.05)
+
+        if errors:
+            self.app.on_force_move_base_feedback(errors)
+        return any_success
 
     def apply_shape_params(self, shape_type: str, shape_scale: float) -> bool:
         if not self.ensure_node():
@@ -292,6 +338,16 @@ class RosInterface:
         if errors:
             self.app.on_force_move_base_feedback(errors)
         return any_success
+
+    def enter_force_move_base_mode(self, robot_ids: List[int]) -> bool:
+        if not self.ensure_node():
+            return False
+        self.reconfigure_robot_subs(robot_ids)
+        self.stop_gather_replanning()
+        self.cancel_move_base_goals(robot_ids)
+        success = self.set_force_move_base(robot_ids, True)
+        self.stop_gather_replanning()
+        return success
 
     def _task_cb(self, msg: ShapeTask) -> None:
         self.app.on_shape_task(msg)
@@ -579,7 +635,12 @@ class HostControlUI:
         if not robot_ids:
             messagebox.showwarning("No Robots", "Configured robot_ids is empty or invalid.")
             return
-        if not self.ros.set_force_move_base(robot_ids, enabled):
+        if enabled:
+            success = self.ros.enter_force_move_base_mode(robot_ids)
+        else:
+            success = self.ros.set_force_move_base(robot_ids, enabled)
+
+        if not success:
             messagebox.showwarning(
                 "ROS Offline",
                 "ROS master is not ready or shape_assembly_swarm dynamic_reconfigure is unavailable.",
@@ -588,7 +649,14 @@ class HostControlUI:
         self.last_force_move_base = bool(enabled)
         state = "ON" if enabled else "OFF"
         self.force_move_base_status_var.set(f"Force MoveBase: {state}")
-        self._append_log("[ui] Set force_move_base_mode={} for robots {}\n".format(str(enabled).lower(), robot_ids))
+        if enabled:
+            self._append_log(
+                "[ui] Stopped gather replanning, cancelled move_base goals, then set force_move_base_mode=true for robots {}\n".format(
+                    robot_ids
+                )
+            )
+        else:
+            self._append_log("[ui] Set force_move_base_mode=false for robots {}\n".format(robot_ids))
 
     def _force_move_base_on(self) -> None:
         self._set_force_move_base(True)
