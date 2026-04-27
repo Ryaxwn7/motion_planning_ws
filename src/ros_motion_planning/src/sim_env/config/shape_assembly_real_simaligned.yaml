@@ -115,7 +115,7 @@ cmd_smooth_ratio: 0.3
 cmd_smooth_use_odom: false
 # Multiplies final linear command before deadzone/clamp. Increase if all shape
 # commands are too weak; reduce if motion is too aggressive.
-cmd_scale: 0.4
+cmd_scale: 0.6
 # Soft deadzone subtracts this speed from the command magnitude. Increasing it
 # suppresses tiny commands; set near 0 if real robots fail to start moving.
 cmd_deadzone: 0.0
