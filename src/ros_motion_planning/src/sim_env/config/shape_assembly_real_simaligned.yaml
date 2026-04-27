@@ -101,13 +101,13 @@ kappa_consensus: 1.2
 # Output shaping
 # Linear command smoothing. With cmd_smooth_use_odom=false, this blends new
 # commands with previous commands. Higher ratio follows new commands faster.
-cmd_smooth_ratio: 0.4
+cmd_smooth_ratio: 0.8
 # false avoids using zero odometry feedback to suppress commands when a real
 # robot is stuck. Keep false for low-speed real-chassis tests.
 cmd_smooth_use_odom: false
 # Multiplies final linear command before deadzone/clamp. Increase if all shape
 # commands are too weak; reduce if motion is too aggressive.
-cmd_scale: 1.0
+cmd_scale: 0.5
 # Soft deadzone subtracts this speed from the command magnitude. Increasing it
 # suppresses tiny commands; set near 0 if real robots fail to start moving.
 cmd_deadzone: 0.0
