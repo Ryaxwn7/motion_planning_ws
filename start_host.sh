@@ -4,8 +4,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT_DIR}"
 
-source /opt/ros/noetic/setup.bash
-source "${ROOT_DIR}/devel/setup.bash"
+source_ros_env() {
+  source /opt/ros/noetic/setup.bash
+  source "${ROOT_DIR}/devel/setup.bash"
+}
 
 ROSCORE_PID=""
 HOST_STACK_PID=""
@@ -14,6 +16,11 @@ _config_file="${ROOT_DIR}/config/host_start.conf"
 _start_roscore=true
 _launch_map_server=true
 _auto_start_gather=false
+_start_gather_delay=2.0
+_start_gather_wait_started=5.0
+_start_gather_wait_connections=2.0
+_start_gather_repeat=3
+_start_gather_rate=5.0
 _roscore_wait=8.0
 _ros_master_uri="${ROS_MASTER_URI:-http://192.168.1.104:11311}"
 _ros_ip="${ROS_IP:-}"
@@ -39,12 +46,17 @@ Script args:
   launch_map_server:=true|false
   map_file:=/abs/or/relative/path.yaml
   auto_start_gather:=true|false
+  start_gather_delay:=2.0
+  start_gather_wait_started:=5.0
+  start_gather_wait_connections:=2.0
+  start_gather_repeat:=3
+  start_gather_rate:=5.0
   roscore_wait:=8.0
   ros_master_uri:=http://<HOST_IP>:11311
   ros_ip:=<HOST_IP>
 
 All other args are forwarded to shape_assembly_real_robot.sh.
-Default gather behavior is manual: keep `auto_start_gather:=false` and publish `/gather_signal` yourself.
+Default gather behavior is manual: keep auto_start_gather:=false and publish /gather_signal yourself.
 Command-line args override config file values.
 EOF
 }
@@ -150,6 +162,21 @@ fi
 if [[ ${MAP_FILE_VALUE+x} ]]; then
   _map_file="$MAP_FILE_VALUE"
 fi
+if [[ ${START_GATHER_DELAY+x} ]]; then
+  _start_gather_delay="$START_GATHER_DELAY"
+fi
+if [[ ${START_GATHER_WAIT_STARTED+x} ]]; then
+  _start_gather_wait_started="$START_GATHER_WAIT_STARTED"
+fi
+if [[ ${START_GATHER_WAIT_CONNECTIONS+x} ]]; then
+  _start_gather_wait_connections="$START_GATHER_WAIT_CONNECTIONS"
+fi
+if [[ ${START_GATHER_REPEAT+x} ]]; then
+  _start_gather_repeat="$START_GATHER_REPEAT"
+fi
+if [[ ${START_GATHER_RATE+x} ]]; then
+  _start_gather_rate="$START_GATHER_RATE"
+fi
 if declare -p HOST_LAUNCH_ARGS >/dev/null 2>&1; then
   host_args=("${HOST_LAUNCH_ARGS[@]}")
 fi
@@ -170,6 +197,21 @@ for arg in "$@"; do
     auto_start_gather:=*)
       _auto_start_gather="${arg#*=}"
       ;;
+    start_gather_delay:=*)
+      _start_gather_delay="${arg#*=}"
+      ;;
+    start_gather_wait_started:=*)
+      _start_gather_wait_started="${arg#*=}"
+      ;;
+    start_gather_wait_connections:=*)
+      _start_gather_wait_connections="${arg#*=}"
+      ;;
+    start_gather_repeat:=*)
+      _start_gather_repeat="${arg#*=}"
+      ;;
+    start_gather_rate:=*)
+      _start_gather_rate="${arg#*=}"
+      ;;
     roscore_wait:=*)
       _roscore_wait="${arg#*=}"
       ;;
@@ -186,6 +228,8 @@ for arg in "$@"; do
 done
 
 synchronize_agent_number_with_robot_ids
+
+source_ros_env
 
 export ROS_MASTER_URI="${_ros_master_uri}"
 if [[ -n "${_ros_ip}" ]]; then
@@ -250,6 +294,11 @@ printf '\\n'
 shape_assembly_args=(
   "launch_map_server:=${_launch_map_server}"
   "auto_start_gather:=${_auto_start_gather}"
+  "start_gather_delay:=${_start_gather_delay}"
+  "start_gather_wait_started:=${_start_gather_wait_started}"
+  "start_gather_wait_connections:=${_start_gather_wait_connections}"
+  "start_gather_repeat:=${_start_gather_repeat}"
+  "start_gather_rate:=${_start_gather_rate}"
 )
 if [[ -n "${_map_file}" ]]; then
   shape_assembly_args+=("map_file:=${_map_file}")
