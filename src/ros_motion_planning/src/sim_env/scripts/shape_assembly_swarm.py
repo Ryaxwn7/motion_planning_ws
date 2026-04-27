@@ -107,6 +107,7 @@ class SimParam:
         self.max_step = 0
         self.r_body = 0.2
         self.r_safe = 0.35
+        self.hard_safety_dist = 0.0
         self.r_avoid = 1.5
         self.r_sense = 2.5
         self.vel_max = 0.6
@@ -127,6 +128,8 @@ class SimParam:
         self.kappa_explore_2 = 15.0
         self.kappa_avoid = 25.0
         self.kappa_hard_avoid = 25.0
+        self.avoid_vel_max = 0.0
+        self.hard_avoid_vel_max = 0.0
         self.kappa_consensus = 1.0
 
         # command smoothing
@@ -840,6 +843,13 @@ def cal_exploration_cmd(sim_param: SimParam, shape_dyn: ShapeDyn, shape_info: Sh
     return cmd_x, cmd_y
 
 
+def get_hard_safety_dist(sim_param: SimParam) -> float:
+    configured = max(0.0, float(sim_param.hard_safety_dist))
+    if configured > 0.0:
+        return max(sim_param.r_body, configured)
+    return max(sim_param.r_safe, 2.0 * sim_param.r_body)
+
+
 def cal_interaction_cmd(sim_param: SimParam, neigh: Dict[str, List[List[float]]], robot_state: RobotState) -> Tuple[List[float], List[float]]:
     n = sim_param.swarm_size
     a_mtr = neigh["a_mtr"]
@@ -851,7 +861,7 @@ def cal_interaction_cmd(sim_param: SimParam, neigh: Dict[str, List[List[float]]]
     cmd_avoid_y = [0.0] * n
     cmd_hard_x = [0.0] * n
     cmd_hard_y = [0.0] * n
-    hard_dist = max(sim_param.r_safe, sim_param.r_body * 2.0)
+    hard_dist = get_hard_safety_dist(sim_param)
     for i in range(n):
         sum_x = 0.0
         sum_y = 0.0
@@ -931,7 +941,7 @@ def enforce_safety_barrier(sim_param: SimParam, neigh: Dict[str, List[List[float
     if not d_mtr or not rx_mtr or not ry_mtr:
         return cmd_x, cmd_y
 
-    safe_dist = max(sim_param.r_safe, 2.0 * sim_param.r_body)
+    safe_dist = max(sim_param.r_safe, get_hard_safety_dist(sim_param))
     hard_dist = max(1.2 * sim_param.r_body, 0.75 * safe_dist)
     if safe_dist <= 1e-6:
         return cmd_x, cmd_y
@@ -970,8 +980,9 @@ def enforce_safety_barrier(sim_param: SimParam, neigh: Dict[str, List[List[float
 
         if nearest < hard_dist and push_norm > 1e-9:
             # Hard emergency mode: prioritize separation direction.
-            cmd_x[i] = sim_param.vel_max * push_x / push_norm
-            cmd_y[i] = sim_param.vel_max * push_y / push_norm
+            hard_vel_max = sim_param.hard_avoid_vel_max if sim_param.hard_avoid_vel_max > 0.0 else sim_param.vel_max
+            cmd_x[i] = hard_vel_max * push_x / push_norm
+            cmd_y[i] = hard_vel_max * push_y / push_norm
 
     return cmd_x, cmd_y
 
@@ -1337,7 +1348,9 @@ class ShapeAssemblySwarm:
             self.sim_param.t = 1.0 / float(control_hz)
         self.sim_param.r_body = rospy.get_param("~r_body", self.sim_param.r_body)
         self.sim_param.r_safe = rospy.get_param("~r_safe", self.sim_param.r_safe)
+        self.sim_param.hard_safety_dist = rospy.get_param("~hard_safety_dist", self.sim_param.hard_safety_dist)
         self.sim_param.r_avoid = rospy.get_param("~r_avoid", self.sim_param.r_avoid)
+        self.sim_param.r_avoid = max(self.sim_param.r_avoid, get_hard_safety_dist(self.sim_param))
         self.sim_param.r_sense = rospy.get_param("~r_sense", self.sim_param.r_sense)
         self.sim_param.vel_max = rospy.get_param("~vel_max", self.sim_param.vel_max)
         self.sim_param.leader_fraction = rospy.get_param("~leader_fraction", self.sim_param.leader_fraction)
@@ -1346,6 +1359,8 @@ class ShapeAssemblySwarm:
         self.sim_param.kappa_explore_2 = rospy.get_param("~kappa_explore_2", self.sim_param.kappa_explore_2)
         self.sim_param.kappa_avoid = rospy.get_param("~kappa_avoid", self.sim_param.kappa_avoid)
         self.sim_param.kappa_hard_avoid = rospy.get_param("~kappa_hard_avoid", self.sim_param.kappa_hard_avoid)
+        self.sim_param.avoid_vel_max = rospy.get_param("~avoid_vel_max", self.sim_param.avoid_vel_max)
+        self.sim_param.hard_avoid_vel_max = rospy.get_param("~hard_avoid_vel_max", self.sim_param.hard_avoid_vel_max)
         self.sim_param.kappa_consensus = rospy.get_param("~kappa_consensus", self.sim_param.kappa_consensus)
         self.sim_param.kappa_conse_pos = rospy.get_param("~kappa_conse_pos", self.sim_param.kappa_conse_pos)
         self.sim_param.kappa_track_pos = rospy.get_param("~kappa_track_pos", self.sim_param.kappa_track_pos)
@@ -1456,6 +1471,7 @@ class ShapeAssemblySwarm:
         self.local_costmap_avoid_gain = float(rospy.get_param("~local_costmap_avoid_gain", self.sim_param.kappa_avoid))
         self.local_costmap_hard_radius = float(rospy.get_param("~local_costmap_hard_radius", max(self.sim_param.r_safe, 1.5 * self.sim_param.r_body)))
         self.local_costmap_hard_gain = float(rospy.get_param("~local_costmap_hard_gain", self.sim_param.kappa_hard_avoid))
+        self.local_costmap_avoid_vel_max = max(0.0, float(rospy.get_param("~local_costmap_avoid_vel_max", 0.0)))
         self.local_costmap_stride = max(1, int(rospy.get_param("~local_costmap_stride", 1)))
         self.local_costmap_max_samples = max(1, int(rospy.get_param("~local_costmap_max_samples", 500)))
         self.local_costmap_timeout = max(0.0, float(rospy.get_param("~local_costmap_timeout", 1.0)))
@@ -1746,10 +1762,12 @@ class ShapeAssemblySwarm:
 
         self.sim_param.r_body = max(0.0, float(config.r_body))
         self.sim_param.r_safe = max(self.sim_param.r_body, float(config.r_safe))
-        self.sim_param.r_avoid = max(self.sim_param.r_safe, float(config.r_avoid))
+        self.sim_param.hard_safety_dist = max(0.0, float(config.hard_safety_dist))
+        self.sim_param.r_avoid = max(get_hard_safety_dist(self.sim_param), float(config.r_avoid))
         self.sim_param.r_sense = max(self.sim_param.r_avoid, float(config.r_sense))
         config.r_body = self.sim_param.r_body
         config.r_safe = self.sim_param.r_safe
+        config.hard_safety_dist = self.sim_param.hard_safety_dist
         config.r_avoid = self.sim_param.r_avoid
         config.r_sense = self.sim_param.r_sense
 
@@ -1763,6 +1781,8 @@ class ShapeAssemblySwarm:
         self.sim_param.kappa_explore_2 = max(0.0, float(config.kappa_explore_2))
         self.sim_param.kappa_avoid = max(0.0, float(config.kappa_avoid))
         self.sim_param.kappa_hard_avoid = max(0.0, float(config.kappa_hard_avoid))
+        self.sim_param.avoid_vel_max = max(0.0, float(config.avoid_vel_max))
+        self.sim_param.hard_avoid_vel_max = max(0.0, float(config.hard_avoid_vel_max))
         self.sim_param.kappa_consensus = max(0.0, float(config.kappa_consensus))
         self.sim_param.kappa_conse_pos = max(0.0, float(config.kappa_conse_pos))
         self.sim_param.kappa_track_pos = max(0.0, float(config.kappa_track_pos))
@@ -1805,6 +1825,7 @@ class ShapeAssemblySwarm:
         config.local_costmap_avoid_radius = self.local_costmap_avoid_radius
         self.local_costmap_avoid_gain = max(0.0, float(config.local_costmap_avoid_gain))
         self.local_costmap_hard_gain = max(0.0, float(config.local_costmap_hard_gain))
+        self.local_costmap_avoid_vel_max = max(0.0, float(config.local_costmap_avoid_vel_max))
         self.local_costmap_stride = max(1, int(config.local_costmap_stride))
         self.local_costmap_max_samples = max(1, int(config.local_costmap_max_samples))
         self.local_costmap_timeout = max(0.0, float(config.local_costmap_timeout))
@@ -2574,6 +2595,12 @@ class ShapeAssemblySwarm:
 
             cmd_x[i] = self.local_costmap_avoid_gain * sum_x + self.local_costmap_hard_gain * hard_x
             cmd_y[i] = self.local_costmap_avoid_gain * sum_y + self.local_costmap_hard_gain * hard_y
+            if self.local_costmap_avoid_vel_max > 0.0:
+                speed = math.hypot(cmd_x[i], cmd_y[i])
+                if speed > self.local_costmap_avoid_vel_max and speed > 1e-9:
+                    scale = self.local_costmap_avoid_vel_max / speed
+                    cmd_x[i] *= scale
+                    cmd_y[i] *= scale
             if i < len(self.local_costmap_obs_cells):
                 self.local_costmap_obs_cells[i] = obstacle_cells
             if i < len(self.local_costmap_ready):
@@ -4025,6 +4052,8 @@ class ShapeAssemblySwarm:
             target_shape_state,
         )
         cmd_interact_x, cmd_interact_y = cal_interaction_cmd(self.sim_param, neigh, robot_state)
+        if self.sim_param.avoid_vel_max > 0.0:
+            cmd_interact_x, cmd_interact_y = limit_speed(cmd_interact_x, cmd_interact_y, self.sim_param.avoid_vel_max)
         cmd_obs_x, cmd_obs_y, local_obs_nearest = self._cal_local_obstacle_cmd(robot_state)
 
         cmd_x = [

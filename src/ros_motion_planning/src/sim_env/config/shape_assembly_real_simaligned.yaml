@@ -54,15 +54,21 @@ r_body: 0.24
 # r_safe is the short-range safety radius. Increasing it makes robots separate
 # earlier; too large can prevent dense formations.
 r_safe: 0.30
+# Center-to-center distance where hard robot-robot avoidance starts. The old
+# implicit value was max(r_safe, 2*r_body)=0.48 for r_body=0.24. Keep r_avoid at
+# least this large, otherwise the target formation can ask robots to be closer
+# than the hard safety distance.
+hard_safety_dist: 0.30
 # r_avoid sets the nominal robot spacing and also affects the shape grid size.
-# Increasing it expands the target shape and avoidance distance.
-r_avoid: 0.33
+# Keep it above the practical center spacing needed by the real chassis;
+# otherwise rectangle targets can be too tight for every robot to enter.
+r_avoid: 0.40
 # r_sense is neighbor sensing/interaction range. Too small can fragment the
 # swarm; too large can make distant robots influence each other unnecessarily.
 r_sense: 1.5
 # Max published linear speed after all shaping. Raise only if the chassis and
 # localization remain stable.
-vel_max: 0.4
+vel_max: 0.30
 # Fraction of robots that track the reference shape center/heading directly.
 # 1.0 makes all robots informed, usually more predictable for real robots.
 leader_fraction: 1.0
@@ -90,10 +96,12 @@ kappa_enter: 6.0
 # Increase if coverage is slow; decrease if robots wander or churn inside.
 kappa_explore_1: 3.0
 kappa_explore_2: 3.0
-# Robot-robot avoidance gains. Increase if robots get too close; decrease if
-# avoidance dominates shape filling.
-kappa_avoid: 5.0
-kappa_hard_avoid: 5.0
+# Robot-robot avoidance gains and caps. The caps prevent avoidance from
+# instantly driving the published command to vel_max.
+kappa_avoid: 2.5
+kappa_hard_avoid: 3.0
+avoid_vel_max: 0.12
+hard_avoid_vel_max: 0.10
 # Velocity-consensus damping between neighbors. Increase to reduce relative
 # velocity; too high can make motion sluggish.
 kappa_consensus: 1.2
@@ -101,7 +109,7 @@ kappa_consensus: 1.2
 # Output shaping
 # Linear command smoothing. With cmd_smooth_use_odom=false, this blends new
 # commands with previous commands. Higher ratio follows new commands faster.
-cmd_smooth_ratio: 0.8
+cmd_smooth_ratio: 0.3
 # false avoids using zero odometry feedback to suppress commands when a real
 # robot is stuck. Keep false for low-speed real-chassis tests.
 cmd_smooth_use_odom: false
@@ -130,12 +138,12 @@ yaw_cmd_smooth_ratio: 0.2
 # small may command constant tiny rotations.
 yaw_cmd_deadzone: 0.02
 # Limit for internal shape-stage velocity before final vel_max clamp.
-shape_vel_max: 0.4
+shape_vel_max: 0.30
 
 # Shape source
 shape_source: mat
 shape_type: rectangle
-shape_scale: 1.0
+shape_scale: 1.15
 shape_resolution: 80
 ring_inner_ratio: 0.25
 ring_outer_ratio: 0.4
@@ -190,12 +198,13 @@ local_costmap_obstacle_threshold: 80
 local_costmap_unknown_is_obstacle: false
 # Soft obstacle repulsion radius/gain. Increase gain/radius if shape control
 # drives too close to obstacles; decrease if it blocks useful motion.
-local_costmap_avoid_radius: 0.30
-local_costmap_avoid_gain: 4.0
+local_costmap_avoid_radius: 0.35
+local_costmap_avoid_gain: 1.5
 # Hard obstacle repulsion radius/gain. This should stay close to robot body size
 # and is intended for near-contact avoidance.
-local_costmap_hard_radius: 0.25
-local_costmap_hard_gain: 9.0
+local_costmap_hard_radius: 0.28
+local_costmap_hard_gain: 3.0
+local_costmap_avoid_vel_max: 0.10
 local_costmap_stride: 1
 local_costmap_max_samples: 500
 # If the local costmap is older than this, obstacle avoidance is skipped.
@@ -281,7 +290,7 @@ metric_text_z: 0.8
 metric_text_size: 0.16
 metric_text_color: [1.0, 1.0, 1.0]
 metric_text_alpha: 0.95
-converge_inside_rate: 0.80
-converge_enter_rate: 0.10
+converge_inside_rate: 1.00
+converge_enter_rate: 0.90
 converge_cover_rate: 0.80
 converge_hold_time: 3.0
