@@ -116,6 +116,7 @@ shape_target_mode: reference            # negotiated | reference
 force_move_base_mode: false             # override switch logic and hand control back to move_base
 force_move_base_mode_topic: shape_assembly/force_move_base_mode
 switch_gray_threshold: 0.999         # gray < threshold -> switch to shape control
+latch_shape_control_on_switch: true # once inside target shape, keep shape control until a new task/center
 cancel_move_base_on_switch: true
 cancel_grace_period: 0.35
 stop_path_planning_on_shape_takeover: false

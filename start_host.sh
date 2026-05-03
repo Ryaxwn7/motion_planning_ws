@@ -4,8 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT_DIR}"
 
-source /opt/ros/noetic/setup.bash
-source "${ROOT_DIR}/devel/setup.bash"
+source "${ROOT_DIR}/src/ros_motion_planning/scripts/env.sh"
 
 ROSCORE_PID=""
 HOST_STACK_PID=""

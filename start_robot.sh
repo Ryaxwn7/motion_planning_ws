@@ -4,8 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT_DIR}"
 
-source /opt/ros/noetic/setup.bash
-source "${ROOT_DIR}/devel/setup.bash"
+source "${ROOT_DIR}/src/ros_motion_planning/scripts/env.sh"
 
 _config_file="${ROOT_DIR}/config/robot_start.conf"
 _ros_master_uri="${ROS_MASTER_URI:-http://127.0.0.1:11311}"

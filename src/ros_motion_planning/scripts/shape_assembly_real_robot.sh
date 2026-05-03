@@ -4,8 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WS_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
-source /opt/ros/noetic/setup.bash
-source "${WS_ROOT}/devel/setup.bash"
+source "${SCRIPT_DIR}/env.sh"
 
 LOCK_FILE="/tmp/shape_assembly_real_robot.lock"
 MAP_PID=""

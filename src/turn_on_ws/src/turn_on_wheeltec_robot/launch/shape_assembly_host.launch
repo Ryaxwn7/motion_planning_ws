@@ -28,6 +28,7 @@
   <arg name="auto_shape_heading_yaw_bias" default="0.02" />
   <arg name="auto_shape_heading_oob_is_obstacle" default="true" />
   <arg name="publish_center_goal_only" default="true" />
+  <arg name="publish_goal" default="true" />
   <arg name="robot_namespace_prefix" default="robot" />
   <arg name="robot_detect_topic_suffix" default="USE_YAML_SENTINEL" />
   <arg name="robot_odom_topic_suffix" default="USE_YAML_SENTINEL" />
@@ -75,6 +76,7 @@
     <arg name="auto_shape_heading_yaw_bias" value="$(arg auto_shape_heading_yaw_bias)" />
     <arg name="auto_shape_heading_oob_is_obstacle" value="$(arg auto_shape_heading_oob_is_obstacle)" />
     <arg name="publish_center_goal_only" value="$(arg publish_center_goal_only)" />
+    <arg name="publish_goal" value="$(arg publish_goal)" />
     <arg name="robot_namespace_prefix" value="$(arg robot_namespace_prefix)" />
     <arg name="robot_detect_topic_suffix" value="$(arg robot_detect_topic_suffix)" />
     <arg name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />

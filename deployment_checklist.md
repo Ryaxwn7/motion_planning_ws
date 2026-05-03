@@ -89,7 +89,7 @@
 - `shape_type:=rectangle`
 - `shape_scale:=1.0`
 - `shape_library_root:=$(find sim_env)/shape_images`
-- `staging_radius:=0.0`
+- `staging_radius:=0.0`，当前 direct-center 默认流程不依赖 staging 半径
 - `auto_shape_heading:=true`
 - `auto_shape_heading_map_topic:=/map`
 - `auto_shape_heading_angle_step_deg:=15.0`
@@ -189,7 +189,8 @@ bash src/ros_motion_planning/scripts/shape_assembly_real_robot.sh \
 说明：
 
 - 机器人运行时不会去读取主机磁盘中的 `shape_images`
-- 机器人本机计算 `staging goal` 和本机运行 `shape_assembly` 都依赖本地 shape 模型
+- 当前默认不走本机 staging 入口；机器人先导航到共享聚集中心，进入目标形状区域后由本机 `shape_assembly` 自动接管
+- 本地 shape 模型仍用于接管后的形状控制、切换判断和可视化
 
 ### 4.3 机器人侧核心文件
 
@@ -219,7 +220,7 @@ bash src/ros_motion_planning/scripts/shape_assembly_real_robot.sh \
 
 - `real_simaligned` 默认使用 `use_center_as_goal:=true`
 - 这表示机器人先直接导航到共享聚集中心
-- 如果你希望机器人先导航到本机 `staging goal`，再临时改回 `false`
+- 不把“先导航到形状入口/staging goal”作为默认或推荐流程
 
 #### `formation_robot` 相关参数
 
@@ -288,7 +289,7 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
   use_center_as_goal:=true
 ```
 
-如果你要切回“先去 staging goal 再切换编队”的模式：
+旧版 staging 入口模式仅作为兼容调试选项保留，不是当前推荐流程：
 
 ```bash
 roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
@@ -446,7 +447,7 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch \
 - `auto_shape_heading:=true` 能先利用主机自动适配可用空间
 - `use_center_as_goal:=true` 更接近当前 `real_simaligned` 和 `simtest` 的默认行为
 
-如果你现场更希望“先去 staging 再编队”，再临时改成：
+旧版 staging 入口模式只作为兼容调试选项保留，不是当前推荐流程：
 
 - `use_center_as_goal:=false`
 
@@ -662,7 +663,7 @@ rostopic echo /shape_assembly/task
 看 `robot1` 的本机状态：
 
 ```bash
-rostopic echo /robot1/shape_assembly/staging_goal
+rostopic echo /robot1/shape_assembly/staging_goal  # 兼容话题名；默认内容是共享聚集中心
 rostopic echo /robot1/shape_assembly/status
 ```
 
@@ -672,8 +673,8 @@ rostopic echo /robot1/shape_assembly/status
 - `fm2_gather` 结合当前地图和机器人位姿自动计算聚集中心
 - 主机自动选择 `shape_heading`
 - 主机发布 `/shape_assembly/task`
-- 每台机器人本机 `move_base` 导航到自己的 `staging goal`
-- 机器人靠近目标区域后，本机 `shape_assembly` 接管
+- 每台机器人 `move_base` 导航到同一个共享聚集中心
+- 机器人进入目标形状区域后，本机 `shape_assembly` 自动接管
 - 多机器人分布式完成最终队形形成
 
 ### 11.8 结束实验
@@ -687,7 +688,7 @@ rostopic echo /robot1/shape_assembly/status
 
 ### 11.9 可选对照实验
 
-如果你要测试“直接导航到聚集中心”模式，把机器人侧启动参数改成：
+当前默认和推荐模式就是“直接导航到聚集中心”：
 
 - `use_center_as_goal:=true`
 

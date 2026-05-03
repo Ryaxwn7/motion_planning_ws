@@ -102,6 +102,8 @@ cd /home/yxw/motion_planning_ws
 ./start_robot.sh agent_id:=2 use_center_as_goal:=true
 ```
 
+当前默认和推荐策略是 `use_center_as_goal:=true`：机器人先导航到共享聚集中心，进入目标形状区域后自动切换到 `shape_assembly` 控制。
+
 ## 5. 运行时观察
 
 主机侧建议观察：
@@ -114,7 +116,7 @@ rostopic echo /shape_assembly/task
 机器人侧建议观察，以 `robot1` 为例：
 
 ```bash
-rostopic echo /robot1/shape_assembly/staging_goal
+rostopic echo /robot1/shape_assembly/staging_goal  # 兼容话题名；默认内容是共享聚集中心
 rostopic echo /robot1/shape_assembly/status
 ```
 
@@ -157,7 +159,7 @@ rostopic pub -1 /shape_assembly/center_goal_cmd geometry_msgs/PoseStamped '{head
 ./start_robot.sh config:=/home/yxw/motion_planning_ws/config/robot_start.legacy.conf
 ```
 
-如果要切回“先去 staging goal 再切换编队”的模式，可以临时覆盖：
+旧版 staging 入口模式仅作为兼容调试选项保留，不是当前推荐流程：
 
 ```bash
 ./start_robot.sh use_center_as_goal:=false

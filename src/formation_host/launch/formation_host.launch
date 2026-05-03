@@ -30,7 +30,7 @@
   <arg name="task_topic" default="/shape_assembly/task" />
   <arg name="gather_center_topic" default="/gather_center" />
   <arg name="publish_center_goal_only" default="true" />
-  <arg name="publish_goal" default="false" />
+  <arg name="publish_goal" default="true" />
   <arg name="robot_namespace_prefix" default="robot" />
   <arg name="robot_detect_topic_suffix" default="USE_YAML_SENTINEL" />
   <arg name="robot_odom_topic_suffix" default="USE_YAML_SENTINEL" />

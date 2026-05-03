@@ -220,11 +220,13 @@
 
 `goal_i = goal_centre`
 
-也就是说，当前这条链是：
+也就是说，当前默认和推荐链路是：
 
 - 先用 FM2 求一个公共聚集中心
-- 所有机器人先导航到中心附近
-- 再由 shape assembly 接管形成最终队形
+- 所有机器人先导航到这个共享中心点
+- 机器人进入目标形状区域后，`shape_assembly` 自动接管并形成最终队形
+
+当前不使用“先导航到形状入口/staging goal 再切换形状控制”的流程。
 
 ### 6.2 `publish_center_goal_only = false`
 

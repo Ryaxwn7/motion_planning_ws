@@ -1438,6 +1438,7 @@ class ShapeAssemblySwarm:
             rospy.get_param("~force_move_base_mode_topic", "shape_assembly/force_move_base_mode")
         ).strip()
         self.switch_gray_threshold = float(rospy.get_param("~switch_gray_threshold", 0.999))
+        self.latch_shape_control_on_switch = bool(rospy.get_param("~latch_shape_control_on_switch", True))
         self.cancel_move_base_on_switch = bool(rospy.get_param("~cancel_move_base_on_switch", True))
         self.cancel_grace_period = max(0.0, float(rospy.get_param("~cancel_grace_period", 0.0)))
         self.stop_path_planning_on_shape_takeover = bool(
@@ -1785,6 +1786,9 @@ class ShapeAssemblySwarm:
         self.velocity_scale = max(0.0, float(config.velocity_scale))
         self.force_move_base_mode = bool(config.force_move_base_mode)
         self.switch_gray_threshold = max(0.0, min(1.0, float(config.switch_gray_threshold)))
+        self.latch_shape_control_on_switch = bool(
+            getattr(config, "latch_shape_control_on_switch", self.latch_shape_control_on_switch)
+        )
         self.switch_use_reference_shape = bool(config.switch_use_reference_shape)
         self.switch_reference_radius_enable = bool(config.switch_reference_radius_enable)
         self.switch_reference_radius_margin = max(0.0, float(config.switch_reference_radius_margin))
@@ -1907,6 +1911,7 @@ class ShapeAssemblySwarm:
         changed_shape = False
         next_shape_type = str(msg.shape_type).strip()
         next_shape_scale = max(1.0e-3, float(msg.shape_scale))
+        task_changed = int(msg.task_id) != int(self.active_task_id)
         if next_shape_type and next_shape_type != self.shape_type:
             self.shape_type = next_shape_type
             changed_shape = True
@@ -1930,6 +1935,8 @@ class ShapeAssemblySwarm:
 
         self._converged_since = -1.0
         self._converged_reported = False
+        if task_changed:
+            self._reset_shape_control_switch("new task")
         self.marker_needs_clear = True
         rospy.loginfo(
             "ShapeAssembly: task=%d center=(%.2f, %.2f) shape=%s scale=%.2f heading=%.1fdeg",
@@ -1940,6 +1947,19 @@ class ShapeAssemblySwarm:
             self.shape_scale,
             math.degrees(self.reference_heading),
         )
+
+    def _reset_shape_control_switch(self, reason: str) -> None:
+        n = max(0, int(self.sim_param.swarm_size))
+        if n <= 0:
+            self.shape_ctrl_active = []
+            self.shape_ctrl_hold_until = []
+            return
+        had_active = any(self.shape_ctrl_active) if len(self.shape_ctrl_active) == n else False
+        self.shape_ctrl_active = [False] * n
+        self.shape_ctrl_hold_until = [0.0] * n
+        if had_active:
+            rospy.loginfo("ShapeAssembly: reset shape-control latch on %s.", reason)
+        self._update_takeover_state_param(self.shape_ctrl_active)
 
     def _topic_type_map(self) -> Dict[str, str]:
         result: Dict[str, str] = {}
@@ -2707,6 +2727,7 @@ class ShapeAssemblySwarm:
         )
 
     def _reference_center_cb(self, msg: PoseStamped) -> None:
+        prev_center = list(self.reference_center) if self.reference_center and len(self.reference_center) >= 2 else None
         self.reference_center_received = True
         self.reference_center = [float(msg.pose.position.x), float(msg.pose.position.y)]
         if self.reference_center_use_topic_heading:
@@ -2719,6 +2740,11 @@ class ShapeAssemblySwarm:
                 self.refer_state.head = self.reference_heading
         self._converged_since = -1.0
         self._converged_reported = False
+        if (
+            prev_center is None
+            or math.hypot(prev_center[0] - self.reference_center[0], prev_center[1] - self.reference_center[1]) > 1.0e-4
+        ):
+            self._reset_shape_control_switch("reference center update")
         self.marker_needs_clear = True
 
     def _build_reference_target_state(self, base_state: ShapeState) -> ShapeState:
@@ -2844,6 +2870,10 @@ class ShapeAssemblySwarm:
         switched_reasons: List[str] = []
         released_reasons: List[str] = []
         for i in range(n):
+            if self.latch_shape_control_on_switch and self.shape_ctrl_active[i]:
+                # Direct-center mode cancels move_base when shape control takes over.
+                # Keep the takeover sticky until a new task/center or force_move_base resets it.
+                continue
             gray_trigger = self.switch_gray_values[i] < threshold
             radius_trigger = False
             if (

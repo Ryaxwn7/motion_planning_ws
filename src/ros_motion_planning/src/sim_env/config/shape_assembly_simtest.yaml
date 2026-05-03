@@ -110,6 +110,7 @@ random_seed: 1
 control_strategy: move_base_then_shape  # shape_only | move_base_then_shape
 shape_target_mode: reference            # negotiated | reference
 switch_gray_threshold: 0.8         # gray < threshold -> switch to shape control
+latch_shape_control_on_switch: true # once inside target shape, keep shape control until a new task/center
 cancel_move_base_on_switch: true
 stop_path_planning_on_shape_takeover: false
 switch_use_reference_shape: true     # switch judged in reference shape frame

@@ -244,12 +244,23 @@ class RosInterface:
 
         self.current_ids = target_ids
 
-    def publish_gather_signal(self) -> bool:
+    def publish_gather_signal(self, repeat: int = 3, rate_hz: float = 5.0, wait_connections: float = 2.0) -> bool:
         if not self.ensure_node():
             return False
         msg = UInt8()
         msg.data = 2
-        self.gather_pub.publish(msg)
+        deadline = time.time() + max(0.0, float(wait_connections))
+        while self.gather_pub.get_num_connections() <= 0 and time.time() < deadline and not rospy.is_shutdown():
+            rospy.sleep(0.05)
+
+        repeat_count = max(1, int(repeat))
+        delay = 1.0 / max(0.1, float(rate_hz))
+        for idx in range(repeat_count):
+            if rospy.is_shutdown():
+                return False
+            self.gather_pub.publish(msg)
+            if idx + 1 < repeat_count:
+                rospy.sleep(delay)
         return True
 
     def apply_shape_params(self, shape_type: str, shape_scale: float) -> bool:
@@ -380,7 +391,7 @@ class HostControlUI:
 
         ttk.Button(button_frame, text="Start Host", command=self._start_host).grid(row=0, column=0, sticky="ew", padx=4)
         ttk.Button(button_frame, text="Stop Host", command=self._stop_host).grid(row=0, column=1, sticky="ew", padx=4)
-        ttk.Button(button_frame, text="Apply Shape", command=self._apply_shape).grid(row=0, column=2, sticky="ew", padx=4)
+        ttk.Button(button_frame, text="Publish Shape", command=self._apply_shape).grid(row=0, column=2, sticky="ew", padx=4)
         ttk.Button(button_frame, text="Send Gather=2", command=self._send_gather_signal).grid(row=0, column=3, sticky="ew", padx=4)
         ttk.Button(button_frame, text="Refresh Monitors", command=self._refresh_monitor_ids).grid(row=0, column=4, sticky="ew", padx=4)
         ttk.Button(button_frame, text="Force MoveBase ON", command=self._force_move_base_on).grid(row=0, column=5, sticky="ew", padx=4)
@@ -523,6 +534,7 @@ class HostControlUI:
             robot_ids_arg(robot_ids),
             f"shape_type:={self.shape_type_var.get().strip()}",
             f"shape_scale:={shape_scale}",
+            "publish_goal:=true",
         ]
         merged_host_args = merge_launch_args(base_args, override_args)
 
@@ -561,17 +573,35 @@ class HostControlUI:
         if not self.ros.apply_shape_params(self.shape_type_var.get(), shape_scale):
             messagebox.showwarning("ROS Offline", "ROS master or shape_task_supervisor is not ready.")
             return
+        if not self.ros.publish_gather_signal():
+            messagebox.showwarning("ROS Offline", "ROS master is not ready. Cannot publish /gather_signal.")
+            return
         self._append_log(
             "[ui] Applied shape params: type={} scale={:.3f}\n".format(
                 self.shape_type_var.get().strip(),
                 shape_scale,
             )
         )
+        self._append_log("[ui] Published /gather_signal = 2 (shape publish)\n")
 
     def _send_gather_signal(self) -> None:
+        try:
+            shape_scale = float(self.shape_scale_var.get())
+        except ValueError as exc:
+            messagebox.showerror("Invalid Shape Scale", str(exc))
+            return
+        if not self.ros.apply_shape_params(self.shape_type_var.get(), shape_scale):
+            messagebox.showwarning("ROS Offline", "ROS master or shape_task_supervisor is not ready.")
+            return
         if not self.ros.publish_gather_signal():
             messagebox.showwarning("ROS Offline", "ROS master is not ready. Cannot publish /gather_signal.")
             return
+        self._append_log(
+            "[ui] Applied shape params: type={} scale={:.3f}\n".format(
+                self.shape_type_var.get().strip(),
+                shape_scale,
+            )
+        )
         self._append_log("[ui] Published /gather_signal = 2\n")
 
     def _set_force_move_base(self, enabled: bool) -> None:

@@ -96,6 +96,7 @@
 - `publish_combined_occupancy=true`
 - `use_center_as_goal=true`
 - `control_strategy=move_base_then_shape`
+- 默认运动流程是先导航到共享聚集中心，进入目标形状区域后自动切换到 `shape_assembly` 控制
 - `shape_target_mode=reference`
 - `switch_gray_threshold=0.8`
 - `switch_reference_radius_enable=false`
@@ -181,7 +182,7 @@ rostopic echo -n 1 /shape_assembly/task
 ```bash
 rostopic echo -n 1 /robot4/amcl_pose
 rostopic echo -n 1 /robot4/move_base/status
-rostopic echo -n 1 /robot4/shape_assembly/staging_goal
+rostopic echo -n 1 /robot4/shape_assembly/staging_goal  # 兼容话题名；默认内容是共享聚集中心
 rostopic echo -n 1 /robot4/shape_assembly/status
 ```
 
@@ -245,8 +246,8 @@ rostopic echo /robot4/shape_assembly/status
 
 影响：
 
-- 机器人先直接去聚集中心，而不是默认走 staging 点
-- 切换到 shape control 的时机更接近仿真
+- 机器人先直接去聚集中心，不走 staging 入口
+- 机器人进入目标形状区域后自动切换到 shape control
 - 队形角度和目标形状由主机统一决定
 - 机器人侧局部控制和可视化更接近 `simtest`
 
@@ -269,9 +270,10 @@ rostopic echo /robot4/shape_assembly/status
 也可以直接覆盖单个参数，例如：
 
 ```bash
-./start_robot.sh use_center_as_goal:=false
 ./start_host.sh enable_map_combine:=false
 ```
+
+`use_center_as_goal:=false` 只作为旧版 staging 入口兼容调试选项保留，不是当前推荐流程。
 
 ## 8. 常见问题定位
 
