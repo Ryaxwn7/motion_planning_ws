@@ -778,7 +778,7 @@ class HostControlUI:
             self.agent_number_var.set(str(agent_number))
         self._sync_common_host_args_from_main_fields()
 
-        cmd = self._build_start_host_command()
+        cmd = self._build_start_host_command(robot_ids, agent_number, shape_scale)
         env = os.environ.copy()
         self.host_process = subprocess.Popen(
             cmd,

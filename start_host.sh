@@ -225,7 +225,7 @@ done
 
 synchronize_agent_number_with_robot_ids
 
-source_ros_env
+source "${ROOT_DIR}/src/ros_motion_planning/scripts/env.sh"
 
 export ROS_MASTER_URI="${_ros_master_uri}"
 if [[ -n "${_ros_ip}" ]]; then
