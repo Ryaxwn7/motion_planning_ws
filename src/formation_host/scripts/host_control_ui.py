@@ -803,6 +803,7 @@ class HostControlUI:
             "publish_goal:=true",
         ]
         merged_host_args = merge_launch_args(base_args, override_args)
+
         script_args = []
         for key in SCRIPT_ARG_KEYS:
             var = self.script_arg_vars.get(key)
