@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import json
 import os
 import queue
 import re
@@ -8,16 +9,18 @@ import subprocess
 import threading
 import time
 import shlex
+import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import rosgraph
 import rospy
 import tkinter as tk
+from actionlib_msgs.msg import GoalID
 from formation_msgs.msg import RobotFormationStatus, ShapeTask
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool, UInt8
-from tkinter import messagebox, scrolledtext, ttk
+from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 try:
     from dynamic_reconfigure.client import Client as DynamicReconfigureClient
@@ -50,6 +53,26 @@ SHAPE_CHOICES = [
 CONNECTION_TIMEOUT_SEC = 3.0
 STALE_TIMEOUT_SEC = 10.0
 
+SCRIPT_ARG_DEFS: List[Tuple[str, str, str]] = [
+    ("start_roscore", "START_ROSCORE", "false"),
+    ("launch_map_server", "LAUNCH_MAP_SERVER", "true"),
+    ("auto_start_gather", "AUTO_START_GATHER", "false"),
+    ("roscore_wait", "ROSCORE_WAIT", "8.0"),
+    ("ros_master_uri", "ROS_MASTER_URI_VALUE", ""),
+    ("ros_ip", "ROS_IP_VALUE", ""),
+    ("map_file", "MAP_FILE_VALUE", ""),
+    ("start_gather_delay", "START_GATHER_DELAY", "2.0"),
+    ("start_gather_wait_started", "START_GATHER_WAIT_STARTED", "5.0"),
+    ("start_gather_wait_connections", "START_GATHER_WAIT_CONNECTIONS", "2.0"),
+    ("start_gather_repeat", "START_GATHER_REPEAT", "3"),
+    ("start_gather_rate", "START_GATHER_RATE", "5.0"),
+]
+
+SCRIPT_ARG_KEYS = [item[0] for item in SCRIPT_ARG_DEFS]
+SCRIPT_ARG_VAR_MAP = {item[1]: item[0] for item in SCRIPT_ARG_DEFS}
+SCRIPT_ARG_DEFAULTS = {item[0]: item[2] for item in SCRIPT_ARG_DEFS}
+COMMON_HOST_ARG_KEYS = ("agent_number", "robot_ids", "shape_type", "shape_scale")
+
 
 def parse_robot_ids(text: str) -> List[int]:
     values = []
@@ -68,6 +91,37 @@ def parse_robot_ids(text: str) -> List[int]:
 
 def robot_ids_arg(robot_ids: List[int]) -> str:
     return "robot_ids:=[{}]".format(",".join(str(v) for v in robot_ids))
+
+
+def launch_arg_pair(arg: str) -> Tuple[str, str]:
+    if ":=" not in arg:
+        return arg, ""
+    return arg.split(":=", 1)
+
+
+def launch_args_to_dict(args: List[str]) -> Dict[str, str]:
+    result: Dict[str, str] = {}
+    for arg in args:
+        key, value = launch_arg_pair(str(arg))
+        if key:
+            result[key] = value
+    return result
+
+
+def discover_launch_arg_defaults(launch_path: Path) -> Dict[str, str]:
+    defaults: Dict[str, str] = {}
+    if not launch_path.exists():
+        return defaults
+    try:
+        root = ET.parse(str(launch_path)).getroot()
+    except ET.ParseError:
+        return defaults
+    for node in root.findall(".//arg"):
+        name = str(node.attrib.get("name", "")).strip()
+        if not name or name in defaults:
+            continue
+        defaults[name] = str(node.attrib.get("default", ""))
+    return defaults
 
 
 def parse_host_defaults(config_path: Path) -> Dict[str, str]:
@@ -116,29 +170,19 @@ def merge_launch_args(base_args: List[str], override_args: List[str]) -> List[st
 
 
 def load_host_config_snapshot(config_path: Path, ws_root: Path) -> Dict[str, object]:
-    snapshot: Dict[str, object] = {
-        "start_roscore": "false",
-        "launch_map_server": "true",
-        "auto_start_gather": "false",
-        "roscore_wait": "8.0",
-        "ros_master_uri": "",
-        "ros_ip": "",
-        "map_file": "",
-        "host_launch_args": [],
-    }
+    snapshot: Dict[str, object] = dict(SCRIPT_ARG_DEFAULTS)
+    snapshot["host_launch_args"] = []
     if not config_path.exists():
         return snapshot
 
+    cfg_prints = []
+    for env_name in SCRIPT_ARG_VAR_MAP:
+        cfg_prints.append(f'printf \'__CFG__ {env_name}=%s\\n\' "${{{env_name}-}}"')
+    cfg_print_block = "\n".join(cfg_prints)
     command = f"""
 set -e
 source {shlex.quote(str(config_path))}
-printf '__CFG__ START_ROSCORE=%s\\n' "${{START_ROSCORE-}}"
-printf '__CFG__ LAUNCH_MAP_SERVER=%s\\n' "${{LAUNCH_MAP_SERVER-}}"
-printf '__CFG__ AUTO_START_GATHER=%s\\n' "${{AUTO_START_GATHER-}}"
-printf '__CFG__ ROSCORE_WAIT=%s\\n' "${{ROSCORE_WAIT-}}"
-printf '__CFG__ ROS_MASTER_URI_VALUE=%s\\n' "${{ROS_MASTER_URI_VALUE-}}"
-printf '__CFG__ ROS_IP_VALUE=%s\\n' "${{ROS_IP_VALUE-}}"
-printf '__CFG__ MAP_FILE_VALUE=%s\\n' "${{MAP_FILE_VALUE-}}"
+{cfg_print_block}
 for arg in "${{HOST_LAUNCH_ARGS[@]}}"; do
   printf '__ARG__ %s\\n' "$arg"
 done
@@ -152,28 +196,47 @@ done
     )
 
     host_launch_args: List[str] = []
-    mapping = {
-        "START_ROSCORE": "start_roscore",
-        "LAUNCH_MAP_SERVER": "launch_map_server",
-        "AUTO_START_GATHER": "auto_start_gather",
-        "ROSCORE_WAIT": "roscore_wait",
-        "ROS_MASTER_URI_VALUE": "ros_master_uri",
-        "ROS_IP_VALUE": "ros_ip",
-        "MAP_FILE_VALUE": "map_file",
-    }
     for raw_line in proc.stdout.splitlines():
         line = raw_line.strip()
         if line.startswith("__CFG__ "):
             payload = line[len("__CFG__ ") :]
             if "=" in payload:
                 key, value = payload.split("=", 1)
-                if key in mapping:
-                    snapshot[mapping[key]] = value
+                if key in SCRIPT_ARG_VAR_MAP:
+                    snapshot[SCRIPT_ARG_VAR_MAP[key]] = value
         elif line.startswith("__ARG__ "):
             host_launch_args.append(line[len("__ARG__ ") :])
 
     snapshot["host_launch_args"] = host_launch_args
     return snapshot
+
+
+def _bash_single_quote(value: str) -> str:
+    return "'" + str(value).replace("'", "'\"'\"'") + "'"
+
+
+def write_host_config(config_path: Path, script_values: Dict[str, str], host_launch_args: List[str]) -> None:
+    env_by_key = {key: env_name for key, env_name, _default in SCRIPT_ARG_DEFS}
+    lines = [
+        "# Host startup config for start_host.sh.",
+        "# This file is sourced by bash. Keep it shell-compatible.",
+        "",
+    ]
+    for key in SCRIPT_ARG_KEYS:
+        env_name = env_by_key[key]
+        value = str(script_values.get(key, SCRIPT_ARG_DEFAULTS.get(key, "")))
+        lines.append(f"{env_name}={_bash_single_quote(value)}")
+    lines.extend(
+        [
+            "",
+            "# All entries are forwarded to turn_on_wheeltec_robot/shape_assembly_host.launch.",
+            "HOST_LAUNCH_ARGS=(",
+        ]
+    )
+    for arg in host_launch_args:
+        lines.append(f"  {_bash_single_quote(arg)}")
+    lines.extend([")", ""])
+    config_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 class RosInterface:
@@ -185,6 +248,7 @@ class RosInterface:
         self.robot_odom_subs = {}
         self.robot_status_subs = {}
         self.robot_force_move_base_pubs = {}
+        self.robot_move_base_cancel_pubs = {}
         self.global_subs = []
 
     def ensure_node(self) -> bool:
@@ -219,6 +283,7 @@ class RosInterface:
             if sub is not None:
                 sub.unregister()
             self.robot_force_move_base_pubs.pop(rid, None)
+            self.robot_move_base_cancel_pubs.pop(rid, None)
 
         for rid in sorted(target_set - current_ids):
             self.robot_odom_subs[rid] = rospy.Subscriber(
@@ -241,6 +306,11 @@ class RosInterface:
                 queue_size=1,
                 latch=True,
             )
+            self.robot_move_base_cancel_pubs[rid] = rospy.Publisher(
+                f"/robot{rid}/move_base/cancel",
+                GoalID,
+                queue_size=1,
+            )
 
         self.current_ids = target_ids
 
@@ -262,6 +332,44 @@ class RosInterface:
             if idx + 1 < repeat_count:
                 rospy.sleep(delay)
         return True
+
+    def stop_gather_replanning(self) -> bool:
+        if not self.ensure_node():
+            return False
+        rospy.set_param("/shape_assembly/stop_path_planning", True)
+        rospy.set_param("/shape_assembly/active_robot_ids", sorted(set(self.current_ids)))
+        return True
+
+    def cancel_move_base_goals(self, robot_ids: List[int]) -> bool:
+        if not self.ensure_node():
+            return False
+        self.reconfigure_robot_subs(robot_ids)
+        cancel_msg = GoalID()
+        cancel_msg.stamp = rospy.Time(0)
+        cancel_msg.id = ""
+
+        any_success = False
+        errors = []
+        for _ in range(3):
+            for rid in sorted(set(robot_ids)):
+                pub = self.robot_move_base_cancel_pubs.get(rid)
+                if pub is None:
+                    pub = rospy.Publisher(
+                        f"/robot{rid}/move_base/cancel",
+                        GoalID,
+                        queue_size=1,
+                    )
+                    self.robot_move_base_cancel_pubs[rid] = pub
+                try:
+                    pub.publish(cancel_msg)
+                    any_success = True
+                except Exception as exc:
+                    errors.append(f"robot{rid} move_base cancel failed: {exc}")
+            time.sleep(0.05)
+
+        if errors:
+            self.app.on_force_move_base_feedback(errors)
+        return any_success
 
     def apply_shape_params(self, shape_type: str, shape_scale: float) -> bool:
         if not self.ensure_node():
@@ -304,6 +412,16 @@ class RosInterface:
             self.app.on_force_move_base_feedback(errors)
         return any_success
 
+    def enter_force_move_base_mode(self, robot_ids: List[int]) -> bool:
+        if not self.ensure_node():
+            return False
+        self.reconfigure_robot_subs(robot_ids)
+        self.stop_gather_replanning()
+        self.cancel_move_base_goals(robot_ids)
+        success = self.set_force_move_base(robot_ids, True)
+        self.stop_gather_replanning()
+        return success
+
     def _task_cb(self, msg: ShapeTask) -> None:
         self.app.on_shape_task(msg)
 
@@ -326,9 +444,22 @@ class HostControlUI:
         self.ws_root = Path(__file__).resolve().parents[3]
         self.start_host_script = self.ws_root / "start_host.sh"
         self.config_file = self.ws_root / "config" / "host_start.conf"
-        defaults = parse_host_defaults(self.config_file)
         self.config_snapshot = load_host_config_snapshot(self.config_file, self.ws_root)
         self.config_mtime: Optional[float] = self.config_file.stat().st_mtime if self.config_file.exists() else None
+        self.host_launch_path = (
+            self.ws_root
+            / "src"
+            / "turn_on_ws"
+            / "src"
+            / "turn_on_wheeltec_robot"
+            / "launch"
+            / "shape_assembly_host.launch"
+        )
+        self.launch_arg_defaults = discover_launch_arg_defaults(self.host_launch_path)
+        self.host_arg_order: List[str] = []
+        self.script_arg_vars: Dict[str, tk.StringVar] = {}
+        self.host_arg_vars: Dict[str, tk.StringVar] = {}
+        self.param_window: Optional[tk.Toplevel] = None
 
         self.host_process: Optional[subprocess.Popen] = None
         self.host_output_queue: "queue.Queue[str]" = queue.Queue()
@@ -343,10 +474,12 @@ class HostControlUI:
         self.root.title("Host Control UI")
         self.root.geometry("1180x760")
 
-        self.agent_number_var = tk.StringVar(value=defaults["agent_number"])
-        self.robot_ids_var = tk.StringVar(value=defaults["robot_ids"])
-        self.shape_type_var = tk.StringVar(value=defaults["shape_type"])
-        self.shape_scale_var = tk.StringVar(value=defaults["shape_scale"])
+        host_args = launch_args_to_dict(list(self.config_snapshot.get("host_launch_args", [])))
+        fallback_defaults = parse_host_defaults(self.config_file)
+        self.agent_number_var = tk.StringVar(value=host_args.get("agent_number", fallback_defaults["agent_number"]))
+        self.robot_ids_var = tk.StringVar(value=host_args.get("robot_ids", fallback_defaults["robot_ids"]))
+        self.shape_type_var = tk.StringVar(value=host_args.get("shape_type", fallback_defaults["shape_type"]))
+        self.shape_scale_var = tk.StringVar(value=host_args.get("shape_scale", fallback_defaults["shape_scale"]))
         self.master_status_var = tk.StringVar(value="ROS master: offline")
         self.host_status_var = tk.StringVar(value="Host process: idle")
         self.gather_status_var = tk.StringVar(value="Gather: unknown")
@@ -354,10 +487,74 @@ class HostControlUI:
         self.config_status_var = tk.StringVar(value="Config: loaded")
         self.force_move_base_status_var = tk.StringVar(value="Force MoveBase: unknown")
         self.last_force_move_base: Optional[bool] = None
+        self._init_param_vars_from_snapshot(self.config_snapshot)
 
         self._build_ui()
         self._sync_agent_number_from_ids()
         self._schedule_tick()
+
+    def _init_param_vars_from_snapshot(self, snapshot: Dict[str, object]) -> None:
+        for key in SCRIPT_ARG_KEYS:
+            value = str(snapshot.get(key, SCRIPT_ARG_DEFAULTS.get(key, "")) or "")
+            self.script_arg_vars[key] = tk.StringVar(value=value)
+
+        arg_values = dict(self.launch_arg_defaults)
+        arg_values.update(launch_args_to_dict(list(snapshot.get("host_launch_args", []))))
+        arg_values["agent_number"] = self.agent_number_var.get()
+        arg_values["robot_ids"] = self.robot_ids_var.get()
+        arg_values["shape_type"] = self.shape_type_var.get()
+        arg_values["shape_scale"] = self.shape_scale_var.get()
+
+        ordered = list(self.launch_arg_defaults.keys())
+        for key in list(arg_values.keys()):
+            if key not in ordered:
+                ordered.append(key)
+        self.host_arg_order = ordered
+
+        self.host_arg_vars.clear()
+        for key in ordered:
+            if key == "agent_number":
+                self.host_arg_vars[key] = self.agent_number_var
+            elif key == "robot_ids":
+                self.host_arg_vars[key] = self.robot_ids_var
+            elif key == "shape_type":
+                self.host_arg_vars[key] = self.shape_type_var
+            elif key == "shape_scale":
+                self.host_arg_vars[key] = self.shape_scale_var
+            else:
+                self.host_arg_vars[key] = tk.StringVar(value=str(arg_values.get(key, "")))
+
+    def _sync_common_host_args_from_main_fields(self) -> None:
+        if "agent_number" in self.host_arg_vars:
+            self.host_arg_vars["agent_number"].set(self.agent_number_var.get().strip())
+        if "robot_ids" in self.host_arg_vars:
+            self.host_arg_vars["robot_ids"].set(self.robot_ids_var.get().strip())
+        if "shape_type" in self.host_arg_vars:
+            self.host_arg_vars["shape_type"].set(self.shape_type_var.get().strip())
+        if "shape_scale" in self.host_arg_vars:
+            self.host_arg_vars["shape_scale"].set(self.shape_scale_var.get().strip())
+
+    def _script_args_from_vars(self) -> Dict[str, str]:
+        return {key: var.get().strip() for key, var in self.script_arg_vars.items()}
+
+    def _host_launch_args_from_vars(self, include_empty: bool = False) -> List[str]:
+        self._sync_common_host_args_from_main_fields()
+        args = []
+        for key in self.host_arg_order:
+            var = self.host_arg_vars.get(key)
+            if var is None:
+                continue
+            value = var.get().strip()
+            if not include_empty and value == "":
+                continue
+            args.append(f"{key}:={value}")
+        return args
+
+    def _profile_data(self) -> Dict[str, object]:
+        return {
+            "script_args": self._script_args_from_vars(),
+            "host_launch_args": launch_args_to_dict(self._host_launch_args_from_vars(include_empty=True)),
+        }
 
     def _build_ui(self) -> None:
         self.root.columnconfigure(0, weight=1)
@@ -386,7 +583,7 @@ class HostControlUI:
 
         button_frame = ttk.Frame(config_frame)
         button_frame.grid(row=1, column=0, columnspan=8, sticky="ew", padx=8, pady=(0, 8))
-        for idx in range(7):
+        for idx in range(8):
             button_frame.columnconfigure(idx, weight=1)
 
         ttk.Button(button_frame, text="Start Host", command=self._start_host).grid(row=0, column=0, sticky="ew", padx=4)
@@ -396,7 +593,11 @@ class HostControlUI:
         ttk.Button(button_frame, text="Refresh Monitors", command=self._refresh_monitor_ids).grid(row=0, column=4, sticky="ew", padx=4)
         ttk.Button(button_frame, text="Force MoveBase ON", command=self._force_move_base_on).grid(row=0, column=5, sticky="ew", padx=4)
         ttk.Button(button_frame, text="Force MoveBase OFF", command=self._force_move_base_off).grid(row=0, column=6, sticky="ew", padx=4)
-        ttk.Button(button_frame, text="Hot Reload Config", command=self._hot_reload_config).grid(row=1, column=0, columnspan=7, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(button_frame, text="Parameters", command=self._open_param_editor).grid(row=0, column=7, sticky="ew", padx=4)
+        ttk.Button(button_frame, text="Hot Reload Config", command=self._hot_reload_config).grid(row=1, column=0, columnspan=2, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(button_frame, text="Load Profile", command=self._load_profile).grid(row=1, column=2, columnspan=2, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(button_frame, text="Save Profile", command=self._save_profile).grid(row=1, column=4, columnspan=2, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(button_frame, text="Save host_start.conf", command=self._save_host_start_config).grid(row=1, column=6, columnspan=2, sticky="ew", padx=4, pady=(6, 0))
 
         summary_frame = ttk.LabelFrame(self.root, text="Host Summary")
         summary_frame.grid(row=1, column=0, sticky="nsew", padx=12, pady=6)
@@ -444,6 +645,70 @@ class HostControlUI:
         log_frame.rowconfigure(0, weight=1)
         self.log_text = scrolledtext.ScrolledText(log_frame, wrap="word", height=12, state="disabled")
         self.log_text.grid(row=0, column=0, sticky="nsew")
+
+    def _make_scrollable_tab(self, notebook: ttk.Notebook, title: str) -> ttk.Frame:
+        outer = ttk.Frame(notebook)
+        outer.columnconfigure(0, weight=1)
+        outer.rowconfigure(0, weight=1)
+        canvas = tk.Canvas(outer, borderwidth=0, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        inner = ttk.Frame(canvas)
+        inner.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
+        window_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(window_id, width=event.width))
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        notebook.add(outer, text=title)
+        return inner
+
+    def _populate_param_rows(self, parent: ttk.Frame, keys: List[str], vars_by_key: Dict[str, tk.StringVar]) -> None:
+        parent.columnconfigure(1, weight=1)
+        parent.columnconfigure(2, weight=1)
+        ttk.Label(parent, text="Parameter").grid(row=0, column=0, sticky="w", padx=8, pady=(8, 4))
+        ttk.Label(parent, text="Value").grid(row=0, column=1, sticky="ew", padx=8, pady=(8, 4))
+        ttk.Label(parent, text="Default").grid(row=0, column=2, sticky="ew", padx=8, pady=(8, 4))
+        for row, key in enumerate(keys, start=1):
+            var = vars_by_key.get(key)
+            if var is None:
+                continue
+            ttk.Label(parent, text=key).grid(row=row, column=0, sticky="w", padx=8, pady=3)
+            ttk.Entry(parent, textvariable=var).grid(row=row, column=1, sticky="ew", padx=8, pady=3)
+            default = SCRIPT_ARG_DEFAULTS.get(key, self.launch_arg_defaults.get(key, ""))
+            ttk.Label(parent, text=default).grid(row=row, column=2, sticky="ew", padx=8, pady=3)
+
+    def _open_param_editor(self) -> None:
+        if self.param_window is not None and self.param_window.winfo_exists():
+            self.param_window.lift()
+            self.param_window.focus_force()
+            return
+
+        window = tk.Toplevel(self.root)
+        window.title("Host Parameters")
+        window.geometry("980x720")
+        window.columnconfigure(0, weight=1)
+        window.rowconfigure(0, weight=1)
+        self.param_window = window
+        window.protocol("WM_DELETE_WINDOW", lambda: (setattr(self, "param_window", None), window.destroy()))
+
+        notebook = ttk.Notebook(window)
+        notebook.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+        script_tab = self._make_scrollable_tab(notebook, "Start Script")
+        self._populate_param_rows(script_tab, SCRIPT_ARG_KEYS, self.script_arg_vars)
+
+        launch_tab = self._make_scrollable_tab(notebook, "Gather Launch")
+        self._populate_param_rows(launch_tab, self.host_arg_order, self.host_arg_vars)
+
+        action_frame = ttk.Frame(window)
+        action_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
+        for idx in range(5):
+            action_frame.columnconfigure(idx, weight=1)
+        ttk.Button(action_frame, text="Load Profile", command=self._load_profile).grid(row=0, column=0, sticky="ew", padx=4)
+        ttk.Button(action_frame, text="Save Profile", command=self._save_profile).grid(row=0, column=1, sticky="ew", padx=4)
+        ttk.Button(action_frame, text="Save host_start.conf", command=self._save_host_start_config).grid(row=0, column=2, sticky="ew", padx=4)
+        ttk.Button(action_frame, text="Reload host_start.conf", command=self._reload_config_snapshot).grid(row=0, column=3, sticky="ew", padx=4)
+        ttk.Button(action_frame, text="Close", command=window.destroy).grid(row=0, column=4, sticky="ew", padx=4)
 
     def _schedule_tick(self) -> None:
         self._tick()
@@ -511,8 +776,9 @@ class HostControlUI:
         if agent_number != len(robot_ids):
             agent_number = len(robot_ids)
             self.agent_number_var.set(str(agent_number))
+        self._sync_common_host_args_from_main_fields()
 
-        cmd = self._build_start_host_command(robot_ids, agent_number, shape_scale)
+        cmd = self._build_start_host_command()
         env = os.environ.copy()
         self.host_process = subprocess.Popen(
             cmd,
@@ -537,23 +803,14 @@ class HostControlUI:
             "publish_goal:=true",
         ]
         merged_host_args = merge_launch_args(base_args, override_args)
-
         script_args = []
-        mapping = [
-            ("start_roscore", "start_roscore"),
-            ("launch_map_server", "launch_map_server"),
-            ("auto_start_gather", "auto_start_gather"),
-            ("roscore_wait", "roscore_wait"),
-            ("ros_master_uri", "ros_master_uri"),
-            ("ros_ip", "ros_ip"),
-            ("map_file", "map_file"),
-        ]
-        for snapshot_key, script_key in mapping:
-            value = str(self.config_snapshot.get(snapshot_key, "") or "").strip()
+        for key in SCRIPT_ARG_KEYS:
+            var = self.script_arg_vars.get(key)
+            value = var.get().strip() if var is not None else ""
             if value:
-                script_args.append(f"{script_key}:={value}")
+                script_args.append(f"{key}:={value}")
 
-        return [str(self.start_host_script)] + script_args + merged_host_args
+        return [str(self.start_host_script)] + script_args + self._host_launch_args_from_vars()
 
     def _stop_host(self) -> None:
         if self.host_process is None or self.host_process.poll() is not None:
@@ -597,19 +854,31 @@ class HostControlUI:
             messagebox.showwarning("ROS Offline", "ROS master is not ready. Cannot publish /gather_signal.")
             return
         self._append_log(
+<<<<<<< HEAD
             "[ui] Applied shape params: type={} scale={:.3f}\n".format(
+=======
+            "[ui] Applied shape params type={} scale={:.3f}, then published /gather_signal = 2\n".format(
+>>>>>>> 31e375cec32ae20e4a4a87e2c32737c198ee201a
                 self.shape_type_var.get().strip(),
                 shape_scale,
             )
         )
+<<<<<<< HEAD
         self._append_log("[ui] Published /gather_signal = 2\n")
+=======
+>>>>>>> 31e375cec32ae20e4a4a87e2c32737c198ee201a
 
     def _set_force_move_base(self, enabled: bool) -> None:
         robot_ids = self.get_configured_robot_ids()
         if not robot_ids:
             messagebox.showwarning("No Robots", "Configured robot_ids is empty or invalid.")
             return
-        if not self.ros.set_force_move_base(robot_ids, enabled):
+        if enabled:
+            success = self.ros.enter_force_move_base_mode(robot_ids)
+        else:
+            success = self.ros.set_force_move_base(robot_ids, enabled)
+
+        if not success:
             messagebox.showwarning(
                 "ROS Offline",
                 "ROS master is not ready or shape_assembly_swarm dynamic_reconfigure is unavailable.",
@@ -618,7 +887,14 @@ class HostControlUI:
         self.last_force_move_base = bool(enabled)
         state = "ON" if enabled else "OFF"
         self.force_move_base_status_var.set(f"Force MoveBase: {state}")
-        self._append_log("[ui] Set force_move_base_mode={} for robots {}\n".format(str(enabled).lower(), robot_ids))
+        if enabled:
+            self._append_log(
+                "[ui] Stopped gather replanning, cancelled move_base goals, then set force_move_base_mode=true for robots {}\n".format(
+                    robot_ids
+                )
+            )
+        else:
+            self._append_log("[ui] Set force_move_base_mode=false for robots {}\n".format(robot_ids))
 
     def _force_move_base_on(self) -> None:
         self._set_force_move_base(True)
@@ -626,14 +902,90 @@ class HostControlUI:
     def _force_move_base_off(self) -> None:
         self._set_force_move_base(False)
 
+    def _apply_profile_data(self, data: Dict[str, object]) -> None:
+        script_args = data.get("script_args", {})
+        if isinstance(script_args, dict):
+            for key, value in script_args.items():
+                if key not in self.script_arg_vars:
+                    self.script_arg_vars[key] = tk.StringVar(value="")
+                self.script_arg_vars[key].set(str(value))
+
+        host_args = data.get("host_launch_args", {})
+        if isinstance(host_args, list):
+            host_args = launch_args_to_dict([str(item) for item in host_args])
+        if isinstance(host_args, dict):
+            for key, value in host_args.items():
+                if key not in self.host_arg_order:
+                    self.host_arg_order.append(str(key))
+                if key not in self.host_arg_vars:
+                    self.host_arg_vars[str(key)] = tk.StringVar(value="")
+                self.host_arg_vars[str(key)].set(str(value))
+
+        self._sync_agent_number_from_ids()
+        self._sync_common_host_args_from_main_fields()
+        self._refresh_monitor_ids()
+
+    def _load_profile(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Load host parameter profile",
+            initialdir=str(self.ws_root / "config"),
+            filetypes=[("JSON profiles", "*.json"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("profile root must be a JSON object")
+            self._apply_profile_data(data)
+        except Exception as exc:
+            messagebox.showerror("Load Profile Failed", str(exc))
+            return
+        self._append_log("[ui] Loaded parameter profile: {}\n".format(path))
+
+    def _save_profile(self) -> None:
+        path = filedialog.asksaveasfilename(
+            title="Save host parameter profile",
+            initialdir=str(self.ws_root / "config"),
+            defaultextension=".json",
+            filetypes=[("JSON profiles", "*.json"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            Path(path).write_text(json.dumps(self._profile_data(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        except Exception as exc:
+            messagebox.showerror("Save Profile Failed", str(exc))
+            return
+        self._append_log("[ui] Saved parameter profile: {}\n".format(path))
+
+    def _save_host_start_config(self) -> None:
+        try:
+            write_host_config(
+                self.config_file,
+                self._script_args_from_vars(),
+                self._host_launch_args_from_vars(include_empty=False),
+            )
+            self.config_snapshot = load_host_config_snapshot(self.config_file, self.ws_root)
+            self.config_mtime = self.config_file.stat().st_mtime if self.config_file.exists() else None
+        except Exception as exc:
+            messagebox.showerror("Save Config Failed", str(exc))
+            return
+        self._append_log("[ui] Saved active parameters to {}\n".format(self.config_file))
+
     def _reload_config_snapshot(self) -> None:
         self.config_snapshot = load_host_config_snapshot(self.config_file, self.ws_root)
         self.config_mtime = self.config_file.stat().st_mtime if self.config_file.exists() else None
-        defaults = parse_host_defaults(self.config_file)
-        self.agent_number_var.set(defaults["agent_number"])
-        self.robot_ids_var.set(defaults["robot_ids"])
-        self.shape_type_var.set(defaults["shape_type"])
-        self.shape_scale_var.set(defaults["shape_scale"])
+        host_args = launch_args_to_dict(list(self.config_snapshot.get("host_launch_args", [])))
+        fallback_defaults = parse_host_defaults(self.config_file)
+        self.agent_number_var.set(host_args.get("agent_number", fallback_defaults["agent_number"]))
+        self.robot_ids_var.set(host_args.get("robot_ids", fallback_defaults["robot_ids"]))
+        self.shape_type_var.set(host_args.get("shape_type", fallback_defaults["shape_type"]))
+        self.shape_scale_var.set(host_args.get("shape_scale", fallback_defaults["shape_scale"]))
+        self._init_param_vars_from_snapshot(self.config_snapshot)
+        if self.param_window is not None and self.param_window.winfo_exists():
+            self.param_window.destroy()
+            self.param_window = None
         self._sync_agent_number_from_ids()
         self._refresh_monitor_ids()
         self._append_log("[ui] Reloaded config from {}\n".format(self.config_file))

@@ -48,49 +48,109 @@ robot_detect_timeout: 8.0
 num_robots: 4
 
 # Control timing
+# control_hz is the shape controller loop frequency. Higher values make commands
+# update faster but increase CPU/network load. Keep all robots consistent.
 control_hz: 10.0
+# Leave control_dt/sim_dt at 0 when control_hz is used.
 control_dt: 0.0
 sim_dt: 0.0
 
 # Swarm parameters
+# r_body is the physical body radius used for collision checks.
 r_body: 0.24
+# r_safe is the short-range safety radius. Increasing it makes robots separate
+# earlier; too large can prevent dense formations.
 r_safe: 0.30
-r_avoid: 0.33
+# Center-to-center distance where hard robot-robot avoidance starts. The old
+# implicit value was max(r_safe, 2*r_body)=0.48 for r_body=0.24. Keep r_avoid at
+# least this large, otherwise the target formation can ask robots to be closer
+# than the hard safety distance.
+hard_safety_dist: 0.30
+# r_avoid sets the nominal robot spacing and also affects the shape grid size.
+# Keep it above the practical center spacing needed by the real chassis;
+# otherwise rectangle targets can be too tight for every robot to enter.
+r_avoid: 0.40
+# r_sense is neighbor sensing/interaction range. Too small can fragment the
+# swarm; too large can make distant robots influence each other unnecessarily.
 r_sense: 1.5
-vel_max: 0.3
+# Max published linear speed after all shaping. Raise only if the chassis and
+# localization remain stable.
+vel_max: 0.30
+# Fraction of robots that track the reference shape center/heading directly.
+# 1.0 makes all robots informed, usually more predictable for real robots.
 leader_fraction: 1.0
 
 # Negotiation gains
+# Shape-center consensus/tracking gains. Increase tracking if the negotiated
+# shape center lags the reference; decrease if the whole group oscillates.
 kappa_conse_pos: 1.6
 kappa_track_pos: 3.0
+# Heading consensus/tracking gains. kappa_track_head is the yaw P gain used by
+# the published angular command; lower it if yaw overshoots or shakes.
 kappa_conse_head: 1.6
-kappa_track_head: 1.0
+kappa_track_head: 0.6
+# Nonlinear exponent for consensus. Lower values make small errors stronger;
+# higher values make small errors softer.
 alpha: 0.8
-hvel_max: 1.57079632679
+# Max angular speed. Lower this if yaw alignment overshoots.
+hvel_max: 0.8
 
 # Enter / explore / interact gains
-kappa_enter: 4.0
-kappa_explore_1: 1.0
+# Enter gain pulls a robot from gray/white cells toward darker shape cells.
+# Increase if robots near the shape boundary receive too-small inward velocity.
+kappa_enter: 6.0
+# Exploration gains move robots inside the shape toward uncovered dark cells.
+# Increase if coverage is slow; decrease if robots wander or churn inside.
+kappa_explore_1: 3.0
 kappa_explore_2: 3.0
-kappa_avoid: 5.0
-kappa_hard_avoid: 5.0
+# Robot-robot avoidance gains and caps. The caps prevent avoidance from
+# instantly driving the published command to vel_max.
+kappa_avoid: 2.5
+kappa_hard_avoid: 3.0
+avoid_vel_max: 0.12
+hard_avoid_vel_max: 0.10
+# Velocity-consensus damping between neighbors. Increase to reduce relative
+# velocity; too high can make motion sluggish.
 kappa_consensus: 1.2
 
 # Output shaping
-cmd_smooth_ratio: 0.32
-cmd_smooth_use_odom: true
-cmd_scale: 0.5
-cmd_deadzone: 0.01
+# Linear command smoothing. With cmd_smooth_use_odom=false, this blends new
+# commands with previous commands. Higher ratio follows new commands faster.
+cmd_smooth_ratio: 0.3
+# false avoids using zero odometry feedback to suppress commands when a real
+# robot is stuck. Keep false for low-speed real-chassis tests.
+cmd_smooth_use_odom: false
+# Multiplies final linear command before deadzone/clamp. Increase if all shape
+# commands are too weak; reduce if motion is too aggressive.
+cmd_scale: 0.6
+# Soft deadzone subtracts this speed from the command magnitude. Increasing it
+# suppresses tiny commands; set near 0 if real robots fail to start moving.
+cmd_deadzone: 0.0
 yaw_correction_enabled: true
-yaw_tolerance: 0.05
-yaw_linear_slowdown_start: 0.35
-yaw_linear_stop_threshold: 0.80
-shape_vel_max: 0.5
+# Yaw error tolerance. Larger tolerance stops yaw correction earlier and reduces
+# small-angle chatter; too large leaves visible heading error.
+yaw_tolerance: 0.08
+# Linear speed starts reducing above this yaw error and becomes zero at
+# yaw_linear_stop_threshold. Raise slowdown_start to avoid over-restricting
+# translation during mild heading error.
+yaw_linear_slowdown_start: 0.20
+yaw_linear_stop_threshold: 0.90
+# Damping on measured yaw rate. Increase if yaw overshoots; decrease if yaw
+# response becomes slow or noisy odometry makes angular command jitter.
+yaw_rate_damping: 1.0
+# Angular command smoothing. Lower values reduce lag and overshoot; higher values
+# smooth noise but can carry angular velocity past the target.
+yaw_cmd_smooth_ratio: 0.2
+# Angular command deadzone. Too large causes on/off shaking near target; too
+# small may command constant tiny rotations.
+yaw_cmd_deadzone: 0.02
+# Limit for internal shape-stage velocity before final vel_max clamp.
+shape_vel_max: 0.30
 
 # Shape source
 shape_source: mat
 shape_type: rectangle
-shape_scale: 1.0
+shape_scale: 1.15
 shape_resolution: 80
 ring_inner_ratio: 0.25
 ring_outer_ratio: 0.4
@@ -101,24 +161,38 @@ formation_task_topic: /shape_assembly/task
 robot_status_topic: shape_assembly/status
 
 # Reference shape / switching
+# Runtime task messages overwrite reference_center/reference_heading. These
+# defaults matter only before a task/gather center is received.
 reference_center: [0.0, 0.0]
 reference_heading: 0.0
 reference_center_topic: /gather_center
 reference_center_wait: true
 reference_center_use_topic_heading: false
+# robot initializes each local shape center from the current robot positions;
+# reference initializes all centers from the gather center.
 init_center_mode: robot
 init_center_use_reference_only: false
 random_seed: 1
+# move_base_then_shape lets move_base drive to staging/entry, then shape control
+# takes over per robot. shape_only bypasses move_base after startup.
 control_strategy: move_base_then_shape
+# reference makes every robot use the shared target shape for entering/filling.
 shape_target_mode: reference
+# Set true from dynamic_reconfigure to temporarily return robots to move_base.
 force_move_base_mode: false
 force_move_base_mode_topic: shape_assembly/force_move_base_mode
+# Robot switches to shape control when its shape gray value is below this
+# threshold. Lower value switches deeper inside; higher switches earlier.
 switch_gray_threshold: 0.95
 latch_shape_control_on_switch: true
 cancel_move_base_on_switch: true
+# After switch, publish zero velocity for this many seconds to let move_base
+# cancel cleanly. Too long creates a pause; too short can cause command conflict.
 cancel_grace_period: 0.35
 stop_path_planning_on_shape_takeover: false
 switch_use_reference_shape: true
+# Radius switching is disabled here; enabling it can switch robots before they
+# enter a valid shape cell if they are near the reference center.
 switch_reference_radius_enable: false
 switch_reference_radius_margin: 0.25
 switch_reference_radius_min: 0.0
@@ -127,26 +201,41 @@ switch_reference_radius_min: 0.0
 use_local_costmap_avoid: true
 local_costmap_topic_suffix: move_base/local_costmap/costmap
 local_costmap_obstacle_threshold: 80
+# false means unknown local costmap cells are ignored by this extra avoidance
+# layer. Set true only if unknown space should be treated as blocked.
 local_costmap_unknown_is_obstacle: false
-local_costmap_avoid_radius: 0.30
-local_costmap_avoid_gain: 4.0
-local_costmap_hard_radius: 0.25
-local_costmap_hard_gain: 9.0
+# Soft obstacle repulsion radius/gain. Increase gain/radius if shape control
+# drives too close to obstacles; decrease if it blocks useful motion.
+local_costmap_avoid_radius: 0.35
+local_costmap_avoid_gain: 1.5
+# Hard obstacle repulsion radius/gain. This should stay close to robot body size
+# and is intended for near-contact avoidance.
+local_costmap_hard_radius: 0.28
+local_costmap_hard_gain: 3.0
+local_costmap_avoid_vel_max: 0.10
 local_costmap_stride: 1
 local_costmap_max_samples: 500
+# If the local costmap is older than this, obstacle avoidance is skipped.
 local_costmap_timeout: 1.0
+# Ignore occupied cells very near the robot footprint to avoid self-detection.
 local_costmap_self_ignore_radius: 0.20
 local_costmap_skip_on_frame_mismatch: true
 
 # Auto heading
+# Chooses a reference shape heading that reduces map-obstacle overlap.
 auto_shape_heading: true
 auto_shape_heading_map_topic: /map
+# Search resolution in degrees. Smaller is more accurate but more expensive and
+# can make heading update more frequently between nearby candidates.
 auto_shape_heading_angle_step_deg: 15.0
 auto_shape_heading_update_interval: 0.5
 auto_shape_heading_obstacle_threshold: 80
 auto_shape_heading_unknown_is_obstacle: true
 auto_shape_heading_shape_stride: 2
+# Minimum overlap improvement required before changing heading. Increase to make
+# auto heading less sensitive.
 auto_shape_heading_min_improve: 0.01
+# Bias against changing yaw too much from current heading.
 auto_shape_heading_yaw_bias: 0.02
 auto_shape_heading_oob_is_obstacle: true
 
@@ -209,7 +298,7 @@ metric_text_z: 0.8
 metric_text_size: 0.16
 metric_text_color: [1.0, 1.0, 1.0]
 metric_text_alpha: 0.95
-converge_inside_rate: 0.80
-converge_enter_rate: 0.10
+converge_inside_rate: 1.00
+converge_enter_rate: 0.90
 converge_cover_rate: 0.80
 converge_hold_time: 3.0

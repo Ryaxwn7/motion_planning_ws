@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(formation_host)
 
 find_package(catkin REQUIRED COMPONENTS
+  actionlib_msgs
   formation_msgs
   geometry_msgs
   nav_msgs
@@ -12,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 catkin_package(
   CATKIN_DEPENDS
+    actionlib_msgs
     formation_msgs
     geometry_msgs
     nav_msgs
