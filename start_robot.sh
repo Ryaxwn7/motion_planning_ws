@@ -152,6 +152,37 @@ if [[ -n "${_ros_ip}" ]]; then
   export ROS_IP="${_ros_ip}"
 fi
 
+# --- Auto-sync shared params from host param server ---
+# Pull host-side config from global ROS params if master is reachable.
+# These override local defaults only when the host has already set them.
+_pull_host_param() {
+  local param_name="$1"
+  local arg_key="$2"
+  local value
+  if value="$(rosparam get "${param_name}" 2>/dev/null)"; then
+    if [[ -n "${value}" ]]; then
+      merge_arg "${arg_key}:=${value}"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+if rosnode list >/dev/null 2>&1; then
+  _pulled=0
+  _pull_host_param /robot_ids robot_ids && _pulled=1
+  _pull_host_param /shape_type shape_type && _pulled=1
+  _pull_host_param /shape_scale shape_scale && _pulled=1
+  _pull_host_param /shape_source shape_source && _pulled=1
+  if [[ "${_pulled}" -eq 1 ]]; then
+    synchronize_agent_number_with_robot_ids
+    echo "[start_robot] Synced params from host param server"
+  fi
+else
+  echo "[start_robot] ROS master not reachable, using local config defaults"
+fi
+# --- end auto-sync ---
+
 echo "[start_robot] Using config file: ${_config_file}"
 printf '[start_robot] Launch args:'
 printf ' %q' "${robot_args[@]}"

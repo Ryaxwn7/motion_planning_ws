@@ -58,6 +58,15 @@
 
   <rosparam if="$(eval arg('robot_ids') != 'USE_YAML_SENTINEL')" param="robot_ids" subst_value="true">$(arg robot_ids)</rosparam>
 
+  <!-- Publish shape reconstruction params globally so robots can auto-sync from host. -->
+  <rosparam param="shape_source" subst_value="true">$(arg shape_source)</rosparam>
+  <rosparam param="shape_library_root" subst_value="true">$(arg shape_library_root)</rosparam>
+  <rosparam param="shape_resolution" subst_value="true">$(arg shape_resolution)</rosparam>
+  <rosparam param="ring_inner_ratio" subst_value="true">$(arg ring_inner_ratio)</rosparam>
+  <rosparam param="ring_outer_ratio" subst_value="true">$(arg ring_outer_ratio)</rosparam>
+  <rosparam param="gray_width" subst_value="true">$(arg gray_width)</rosparam>
+  <rosparam param="r_avoid" subst_value="true">$(arg r_avoid)</rosparam>
+
   <include file="$(find fm2_gather)/launch/laun.launch">
     <arg name="config_file" value="$(arg gather_config)" />
     <arg name="num_robots" value="$(arg agent_number)" />

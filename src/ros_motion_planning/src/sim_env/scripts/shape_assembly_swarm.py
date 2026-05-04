@@ -1418,15 +1418,15 @@ class ShapeAssemblySwarm:
             rospy.get_param("~distributed_marker_owner", "")
         ).strip("/")
 
-        self.shape_source = rospy.get_param("~shape_source", "analytic")
-        self.shape_type = rospy.get_param("~shape_type", "ring")
-        self.shape_scale = max(1.0e-3, float(rospy.get_param("~shape_scale", 1.0)))
-        self.shape_resolution = int(rospy.get_param("~shape_resolution", 80))
-        self.ring_inner_ratio = float(rospy.get_param("~ring_inner_ratio", 0.35))
-        self.ring_outer_ratio = float(rospy.get_param("~ring_outer_ratio", 0.6))
-        self.gray_width = int(rospy.get_param("~gray_width", 4))
-        self.shape_mat_path = rospy.get_param("~shape_mat_path", "")
-        self.shape_library_root = os.path.expanduser(str(rospy.get_param("~shape_library_root", "")).strip() or _get_default_shape_dir())
+        self.shape_source = str(rospy.get_param("~shape_source", rospy.get_param("/shape_source", "analytic")))
+        self.shape_type = str(rospy.get_param("~shape_type", rospy.get_param("/shape_type", "ring")))
+        self.shape_scale = max(1.0e-3, float(rospy.get_param("~shape_scale", rospy.get_param("/shape_scale", 1.0))))
+        self.shape_resolution = int(rospy.get_param("~shape_resolution", rospy.get_param("/shape_resolution", 80)))
+        self.ring_inner_ratio = float(rospy.get_param("~ring_inner_ratio", rospy.get_param("/ring_inner_ratio", 0.35)))
+        self.ring_outer_ratio = float(rospy.get_param("~ring_outer_ratio", rospy.get_param("/ring_outer_ratio", 0.6)))
+        self.gray_width = int(rospy.get_param("~gray_width", rospy.get_param("/gray_width", 4)))
+        self.shape_mat_path = str(rospy.get_param("~shape_mat_path", rospy.get_param("/shape_mat_path", "")))
+        self.shape_library_root = os.path.expanduser(str(rospy.get_param("~shape_library_root", rospy.get_param("/shape_library_root", ""))).strip() or _get_default_shape_dir())
         self.formation_task_topic = str(rospy.get_param("~formation_task_topic", "")).strip()
         self.robot_status_topic = str(rospy.get_param("~robot_status_topic", "shape_assembly/status")).strip()
         self.active_task_id = int(rospy.get_param("~initial_task_id", 0))
@@ -1951,6 +1951,37 @@ class ShapeAssemblySwarm:
             self.refer_state.head = self.reference_heading
 
         if changed_shape or changed_scale:
+            # Re-read shape construction params from global param server (set by host).
+            # Priority: private param > global param > current value.
+            _new_source = str(rospy.get_param("~shape_source",
+                rospy.get_param("/shape_source", self.shape_source)))
+            _new_res = int(rospy.get_param("~shape_resolution",
+                rospy.get_param("/shape_resolution", self.shape_resolution)))
+            _new_inner = float(rospy.get_param("~ring_inner_ratio",
+                rospy.get_param("/ring_inner_ratio", self.ring_inner_ratio)))
+            _new_outer = float(rospy.get_param("~ring_outer_ratio",
+                rospy.get_param("/ring_outer_ratio", self.ring_outer_ratio)))
+            _new_gray = int(rospy.get_param("~gray_width",
+                rospy.get_param("/gray_width", self.gray_width)))
+            _new_mat_path = str(rospy.get_param("~shape_mat_path",
+                rospy.get_param("/shape_mat_path", self.shape_mat_path)))
+            _new_lib_root = str(rospy.get_param("~shape_library_root",
+                rospy.get_param("/shape_library_root", self.shape_library_root)))
+            if (_new_source != self.shape_source
+                    or _new_res != self.shape_resolution
+                    or abs(_new_inner - self.ring_inner_ratio) > 1e-9
+                    or abs(_new_outer - self.ring_outer_ratio) > 1e-9
+                    or _new_gray != self.gray_width
+                    or _new_mat_path != self.shape_mat_path):
+                self.shape_source = _new_source
+                self.shape_resolution = _new_res
+                self.ring_inner_ratio = _new_inner
+                self.ring_outer_ratio = _new_outer
+                self.gray_width = _new_gray
+                self.shape_mat_path = _new_mat_path
+                if _new_lib_root.strip():
+                    self.shape_library_root = os.path.expanduser(_new_lib_root.strip()) or self.shape_library_root
+                changed_shape = True
             self.pending_shape_reload = True
             self._reload_shape_model()
 
