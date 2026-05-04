@@ -52,6 +52,9 @@ publish_velocity_maps: false
 velocity_map_topic_prefix: "/fm2_gather/velocity_map"
 publish_arrival_time_maps: false
 arrival_time_topic_prefix: "/fm2_gather/arrival_time"
+publish_estimated_gather_cost: true
+estimated_gather_cost_topic: "/fm2_gather/estimated_gather_cost"
+estimated_arrival_times_topic: "/fm2_gather/estimated_arrival_times"
 background_map_topic: "/map"
 robot_costmap_topic_suffix: "move_base/global_costmap/costmap"
 robot_costmap_update_topic_suffix: "move_base/global_costmap/costmap_updates"

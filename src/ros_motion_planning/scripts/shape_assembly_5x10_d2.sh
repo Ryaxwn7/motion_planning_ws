@@ -143,6 +143,13 @@ HAS_COOLDOWN=0
 HAS_PER_ROBOT_COOLDOWN=0
 HAS_MAX_LEN_GROWTH_RATIO=0
 HAS_LONG_PATH_REPLAN_MIN_LENGTH=0
+HAS_REPLAN_GROWTH_METRIC=0
+HAS_GATHER_COST_SOURCE=0
+HAS_ARRIVAL_TIME_TOPIC_SUFFIX=0
+HAS_GATHER_COST_GROWTH_RATIO=0
+HAS_MIN_GATHER_COST_GROWTH_TRIGGER=0
+HAS_ENABLE_EMPTY_PLAN_REPLAN=0
+HAS_EMPTY_PLAN_REPLAN_COUNT=0
 HAS_FORMAT_RADIUS=0
 HAS_ENABLE_STABLE_LEN_REPLAN=0
 HAS_GOAL_OCCUPIED_PEER_FALLBACK=0
@@ -195,6 +202,27 @@ for arg in "$@"; do
   if [[ "${arg}" == long_path_replan_min_length:=* ]]; then
     HAS_LONG_PATH_REPLAN_MIN_LENGTH=1
   fi
+  if [[ "${arg}" == replan_growth_metric:=* ]]; then
+    HAS_REPLAN_GROWTH_METRIC=1
+  fi
+  if [[ "${arg}" == gather_cost_source:=* ]]; then
+    HAS_GATHER_COST_SOURCE=1
+  fi
+  if [[ "${arg}" == arrival_time_topic_suffix:=* ]]; then
+    HAS_ARRIVAL_TIME_TOPIC_SUFFIX=1
+  fi
+  if [[ "${arg}" == gather_cost_growth_ratio:=* ]]; then
+    HAS_GATHER_COST_GROWTH_RATIO=1
+  fi
+  if [[ "${arg}" == min_gather_cost_growth_trigger:=* ]]; then
+    HAS_MIN_GATHER_COST_GROWTH_TRIGGER=1
+  fi
+  if [[ "${arg}" == enable_empty_plan_replan:=* ]]; then
+    HAS_ENABLE_EMPTY_PLAN_REPLAN=1
+  fi
+  if [[ "${arg}" == empty_plan_replan_count:=* ]]; then
+    HAS_EMPTY_PLAN_REPLAN_COUNT=1
+  fi
   if [[ "${arg}" == format_radius:=* ]]; then
     HAS_FORMAT_RADIUS=1
   fi
@@ -227,6 +255,13 @@ YAML_COOLDOWN="$(_yaml_get cooldown 2>/dev/null || true)"
 YAML_PER_ROBOT_COOLDOWN="$(_yaml_get per_robot_cooldown 2>/dev/null || true)"
 YAML_MAX_LEN_GROWTH_RATIO="$(_yaml_get max_len_growth_ratio 2>/dev/null || true)"
 YAML_LONG_PATH_REPLAN_MIN_LENGTH="$(_yaml_get long_path_replan_min_length 2>/dev/null || true)"
+YAML_REPLAN_GROWTH_METRIC="$(_yaml_get replan_growth_metric 2>/dev/null || true)"
+YAML_GATHER_COST_SOURCE="$(_yaml_get gather_cost_source 2>/dev/null || true)"
+YAML_ARRIVAL_TIME_TOPIC_SUFFIX="$(_yaml_get arrival_time_topic_suffix 2>/dev/null || true)"
+YAML_GATHER_COST_GROWTH_RATIO="$(_yaml_get gather_cost_growth_ratio 2>/dev/null || true)"
+YAML_MIN_GATHER_COST_GROWTH_TRIGGER="$(_yaml_get min_gather_cost_growth_trigger 2>/dev/null || true)"
+YAML_ENABLE_EMPTY_PLAN_REPLAN="$(_yaml_get enable_empty_plan_replan 2>/dev/null || true)"
+YAML_EMPTY_PLAN_REPLAN_COUNT="$(_yaml_get empty_plan_replan_count 2>/dev/null || true)"
 YAML_FORMAT_RADIUS="$(_yaml_get format_radius 2>/dev/null || true)"
 YAML_ENABLE_STABLE_LEN_REPLAN="$(_yaml_get enable_stable_len_replan 2>/dev/null || true)"
 YAML_GOAL_OCCUPIED_PEER_FALLBACK="$(_yaml_get use_goal_occupied_peer_fallback 2>/dev/null || true)"
@@ -284,6 +319,27 @@ if [[ "${HAS_MAX_LEN_GROWTH_RATIO}" -eq 0 ]] && [[ -n "${YAML_MAX_LEN_GROWTH_RAT
 fi
 if [[ "${HAS_LONG_PATH_REPLAN_MIN_LENGTH}" -eq 0 ]] && [[ -n "${YAML_LONG_PATH_REPLAN_MIN_LENGTH}" ]]; then
   launch_args=("long_path_replan_min_length:=${YAML_LONG_PATH_REPLAN_MIN_LENGTH}" "${launch_args[@]}")
+fi
+if [[ "${HAS_REPLAN_GROWTH_METRIC}" -eq 0 ]] && [[ -n "${YAML_REPLAN_GROWTH_METRIC}" ]]; then
+  launch_args=("replan_growth_metric:=${YAML_REPLAN_GROWTH_METRIC}" "${launch_args[@]}")
+fi
+if [[ "${HAS_GATHER_COST_SOURCE}" -eq 0 ]] && [[ -n "${YAML_GATHER_COST_SOURCE}" ]]; then
+  launch_args=("gather_cost_source:=${YAML_GATHER_COST_SOURCE}" "${launch_args[@]}")
+fi
+if [[ "${HAS_ARRIVAL_TIME_TOPIC_SUFFIX}" -eq 0 ]] && [[ -n "${YAML_ARRIVAL_TIME_TOPIC_SUFFIX}" ]]; then
+  launch_args=("arrival_time_topic_suffix:=${YAML_ARRIVAL_TIME_TOPIC_SUFFIX}" "${launch_args[@]}")
+fi
+if [[ "${HAS_GATHER_COST_GROWTH_RATIO}" -eq 0 ]] && [[ -n "${YAML_GATHER_COST_GROWTH_RATIO}" ]]; then
+  launch_args=("gather_cost_growth_ratio:=${YAML_GATHER_COST_GROWTH_RATIO}" "${launch_args[@]}")
+fi
+if [[ "${HAS_MIN_GATHER_COST_GROWTH_TRIGGER}" -eq 0 ]] && [[ -n "${YAML_MIN_GATHER_COST_GROWTH_TRIGGER}" ]]; then
+  launch_args=("min_gather_cost_growth_trigger:=${YAML_MIN_GATHER_COST_GROWTH_TRIGGER}" "${launch_args[@]}")
+fi
+if [[ "${HAS_ENABLE_EMPTY_PLAN_REPLAN}" -eq 0 ]] && [[ -n "${YAML_ENABLE_EMPTY_PLAN_REPLAN}" ]]; then
+  launch_args=("enable_empty_plan_replan:=${YAML_ENABLE_EMPTY_PLAN_REPLAN}" "${launch_args[@]}")
+fi
+if [[ "${HAS_EMPTY_PLAN_REPLAN_COUNT}" -eq 0 ]] && [[ -n "${YAML_EMPTY_PLAN_REPLAN_COUNT}" ]]; then
+  launch_args=("empty_plan_replan_count:=${YAML_EMPTY_PLAN_REPLAN_COUNT}" "${launch_args[@]}")
 fi
 if [[ "${HAS_FORMAT_RADIUS}" -eq 0 ]] && [[ -n "${YAML_FORMAT_RADIUS}" ]]; then
   launch_args=("format_radius:=${YAML_FORMAT_RADIUS}" "${launch_args[@]}")

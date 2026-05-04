@@ -23,6 +23,13 @@ cooldown: 0.5
 per_robot_cooldown: 0.5
 max_len_growth_ratio: 1.4
 long_path_replan_min_length: 3.0
+replan_growth_metric: gather_cost # path_length | gather_cost | both | off
+gather_cost_source: arrival_time # arrival_time | fm2_gather
+arrival_time_topic_suffix: move_base/GraphPlanner/arrival_time
+gather_cost_growth_ratio: 1.2
+min_gather_cost_growth_trigger: 0.0
+enable_empty_plan_replan: true
+empty_plan_replan_count: 3
 format_radius: 0.3
 enable_stable_len_replan: false
 use_goal_occupied_peer_fallback: true

@@ -25,11 +25,21 @@
     <arg name="stable_len_max" default="1.0" />
     <arg name="max_len_growth_ratio" default="1.2" />
     <arg name="long_path_replan_min_length" default="2.0" />
+    <arg name="replan_growth_metric" default="gather_cost" />
+    <arg name="gather_cost_source" default="arrival_time" />
+    <arg name="estimated_gather_cost_topic" default="/fm2_gather/estimated_gather_cost" />
+    <arg name="arrival_time_topic_suffix" default="move_base/GraphPlanner/arrival_time" />
+    <arg name="gather_cost_growth_ratio" default="1.2" />
+    <arg name="min_gather_cost_growth_trigger" default="0.0" />
+    <arg name="enable_empty_plan_replan" default="true" />
+    <arg name="empty_plan_replan_count" default="3" />
     <arg name="format_radius" default="0.3" />
     <arg name="enable_stable_len_replan" default="false" />
     <arg name="use_goal_occupied_peer_fallback" default="false" />
     <arg name="goal_occupied_radius" default="0.35" />
     <arg name="loop_hz" default="10.0" />
+    <arg name="publish_estimated_gather_cost" default="true" />
+    <arg name="estimated_arrival_times_topic" default="/fm2_gather/estimated_arrival_times" />
     <!-- 启动地图融合节点 -->
     <node if="$(arg enable_map_combine)" name="fm2_map_combine_node" pkg="fm2_gather" type="fm2_map_combine_node" output="screen" />
     <!-- 设置参数 -->
@@ -47,6 +57,9 @@
     <param name="test_mode" type="bool" value="false" />
     <!-- <param name="mission" type="string" value="fastest" />  mission: fastest, energy, space -->
     <param name="publish_goal" type="bool" value="$(arg publish_goal)" />
+    <param name="publish_estimated_gather_cost" type="bool" value="$(arg publish_estimated_gather_cost)" />
+    <param name="estimated_gather_cost_topic" value="$(arg estimated_gather_cost_topic)" />
+    <param name="estimated_arrival_times_topic" value="$(arg estimated_arrival_times_topic)" />
     <param name="reverse" type="bool" value="false" />
     <param name="pub_once" type="bool" value="false" />
     <param name="save_data" type="bool" value="true" />
@@ -66,6 +79,14 @@
         <param name="stable_len_max" value="$(arg stable_len_max)" />
         <param name="max_len_growth_ratio" value="$(arg max_len_growth_ratio)" />
         <param name="long_path_replan_min_length" value="$(arg long_path_replan_min_length)" />
+        <param name="replan_growth_metric" value="$(arg replan_growth_metric)" />
+        <param name="gather_cost_source" value="$(arg gather_cost_source)" />
+        <param name="estimated_gather_cost_topic" value="$(arg estimated_gather_cost_topic)" />
+        <param name="arrival_time_topic_suffix" value="$(arg arrival_time_topic_suffix)" />
+        <param name="gather_cost_growth_ratio" value="$(arg gather_cost_growth_ratio)" />
+        <param name="min_gather_cost_growth_trigger" value="$(arg min_gather_cost_growth_trigger)" />
+        <param name="enable_empty_plan_replan" value="$(arg enable_empty_plan_replan)" />
+        <param name="empty_plan_replan_count" value="$(arg empty_plan_replan_count)" />
         <param name="format_radius" value="$(arg format_radius)" />
         <param name="enable_stable_len_replan" value="$(arg enable_stable_len_replan)" />
         <param name="use_goal_occupied_peer_fallback" value="$(arg use_goal_occupied_peer_fallback)" />

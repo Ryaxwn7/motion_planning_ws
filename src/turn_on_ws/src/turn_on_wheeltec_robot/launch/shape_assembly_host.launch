@@ -40,6 +40,14 @@
   <arg name="per_robot_cooldown" default="0.5" />
   <arg name="max_len_growth_ratio" default="1.4" />
   <arg name="long_path_replan_min_length" default="3.0" />
+  <arg name="replan_growth_metric" default="gather_cost" />
+  <arg name="gather_cost_source" default="arrival_time" />
+  <arg name="estimated_gather_cost_topic" default="/fm2_gather/estimated_gather_cost" />
+  <arg name="arrival_time_topic_suffix" default="move_base/GraphPlanner/arrival_time" />
+  <arg name="gather_cost_growth_ratio" default="1.2" />
+  <arg name="min_gather_cost_growth_trigger" default="0.0" />
+  <arg name="enable_empty_plan_replan" default="true" />
+  <arg name="empty_plan_replan_count" default="3" />
   <arg name="format_radius" default="0.3" />
   <arg name="enable_stable_len_replan" default="false" />
   <arg name="use_goal_occupied_peer_fallback" default="true" />
@@ -88,6 +96,14 @@
     <arg name="per_robot_cooldown" value="$(arg per_robot_cooldown)" />
     <arg name="max_len_growth_ratio" value="$(arg max_len_growth_ratio)" />
     <arg name="long_path_replan_min_length" value="$(arg long_path_replan_min_length)" />
+    <arg name="replan_growth_metric" value="$(arg replan_growth_metric)" />
+    <arg name="gather_cost_source" value="$(arg gather_cost_source)" />
+    <arg name="estimated_gather_cost_topic" value="$(arg estimated_gather_cost_topic)" />
+    <arg name="arrival_time_topic_suffix" value="$(arg arrival_time_topic_suffix)" />
+    <arg name="gather_cost_growth_ratio" value="$(arg gather_cost_growth_ratio)" />
+    <arg name="min_gather_cost_growth_trigger" value="$(arg min_gather_cost_growth_trigger)" />
+    <arg name="enable_empty_plan_replan" value="$(arg enable_empty_plan_replan)" />
+    <arg name="empty_plan_replan_count" value="$(arg empty_plan_replan_count)" />
     <arg name="format_radius" value="$(arg format_radius)" />
     <arg name="enable_stable_len_replan" value="$(arg enable_stable_len_replan)" />
     <arg name="use_goal_occupied_peer_fallback" value="$(arg use_goal_occupied_peer_fallback)" />

@@ -28,6 +28,13 @@ cooldown: 0.5
 per_robot_cooldown: 0.5
 max_len_growth_ratio: 1.4
 long_path_replan_min_length: 3.0
+replan_growth_metric: gather_cost # path_length | gather_cost | both | off
+gather_cost_source: arrival_time # arrival_time | fm2_gather
+arrival_time_topic_suffix: move_base/GraphPlanner/arrival_time
+gather_cost_growth_ratio: 1.2
+min_gather_cost_growth_trigger: 0.0
+enable_empty_plan_replan: true
+empty_plan_replan_count: 3
 format_radius: 0.3
 enable_stable_len_replan: false
 use_goal_occupied_peer_fallback: true
@@ -112,7 +119,7 @@ shape_target_mode: reference            # negotiated | reference
 switch_gray_threshold: 0.8         # gray < threshold -> switch to shape control
 latch_shape_control_on_switch: true # once inside target shape, keep shape control until a new task/center
 cancel_move_base_on_switch: true
-stop_path_planning_on_shape_takeover: false
+stop_path_planning_on_shape_takeover: true
 switch_use_reference_shape: true     # switch judged in reference shape frame
 switch_reference_radius_enable: false # allow switching when robot enters reference-shape neighborhood
 switch_reference_radius_margin: 0.25 # extra radius added outside reference shape

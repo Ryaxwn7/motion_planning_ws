@@ -4,6 +4,7 @@
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
 #include <move_base_msgs/MoveBaseActionResult.h>
+#include <std_msgs/Float64.h>
 #include <std_msgs/UInt8.h>
 #include <std_msgs/String.h>
 #include <vector>
@@ -212,6 +213,7 @@ public:
         // 设置定时检测（1Hz）
         // timer_ = nh_.createTimer(ros::Duration(1.0), &GlobalPlanMonitor::checkTimeout, this);
         plan_status_=IDLE;
+        mv_state_ = PREEMPTED;
 
         ROS_INFO_STREAM("Monitoring: " << plan_topic_);
         ROS_INFO_STREAM("Signal topic: " << signal_topic_);
@@ -268,6 +270,16 @@ public:
         return robot_pose_;
     }
 
+    int getConsecutiveEmptyPlanCount() const
+    {
+        return empty_plan_count_;
+    }
+
+    void resetConsecutiveEmptyPlanCount()
+    {
+        empty_plan_count_ = 0;
+    }
+
     bool consumeAborted()
     {
         if (aborted_) {
@@ -300,6 +312,7 @@ private:
     PlanStatus   plan_status_;
     MvStates mv_state_;
     double plan_length_ = 0;
+    int empty_plan_count_ = 0;
     bool aborted_ = false;
     geometry_msgs::PoseStamped current_goal_;
     bool has_current_goal_ = false;
@@ -328,7 +341,14 @@ private:
     void planCallback(const nav_msgs::Path::ConstPtr& msg) {
         bool is_valid = !msg->poses.empty();
         double length = calculatePathLength(*msg);
-        ROS_INFO_STREAM( "Path"<<idx_<< " status: " << (is_valid ? "Valid" : "Empty")<< "Length: " << length);
+        if (is_valid) {
+            empty_plan_count_ = 0;
+        } else {
+            ++empty_plan_count_;
+        }
+        ROS_INFO_STREAM( "Path"<<idx_<< " status: " << (is_valid ? "Valid" : "Empty")
+                         << " Length: " << length
+                         << " empty_count: " << empty_plan_count_);
         
         // 只在路径有效时更新时间戳
         if (is_valid) {
@@ -458,6 +478,15 @@ int main(int argc, char** argv) {
     double stable_len_max = 1.0;
     double max_len_growth_ratio = 1.2;
     double long_path_replan_min_length = 0.0;
+    std::string replan_growth_metric = "path_length"; // path_length | gather_cost | both | off
+    std::string gather_cost_source = "arrival_time"; // arrival_time | fm2_gather
+    std::string gather_cost_mission = "fastest"; // fastest | energy | space
+    std::string estimated_gather_cost_topic = "/fm2_gather/estimated_gather_cost";
+    std::string arrival_time_topic_suffix = "move_base/GraphPlanner/arrival_time";
+    double gather_cost_growth_ratio = 1.2;
+    double min_gather_cost_growth_trigger = 0.0;
+    bool enable_empty_plan_replan = true;
+    int empty_plan_replan_count = 3;
     double format_radius = 0.3;
     bool enable_stable_len_replan = false;
     bool use_goal_occupied_peer_fallback = true;
@@ -474,6 +503,17 @@ int main(int argc, char** argv) {
     pnh.param("stable_len_max", stable_len_max, stable_len_max);
     pnh.param("max_len_growth_ratio", max_len_growth_ratio, max_len_growth_ratio);
     pnh.param("long_path_replan_min_length", long_path_replan_min_length, long_path_replan_min_length);
+    pnh.param("replan_growth_metric", replan_growth_metric, replan_growth_metric);
+    pnh.param("gather_cost_source", gather_cost_source, gather_cost_source);
+    if (!pnh.getParam("gather_cost_mission", gather_cost_mission)) {
+        nh.param("mission", gather_cost_mission, gather_cost_mission);
+    }
+    pnh.param("estimated_gather_cost_topic", estimated_gather_cost_topic, estimated_gather_cost_topic);
+    pnh.param("arrival_time_topic_suffix", arrival_time_topic_suffix, arrival_time_topic_suffix);
+    pnh.param("gather_cost_growth_ratio", gather_cost_growth_ratio, gather_cost_growth_ratio);
+    pnh.param("min_gather_cost_growth_trigger", min_gather_cost_growth_trigger, min_gather_cost_growth_trigger);
+    pnh.param("enable_empty_plan_replan", enable_empty_plan_replan, enable_empty_plan_replan);
+    pnh.param("empty_plan_replan_count", empty_plan_replan_count, empty_plan_replan_count);
     pnh.param("format_radius", format_radius, format_radius);
     pnh.param("enable_stable_len_replan", enable_stable_len_replan, enable_stable_len_replan);
     pnh.param("use_goal_occupied_peer_fallback", use_goal_occupied_peer_fallback, use_goal_occupied_peer_fallback);
@@ -490,6 +530,40 @@ int main(int argc, char** argv) {
         mode_event = false;
         mode_periodic = false;
     }
+    std::transform(replan_growth_metric.begin(), replan_growth_metric.end(), replan_growth_metric.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    std::transform(gather_cost_source.begin(), gather_cost_source.end(), gather_cost_source.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    std::transform(gather_cost_mission.begin(), gather_cost_mission.end(), gather_cost_mission.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (gather_cost_source != "arrival_time" && gather_cost_source != "fm2_gather") {
+        ROS_WARN_STREAM("Unknown gather_cost_source=" << gather_cost_source
+                        << ", fallback to arrival_time");
+        gather_cost_source = "arrival_time";
+    }
+    if (gather_cost_mission != "fastest" &&
+        gather_cost_mission != "energy" &&
+        gather_cost_mission != "space") {
+        ROS_WARN_STREAM("Unknown gather_cost_mission=" << gather_cost_mission
+                        << ", fallback to fastest");
+        gather_cost_mission = "fastest";
+    }
+    bool use_path_length_growth =
+        replan_growth_metric == "path_length" || replan_growth_metric == "path" ||
+        replan_growth_metric == "both";
+    bool use_gather_cost_growth =
+        replan_growth_metric == "gather_cost" || replan_growth_metric == "cost" ||
+        replan_growth_metric == "both";
+    if (!use_path_length_growth && !use_gather_cost_growth && replan_growth_metric != "off") {
+        ROS_WARN_STREAM("Unknown replan_growth_metric=" << replan_growth_metric
+                        << ", fallback to path_length");
+        replan_growth_metric = "path_length";
+        use_path_length_growth = true;
+        use_gather_cost_growth = false;
+    }
+    gather_cost_growth_ratio = std::max(1.0, gather_cost_growth_ratio);
+    min_gather_cost_growth_trigger = std::max(0.0, min_gather_cost_growth_trigger);
+    empty_plan_replan_count = std::max(1, empty_plan_replan_count);
 
     double perimeter = 2* 3.14159265358979323846 * format_radius;
     for(int i = 0; i < robot_num; ++i)
@@ -509,6 +583,30 @@ int main(int argc, char** argv) {
     ros::Time last_replan_time(0);
     ros::Time last_periodic_time(0);
     bool last_stop_path_planning = false;
+    double latest_gather_cost = 0.0;
+    bool has_latest_gather_cost = false;
+    bool gather_cost_dirty = false;
+    double last_gather_cost_for_change = 0.0;
+    bool last_gather_cost_valid = false;
+    std::vector<double> robot_weights(robot_num, 1.0);
+    nh.getParam("robot_weights", robot_weights);
+    if (robot_weights.size() < static_cast<std::size_t>(robot_num)) {
+        robot_weights.resize(robot_num, 1.0);
+    } else if (robot_weights.size() > static_cast<std::size_t>(robot_num)) {
+        robot_weights.resize(robot_num);
+    }
+    double robot_weight_sum = 0.0;
+    for (const double weight : robot_weights) {
+        robot_weight_sum += std::max(0.0, weight);
+    }
+    if (robot_weight_sum <= 1e-9) {
+        std::fill(robot_weights.begin(), robot_weights.end(), 1.0);
+        robot_weight_sum = static_cast<double>(std::max(1, robot_num));
+    }
+    std::vector<double> latest_arrival_times(robot_num, 0.0);
+    std::vector<bool> arrival_time_valid(robot_num, false);
+    std::vector<ros::Time> arrival_time_stamps(robot_num, ros::Time(0));
+    bool arrival_time_dirty = false;
 
     auto publishReplan = [&](uint8_t signal, const std::string& reason) {
         std_msgs::UInt8 s;
@@ -520,6 +618,134 @@ int main(int argc, char** argv) {
         reason_pub.publish(info);
         last_replan_time = ros::Time::now();
     };
+
+    auto makeArrivalTimeTopic = [&](const int robot_id) {
+        return makeRobotTopic(robot_namespace_prefix, robot_id, arrival_time_topic_suffix);
+    };
+
+    auto computeArrivalTimeGatherCost = [&](const std::set<int>& blocked_robot_ids,
+                                            double* out_cost,
+                                            std::string* out_detail) {
+        if (out_cost) {
+            *out_cost = 0.0;
+        }
+        if (out_detail) {
+            out_detail->clear();
+        }
+
+        double cost = 0.0;
+        double weighted_sum = 0.0;
+        double active_weight_sum = 0.0;
+        int valid_count = 0;
+        std::ostringstream detail;
+        detail << "[";
+
+        for (int i = 0; i < robot_num; ++i) {
+            if (blocked_robot_ids.find(robot_ids[i]) != blocked_robot_ids.end()) {
+                continue;
+            }
+            if (!arrival_time_valid[i]) {
+                return false;
+            }
+            const double t = latest_arrival_times[i];
+            if (!std::isfinite(t) || t <= 0.0) {
+                return false;
+            }
+            const double w = std::max(0.0, robot_weights[i]);
+            if (valid_count > 0) {
+                detail << ",";
+            }
+            detail << "r" << robot_ids[i] << "=" << t;
+
+            if (gather_cost_mission == "energy") {
+                weighted_sum += w * t;
+                active_weight_sum += w;
+            } else if (gather_cost_mission == "space") {
+                const double normalized_weight =
+                    (robot_weight_sum > 1e-9) ? (w / robot_weight_sum) : 1.0;
+                cost = (valid_count == 0) ? normalized_weight * t
+                                          : std::max(cost, normalized_weight * t);
+            } else {
+                cost = (valid_count == 0) ? t : std::max(cost, t);
+            }
+            ++valid_count;
+        }
+
+        if (valid_count <= 0) {
+            return false;
+        }
+        if (gather_cost_mission == "energy") {
+            if (active_weight_sum <= 1e-9) {
+                return false;
+            }
+            cost = weighted_sum / active_weight_sum;
+        }
+        detail << "]";
+        if (out_cost) {
+            *out_cost = cost;
+        }
+        if (out_detail) {
+            *out_detail = detail.str();
+        }
+        return true;
+    };
+
+    ros::Subscriber gather_cost_sub;
+    if (use_gather_cost_growth && gather_cost_source == "fm2_gather") {
+        gather_cost_sub = nh.subscribe<std_msgs::Float64>(
+            estimated_gather_cost_topic,
+            10,
+            [&](const std_msgs::Float64::ConstPtr& msg) {
+                if (!std::isfinite(msg->data) || msg->data <= 0.0) {
+                    ROS_WARN_THROTTLE(
+                        2.0,
+                        "Ignore invalid estimated gather cost: %.3f",
+                        msg->data);
+                    return;
+                }
+                latest_gather_cost = msg->data;
+                has_latest_gather_cost = true;
+                gather_cost_dirty = true;
+                ROS_INFO_STREAM("[Plan Monitor] Current estimated gather cost="
+                                << latest_gather_cost
+                                << " topic=" << estimated_gather_cost_topic);
+            });
+        ROS_INFO_STREAM("Monitoring estimated gather cost topic: " << estimated_gather_cost_topic
+                        << " ratio=" << gather_cost_growth_ratio
+                        << " min=" << min_gather_cost_growth_trigger);
+    }
+    std::vector<ros::Subscriber> arrival_time_subs;
+    if (use_gather_cost_growth && gather_cost_source == "arrival_time") {
+        arrival_time_subs.reserve(robot_num);
+        for (int i = 0; i < robot_num; ++i) {
+            const std::string topic = makeArrivalTimeTopic(robot_ids[i]);
+            arrival_time_subs.push_back(
+                nh.subscribe<std_msgs::Float64>(
+                    topic,
+                    10,
+                    [&, i, topic](const std_msgs::Float64::ConstPtr& msg) {
+                        if (!std::isfinite(msg->data) || msg->data <= 0.0) {
+                            ROS_WARN_THROTTLE(
+                                2.0,
+                                "Ignore invalid arrival_time from %s: %.3f",
+                                topic.c_str(),
+                                msg->data);
+                            return;
+                        }
+                        latest_arrival_times[i] = msg->data;
+                        arrival_time_valid[i] = true;
+                        arrival_time_stamps[i] = ros::Time::now();
+                        arrival_time_dirty = true;
+                    }));
+            ROS_INFO_STREAM("Monitoring robot arrival_time topic: " << topic);
+        }
+        ROS_INFO_STREAM("Gather cost source=arrival_time mission=" << gather_cost_mission
+                        << " ratio=" << gather_cost_growth_ratio
+                        << " min=" << min_gather_cost_growth_trigger);
+    }
+    if (enable_empty_plan_replan) {
+        ROS_INFO_STREAM("Empty global plan replan enabled: count=" << empty_plan_replan_count);
+    }
 
     ros::Rate rate(loop_hz);
 
@@ -600,11 +826,19 @@ int main(int argc, char** argv) {
 
         ros::Time now = ros::Time::now();
         bool gather_active = (!monitors.empty()) ? monitors[0]->isGathering() : false;
+        const std::set<int> blocked_robot_ids =
+            stop_path_planning ? shape_active_robot_ids : std::set<int>();
         int inactive_robot_count = 0;
         for (const int robot_id : robot_ids) {
-            if (shape_active_robot_ids.find(robot_id) == shape_active_robot_ids.end()) {
+            if (blocked_robot_ids.find(robot_id) == blocked_robot_ids.end()) {
                 ++inactive_robot_count;
             }
+        }
+        if (!gather_active || inactive_robot_count <= 0) {
+            last_gather_cost_valid = false;
+            gather_cost_dirty = false;
+            arrival_time_dirty = false;
+            std::fill(arrival_time_valid.begin(), arrival_time_valid.end(), false);
         }
 
         // periodic replan
@@ -617,9 +851,53 @@ int main(int argc, char** argv) {
             }
         }
 
+        if (mode_event && gather_active && inactive_robot_count > 0 &&
+            use_gather_cost_growth && gather_cost_source == "arrival_time" && arrival_time_dirty) {
+            double arrival_cost = 0.0;
+            std::string arrival_detail;
+            if (computeArrivalTimeGatherCost(blocked_robot_ids, &arrival_cost, &arrival_detail)) {
+                latest_gather_cost = arrival_cost;
+                has_latest_gather_cost = true;
+                gather_cost_dirty = true;
+                arrival_time_dirty = false;
+                ROS_INFO_STREAM("[Plan Monitor] Current arrival-time gather cost="
+                                << latest_gather_cost
+                                << " mission=" << gather_cost_mission
+                                << " arrivals=" << arrival_detail);
+            }
+        }
+
+        if (mode_event && gather_active && inactive_robot_count > 0 &&
+            use_gather_cost_growth && has_latest_gather_cost && gather_cost_dirty) {
+            if (last_gather_cost_valid &&
+                last_gather_cost_for_change > 1e-6 &&
+                latest_gather_cost > last_gather_cost_for_change * gather_cost_growth_ratio &&
+                latest_gather_cost >= min_gather_cost_growth_trigger) {
+                if ((now - last_replan_time).toSec() >= cooldown) {
+                    ROS_WARN_STREAM("Estimated gather cost grew from "
+                                    << last_gather_cost_for_change
+                                    << " to " << latest_gather_cost
+                                    << " (ratio threshold: " << gather_cost_growth_ratio
+                                    << ", min: " << min_gather_cost_growth_trigger
+                                    << "), REPLAN!");
+                    publishReplan(
+                        2,
+                        "GATHER_COST prev=" + std::to_string(last_gather_cost_for_change) +
+                        " curr=" + std::to_string(latest_gather_cost) +
+                        " source=" + gather_cost_source +
+                        " mission=" + gather_cost_mission +
+                        " ratio=" + std::to_string(gather_cost_growth_ratio) +
+                        " min=" + std::to_string(min_gather_cost_growth_trigger));
+                }
+            }
+            last_gather_cost_for_change = latest_gather_cost;
+            last_gather_cost_valid = true;
+            gather_cost_dirty = false;
+        }
+
         for(int i =0; i<robot_num; i++)
         {
-            if (shape_active_robot_ids.find(robot_ids[i]) != shape_active_robot_ids.end()) {
+            if (blocked_robot_ids.find(robot_ids[i]) != blocked_robot_ids.end()) {
                 continue;
             }
             double plan_length = monitors[i]->get_plan_length();
@@ -649,6 +927,34 @@ int main(int argc, char** argv) {
                     }
                 }
 
+                if (enable_empty_plan_replan &&
+                    monitors[i]->hasCurrentGoal() &&
+                    monitors[i]->getConsecutiveEmptyPlanCount() >= empty_plan_replan_count) {
+                    if ((now - last_replan_time).toSec() >= cooldown) {
+                        const geometry_msgs::PoseStamped goal = monitors[i]->getCurrentGoal();
+                        std::string cost_text = "unknown";
+                        if (has_latest_gather_cost) {
+                            cost_text = std::to_string(latest_gather_cost);
+                        }
+                        publishReplan(
+                            2,
+                            "EMPTY_PLAN robot=" + std::to_string(robot_ids[i]) +
+                            " count=" + std::to_string(monitors[i]->getConsecutiveEmptyPlanCount()) +
+                            " goal=(" + std::to_string(goal.pose.position.x) + "," +
+                            std::to_string(goal.pose.position.y) + ")" +
+                            " gather_cost=" + cost_text);
+                        ROS_ERROR_STREAM("Robot " << robot_ids[i]
+                                         << " has "
+                                         << monitors[i]->getConsecutiveEmptyPlanCount()
+                                         << " consecutive empty global plans to goal ("
+                                         << goal.pose.position.x << ", "
+                                         << goal.pose.position.y
+                                         << "), trigger gather-point replan. current_gather_cost="
+                                         << cost_text);
+                    }
+                    monitors[i]->resetConsecutiveEmptyPlanCount();
+                }
+
                 if(enable_stable_len_replan &&
                    monitors[i]->isNavigating() &&
                    plan_length > stable_len_min && plan_length < stable_len_max)
@@ -675,7 +981,7 @@ int main(int argc, char** argv) {
                 }
                 const double long_path_trigger_min_length =
                     std::max(perimeter, long_path_replan_min_length);
-                if (monitors[i]->isNavigating() && plan_length > perimeter) {
+                if (use_path_length_growth && monitors[i]->isNavigating() && plan_length > perimeter) {
                     if (last_plan_length_valid[i] &&
                         last_plan_length_for_change[i] > 1e-6 &&
                         plan_length > last_plan_length_for_change[i] * max_len_growth_ratio &&

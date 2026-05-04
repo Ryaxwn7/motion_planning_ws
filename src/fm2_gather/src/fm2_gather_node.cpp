@@ -2,6 +2,8 @@
 #include <ros/master.h>
 #include <tf/transform_listener.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <std_msgs/Float64.h>
+#include <std_msgs/Float64MultiArray.h>
 #include <std_msgs/UInt8.h>
 #include <vector>
 #include <iostream>
@@ -19,6 +21,7 @@
 #include <random>
 #include <cstdlib>
 #include <cstdint>
+#include <limits>
 #include <filesystem>
 #include <boost/bind.hpp>
 #include <costmap_2d/costmap_2d_ros.h>
@@ -144,6 +147,9 @@ bool publish_velocity_maps = true;
 std::string velocity_map_topic_prefix = "/fm2_gather/velocity_map";
 bool publish_arrival_time_maps = true;
 std::string arrival_time_topic_prefix = "/fm2_gather/arrival_time";
+bool publish_estimated_gather_cost = true;
+std::string estimated_gather_cost_topic = "/fm2_gather/estimated_gather_cost";
+std::string estimated_arrival_times_topic = "/fm2_gather/estimated_arrival_times";
 std::vector<nav_msgs::OccupancyGrid> dynamic_obstacle_maps;
 std::vector<bool> dynamic_obstacle_ready;
 std::vector<ros::Time> dynamic_obstacle_stamp;
@@ -154,6 +160,8 @@ ros::Publisher velocity_map_base_pub;
 std::vector<ros::Publisher> velocity_map_robot_pubs;
 ros::Publisher arrival_time_sum_pub;
 std::vector<ros::Publisher> arrival_time_robot_pubs;
+ros::Publisher estimated_gather_cost_pub;
+ros::Publisher estimated_arrival_times_pub;
 
 std::string makeRobotNamespace(const int robot_id)
 {
@@ -690,6 +698,27 @@ void publish_arrival_time_map_msg(
         msg.data[i] = static_cast<int8_t>(std::round(ratio * 100.0));
     }
     publisher.publish(msg);
+}
+
+void publish_estimated_gather_cost_msg(
+    const double gather_cost,
+    const std::vector<double>& robot_arrival_times)
+{
+    if (!publish_estimated_gather_cost) {
+        return;
+    }
+    if (estimated_gather_cost_pub) {
+        std_msgs::Float64 msg;
+        msg.data = gather_cost;
+        estimated_gather_cost_pub.publish(msg);
+    }
+    if (estimated_arrival_times_pub) {
+        std_msgs::Float64MultiArray msg;
+        msg.data.reserve(robot_arrival_times.size() + 1);
+        msg.data.push_back(gather_cost);
+        msg.data.insert(msg.data.end(), robot_arrival_times.begin(), robot_arrival_times.end());
+        estimated_arrival_times_pub.publish(msg);
+    }
 }
 
 int apply_uncertainty_kernel_at(
@@ -1725,6 +1754,26 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
     // 计算聚集中心
     int min_idx = gatherer_.getMinIdx(*grid_sum_ptr); //聚集代价最小
     Min_idx = min_idx;
+    std::vector<double> estimated_arrival_times;
+    estimated_arrival_times.reserve(static_cast<std::size_t>(num_robots));
+    for (int i = 0; i < num_robots; ++i) {
+        double arrival_time = std::numeric_limits<double>::infinity();
+        if (i < static_cast<int>(grid_ptrs.size()) &&
+            min_idx >= 0 &&
+            min_idx < grid_ptrs[i]->size()) {
+            arrival_time = grid_ptrs[i]->getCell(min_idx).getValue();
+        }
+        estimated_arrival_times.push_back(arrival_time);
+    }
+    double estimated_gather_cost = std::numeric_limits<double>::infinity();
+    if (min_idx >= 0 && min_idx < grid_sum_ptr->size()) {
+        estimated_gather_cost = grid_sum_ptr->getCell(min_idx).getValue();
+    }
+    publish_estimated_gather_cost_msg(estimated_gather_cost, estimated_arrival_times);
+    ROS_INFO("[FM2 Gather] Estimated gather cost (%s)=%.3f at idx=%d",
+             mission.c_str(),
+             estimated_gather_cost,
+             min_idx);
     
 
     // for(int i = 0; i < num_robots; i++)
@@ -2101,6 +2150,15 @@ int main(int argc, char** argv)
     nh.param("arrival_time_topic_prefix",
              arrival_time_topic_prefix,
              arrival_time_topic_prefix);
+    nh.param("publish_estimated_gather_cost",
+             publish_estimated_gather_cost,
+             publish_estimated_gather_cost);
+    nh.param("estimated_gather_cost_topic",
+             estimated_gather_cost_topic,
+             estimated_gather_cost_topic);
+    nh.param("estimated_arrival_times_topic",
+             estimated_arrival_times_topic,
+             estimated_arrival_times_topic);
 
     if (!dynamic_obstacle_topic_suffix.empty() &&
         dynamic_obstacle_topic_suffix.front() == '/') {
@@ -2141,6 +2199,12 @@ int main(int argc, char** argv)
     while (!arrival_time_topic_prefix.empty() &&
            arrival_time_topic_prefix.back() == '/') {
         arrival_time_topic_prefix.pop_back();
+    }
+    if (estimated_gather_cost_topic.empty()) {
+        estimated_gather_cost_topic = "/fm2_gather/estimated_gather_cost";
+    }
+    if (estimated_arrival_times_topic.empty()) {
+        estimated_arrival_times_topic = "/fm2_gather/estimated_arrival_times";
     }
     if (use_peer_robot_uncertainty_layer) {
         ROS_WARN("[FM2 Gather] use_peer_robot_uncertainty_layer is enabled, but gather-point computation ignores swarm robots in velocity maps.");
@@ -2277,6 +2341,14 @@ int main(int argc, char** argv)
     } else {
         arrival_time_robot_pubs.clear();
     }
+    if (publish_estimated_gather_cost) {
+        estimated_gather_cost_pub =
+            nh.advertise<std_msgs::Float64>(estimated_gather_cost_topic, 1, true);
+        estimated_arrival_times_pub =
+            nh.advertise<std_msgs::Float64MultiArray>(estimated_arrival_times_topic, 1, true);
+        ROS_INFO("Publishing estimated gather cost topic: %s", estimated_gather_cost_topic.c_str());
+        ROS_INFO("Publishing estimated arrival times topic: %s", estimated_arrival_times_topic.c_str());
+    }
 
     // 设置循环频率
     ros::Rate rate(3); // 3Hz
@@ -2321,6 +2393,8 @@ int main(int argc, char** argv)
                 }
                 Gather gatherer(num_robots, hypotenuse, resolution, occ.origin.position.x, occ.origin.position.y, size_x_, size_y_); //负责生成聚集目标点中的各种操作
                 if (external_center_pending) {
+                    const std::set<int> blocked_robot_ids =
+                        stop_path_planning ? shape_active_robot_ids : std::set<int>();
                     if (external_center_dispatch_after.isZero()) {
                         gather_state_msg.data = 0;
                         pub_start.publish(gather_state_msg);
@@ -2343,14 +2417,14 @@ int main(int argc, char** argv)
                     }
                     pub_center.publish(make_goal_pose(external_center_goal, ros::Time::now()));
                     if (publish_goal) {
-                        publish_goals(controllers, goals, external_center_goal, publish_center_goal_only, shape_active_robot_ids);
+                        publish_goals(controllers, goals, external_center_goal, publish_center_goal_only, blocked_robot_ids);
                     }
                     gather_state_msg.data = 1;
                     pub_start.publish(gather_state_msg);
                     external_center_pending = false;
                     external_center_dispatch_after = ros::Time(0);
-                    ROS_INFO("[FM2 Gather] Dispatched external center goals, active shape robots skipped=%zu.",
-                             shape_active_robot_ids.size());
+                    ROS_INFO("[FM2 Gather] Dispatched external center goals, skipped=%zu.",
+                             blocked_robot_ids.size());
                     rate.sleep();
                     continue;
                 }
@@ -2421,7 +2495,9 @@ int main(int argc, char** argv)
                     }
                     if(publish_goal && succ)
                     {
-                        publish_goals(controllers, goals, goal_centre, publish_center_goal_only, shape_active_robot_ids);
+                        const std::set<int> blocked_robot_ids =
+                            stop_path_planning ? shape_active_robot_ids : std::set<int>();
+                        publish_goals(controllers, goals, goal_centre, publish_center_goal_only, blocked_robot_ids);
                         if(pub_once)
                         {
                             start_compute = false;
@@ -2452,7 +2528,7 @@ int main(int argc, char** argv)
                     {
                         if(robot_replan_flags[i])
                         {
-                            if (shape_active_robot_ids.find(robot_ids[i]) != shape_active_robot_ids.end()) {
+                            if (stop_path_planning && shape_active_robot_ids.find(robot_ids[i]) != shape_active_robot_ids.end()) {
                                 ROS_INFO("[FM2 Gather] Skip replan for robot %d because shape assembly is active.", robot_ids[i]);
                                 robot_replan_flags[i] = false;
                                 continue;
