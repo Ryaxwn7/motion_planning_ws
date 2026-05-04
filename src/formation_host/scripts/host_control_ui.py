@@ -854,19 +854,12 @@ class HostControlUI:
             messagebox.showwarning("ROS Offline", "ROS master is not ready. Cannot publish /gather_signal.")
             return
         self._append_log(
-<<<<<<< HEAD
             "[ui] Applied shape params: type={} scale={:.3f}\n".format(
-=======
-            "[ui] Applied shape params type={} scale={:.3f}, then published /gather_signal = 2\n".format(
->>>>>>> 31e375cec32ae20e4a4a87e2c32737c198ee201a
                 self.shape_type_var.get().strip(),
                 shape_scale,
             )
         )
-<<<<<<< HEAD
         self._append_log("[ui] Published /gather_signal = 2\n")
-=======
->>>>>>> 31e375cec32ae20e4a4a87e2c32737c198ee201a
 
     def _set_force_move_base(self, enabled: bool) -> None:
         robot_ids = self.get_configured_robot_ids()
