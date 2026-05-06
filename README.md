@@ -61,6 +61,41 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch
 
 如果后续启动其他机器人实例，通常需要把 `map_started` 设为 `true`，避免重复启动 `map_server`。
 
+## VRPN 与 TF 调整
+
+根目录新增了 VRPN 客户端和 `world`/`map` TF 调整脚本，用于接入动作捕捉服务器并在实机实验时在线校准坐标系。
+
+启动 VRPN 客户端并打开 TF 调整窗口：
+
+```bash
+cd ~/motion_planning_ws
+./start_vrpn_client.sh server:=192.168.1.117
+```
+
+等价的 UI 快捷入口：
+
+```bash
+./start_vrpn_tf_ui.sh server:=192.168.1.117
+```
+
+常用参数：
+
+- `server:=192.168.1.117`：VRPN 服务器地址。
+- `parent_frame:=world`、`child_frame:=map`：发布的 TF 父/子坐标系，默认发布 `world -> map`。
+- `x:=0.0 y:=0.0 z:=0.0`：平移量，单位为米。
+- `roll:=0.0 pitch:=0.0 yaw:=0.0`：旋转量，单位为弧度。
+- `tf_backend:=ui`：默认模式，打开 `scripts/tf_adjust_ui.py`，可用窗口实时微调并保存/加载 JSON 配置。
+- `tf_backend:=live`：后台发布动态 TF，可用 `rosparam set /live_map_world_tf/x 0.1` 等命令实时修改参数。
+- `tf_backend:=tf2`：使用 `tf2_ros static_transform_publisher` 发布静态 TF。
+- `tf_backend:=tf`：使用 ROS 旧版 `tf static_transform_publisher` 按 `period_ms` 周期发布。
+
+示例：
+
+```bash
+./start_vrpn_client.sh server:=192.168.1.117 parent_frame:=world child_frame:=map tf_backend:=ui
+./start_vrpn_client.sh server:=192.168.1.117 tf_backend:=live yaw:=1.5708
+```
+
 ## Notes
 
 - 根目录的 `.gitignore` 已忽略 `build/`、`devel/`、嵌套 `build/devel`、IDE 配置和本地 zip 备份文件。
