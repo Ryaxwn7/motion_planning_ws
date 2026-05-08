@@ -31,6 +31,7 @@
   <arg name="gather_center_topic" default="/gather_center" />
   <arg name="publish_center_goal_only" default="true" />
   <arg name="publish_goal" default="true" />
+  <arg name="mission" default="fastest" />
   <arg name="robot_namespace_prefix" default="robot" />
   <arg name="robot_detect_topic_suffix" default="USE_YAML_SENTINEL" />
   <arg name="robot_odom_topic_suffix" default="USE_YAML_SENTINEL" />
@@ -73,6 +74,7 @@
     <arg name="robot_ids" value="$(arg robot_ids)" />
     <arg name="publish_center_goal_only" value="$(arg publish_center_goal_only)" />
     <arg name="publish_goal" value="$(arg publish_goal)" />
+    <arg name="mission" value="$(arg mission)" />
     <arg name="gather_center_topic" value="$(arg gather_center_topic)" />
     <arg name="external_center_goal_topic" value="$(arg external_center_goal_topic)" />
     <arg name="external_center_sync_wait" value="$(arg external_center_sync_wait)" />

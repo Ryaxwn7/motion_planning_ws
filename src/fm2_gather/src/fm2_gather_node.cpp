@@ -78,6 +78,16 @@ std::string makeDebugFilepath(const std::string& filename)
     namespace fs = std::filesystem;
     return (fs::path(getDebugOutputDir()) / filename).string();
 }
+
+std::string normalizeMission(const std::string& mission)
+{
+    if (mission == "fastest" || mission == "energy" || mission == "space") {
+        return mission;
+    }
+    ROS_WARN("[FM2 Gather] Invalid mission '%s', fallback to fastest. Valid values: fastest, energy, space",
+             mission.c_str());
+    return "fastest";
+}
 }
 fm2_gather::map occ;
 int Min_idx;
@@ -1695,25 +1705,22 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
         fm2_solver->computeFM2_velocity(); //计算不饱和的速度图，用于获取最大空间
         
         getDominantVelocity(*grid_sum_ptr, max_space_idxs);
-        // GridPlotterCV::plotArrivalTimes(*grid_sum_ptr);
-        for(int j = 0 ;j<num_robots;j++)
-        {
-            for(auto i: max_space_idxs)
-            {
-                double val = robot_weights[j]/weight_sum * grid_ptrs[j]->getCell(i).getValue();
-                if(j ==0)
-                {
-                    grid_sum_ptr->getCell(i).setValue(val);
-                }
-                else
-                {
-                    if(val > grid_sum_ptr->getCell(i).getValue())
-                    {
-                        grid_sum_ptr->getCell(i).setValue(val);
-                    }
-                }
-            }
+        if (max_space_idxs.empty()) {
+            ROS_ERROR("No valid space-constrained candidate cells found");
+            return false;
         }
+        for (int i = 0; i < grid_sum_ptr->size(); i++) {
+            grid_sum_ptr->getCell(i).setValue(std::numeric_limits<double>::infinity());
+        }
+        for (auto i : max_space_idxs) {
+            double max_arrival_time = -std::numeric_limits<double>::infinity();
+            for (int j = 0; j < num_robots; j++) {
+                max_arrival_time = std::max(max_arrival_time, grid_ptrs[j]->getCell(i).getValue());
+            }
+            grid_sum_ptr->getCell(i).setValue(max_arrival_time);
+        }
+        ROS_INFO("[FM2 Gather] Space mission uses %zu high-clearance candidate cells",
+                 max_space_idxs.size());
         if(debug_on)
         {
             if(plot_on)
@@ -2297,8 +2304,9 @@ int main(int argc, char** argv)
     float hypotenuse = 0.4; // 机器人对角线长度（圆形队列半径）
     nh.getParam("hypo", hypotenuse);
     ROS_INFO("Hypotenuse: %f", hypotenuse);
-    std::string mission;
-    nh.getParam("mission", mission);
+    std::string mission = "fastest";
+    nh.param("mission", mission, mission);
+    mission = normalizeMission(mission);
     ROS_INFO("Mission: %s", mission.c_str());
     nh.param("pub_once", pub_once, false);
     nh.param("reverse", reverse, false);
@@ -2446,6 +2454,13 @@ int main(int argc, char** argv)
     while (ros::ok())
     {
         ros::spinOnce();
+        std::string configured_mission = mission;
+        nh.param("mission", configured_mission, configured_mission);
+        configured_mission = normalizeMission(configured_mission);
+        if (configured_mission != mission) {
+            mission = configured_mission;
+            ROS_INFO("[FM2 Gather] Mission updated from parameter: %s", mission.c_str());
+        }
         std::set<int> shape_active_robot_ids;
         const bool stop_path_planning =
             getShapeTakeoverStopPlanning(nh, shape_active_robot_ids);

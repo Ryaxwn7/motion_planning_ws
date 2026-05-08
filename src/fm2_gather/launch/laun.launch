@@ -5,6 +5,7 @@
     <arg name="robot_ids" default="USE_YAML_SENTINEL" />
     <arg name="publish_center_goal_only" default="false" />
     <arg name="publish_goal" default="true" />
+    <arg name="mission" default="fastest" />
     <arg name="gather_center_topic" default="/gather_center" />
     <arg name="external_center_goal_topic" default="/shape_assembly/center_goal_cmd" />
     <arg name="external_center_sync_wait" default="0.5" />
@@ -58,7 +59,7 @@
     <param if="$(eval arg('robot_odom_topic_suffix') != 'USE_YAML_SENTINEL')" name="robot_odom_topic_suffix" value="$(arg robot_odom_topic_suffix)" />
     <param name="robot_detect_timeout" value="$(arg robot_detect_timeout)" />
     <param name="test_mode" type="bool" value="false" />
-    <!-- <param name="mission" type="string" value="fastest" />  mission: fastest, energy, space -->
+    <param name="mission" type="string" value="$(arg mission)" />
     <param name="publish_goal" type="bool" value="$(arg publish_goal)" />
     <param name="publish_estimated_gather_cost" type="bool" value="$(arg publish_estimated_gather_cost)" />
     <param name="estimated_gather_cost_topic" value="$(arg estimated_gather_cost_topic)" />

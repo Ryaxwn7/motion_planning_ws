@@ -51,6 +51,14 @@ SHAPE_CHOICES = [
     "snowflake",
 ]
 
+GATHER_MISSION_CHOICES = [
+    ("时间最短", "fastest"),
+    ("总能耗最小", "energy"),
+    ("带空间距离约束的最快聚集", "space"),
+]
+GATHER_MISSION_LABEL_TO_VALUE = {label: value for label, value in GATHER_MISSION_CHOICES}
+GATHER_MISSION_VALUE_TO_LABEL = {value: label for label, value in GATHER_MISSION_CHOICES}
+
 CONNECTION_TIMEOUT_SEC = 3.0
 STALE_TIMEOUT_SEC = 10.0
 
@@ -72,7 +80,7 @@ SCRIPT_ARG_DEFS: List[Tuple[str, str, str]] = [
 SCRIPT_ARG_KEYS = [item[0] for item in SCRIPT_ARG_DEFS]
 SCRIPT_ARG_VAR_MAP = {item[1]: item[0] for item in SCRIPT_ARG_DEFS}
 SCRIPT_ARG_DEFAULTS = {item[0]: item[2] for item in SCRIPT_ARG_DEFS}
-COMMON_HOST_ARG_KEYS = ("agent_number", "robot_ids", "shape_type", "shape_scale")
+COMMON_HOST_ARG_KEYS = ("agent_number", "robot_ids", "shape_type", "shape_scale", "mission")
 
 
 def parse_robot_ids(text: str) -> List[int]:
@@ -131,6 +139,7 @@ def parse_host_defaults(config_path: Path) -> Dict[str, str]:
         "robot_ids": "1,2,3,4,5,6",
         "shape_type": "rectangle",
         "shape_scale": "1.0",
+        "mission": "fastest",
     }
     if not config_path.exists():
         return defaults
@@ -141,12 +150,27 @@ def parse_host_defaults(config_path: Path) -> Dict[str, str]:
         "robot_ids": r'"robot_ids:=\[([^\]]*)\]"',
         "shape_type": r'"shape_type:=([^"]+)"',
         "shape_scale": r'"shape_scale:=([^"]+)"',
+        "mission": r'"mission:=([^"]+)"',
     }
     for key, pattern in patterns.items():
         match = re.search(pattern, text)
         if match:
             defaults[key] = match.group(1).strip()
     return defaults
+
+
+def normalize_gather_mission(value: str) -> str:
+    text = str(value or "").strip()
+    if text in GATHER_MISSION_LABEL_TO_VALUE:
+        return GATHER_MISSION_LABEL_TO_VALUE[text]
+    if text in GATHER_MISSION_VALUE_TO_LABEL:
+        return text
+    return "fastest"
+
+
+def gather_mission_label(value: str) -> str:
+    mission = normalize_gather_mission(value)
+    return GATHER_MISSION_VALUE_TO_LABEL.get(mission, GATHER_MISSION_VALUE_TO_LABEL["fastest"])
 
 
 def _launch_arg_key(arg: str) -> str:
@@ -380,18 +404,27 @@ class RosInterface:
             self.app.on_force_move_base_feedback(errors)
         return any_success
 
-    def apply_shape_params(self, shape_type: str, shape_scale: float, robot_ids: List[int]) -> bool:
+    def apply_shape_params(
+        self,
+        shape_type: str,
+        shape_scale: float,
+        robot_ids: List[int],
+        gather_mission: str = "fastest",
+    ) -> bool:
         if not self.ensure_node():
             return False
         normalized_ids = sorted(set(int(rid) for rid in robot_ids if int(rid) > 0))
         agent_count = len(normalized_ids)
         shape_type_value = str(shape_type).strip()
         shape_scale_value = float(shape_scale)
+        mission_value = normalize_gather_mission(gather_mission)
 
         rospy.set_param("/robot_ids", normalized_ids)
         rospy.set_param("/num_robots", agent_count)
         rospy.set_param("/shape_type", shape_type_value)
         rospy.set_param("/shape_scale", shape_scale_value)
+        rospy.set_param("/mission", mission_value)
+        rospy.set_param("/fm2_gather_node/mission", mission_value)
         rospy.set_param("/shape_task_supervisor/robot_ids", normalized_ids)
         rospy.set_param("/shape_task_supervisor/agent_count", agent_count)
         rospy.set_param("/shape_task_supervisor/shape_type", shape_type_value)
@@ -508,6 +541,9 @@ class HostControlUI:
         self.robot_ids_var = tk.StringVar(value=host_args.get("robot_ids", fallback_defaults["robot_ids"]))
         self.shape_type_var = tk.StringVar(value=host_args.get("shape_type", fallback_defaults["shape_type"]))
         self.shape_scale_var = tk.StringVar(value=host_args.get("shape_scale", fallback_defaults["shape_scale"]))
+        self.gather_mission_var = tk.StringVar(
+            value=normalize_gather_mission(host_args.get("mission", fallback_defaults["mission"]))
+        )
         self.master_status_var = tk.StringVar(value="ROS master: offline")
         self.host_status_var = tk.StringVar(value="Host process: idle")
         self.gather_status_var = tk.StringVar(value="Gather: unknown")
@@ -532,6 +568,7 @@ class HostControlUI:
         arg_values["robot_ids"] = self.robot_ids_var.get()
         arg_values["shape_type"] = self.shape_type_var.get()
         arg_values["shape_scale"] = self.shape_scale_var.get()
+        arg_values["mission"] = normalize_gather_mission(self.gather_mission_var.get())
 
         ordered = list(self.launch_arg_defaults.keys())
         for key in list(arg_values.keys()):
@@ -549,6 +586,8 @@ class HostControlUI:
                 self.host_arg_vars[key] = self.shape_type_var
             elif key == "shape_scale":
                 self.host_arg_vars[key] = self.shape_scale_var
+            elif key == "mission":
+                self.host_arg_vars[key] = tk.StringVar(value=normalize_gather_mission(arg_values.get(key, "fastest")))
             else:
                 self.host_arg_vars[key] = tk.StringVar(value=str(arg_values.get(key, "")))
 
@@ -561,6 +600,8 @@ class HostControlUI:
             self.host_arg_vars["shape_type"].set(self.shape_type_var.get().strip())
         if "shape_scale" in self.host_arg_vars:
             self.host_arg_vars["shape_scale"].set(self.shape_scale_var.get().strip())
+        if "mission" in self.host_arg_vars:
+            self.host_arg_vars["mission"].set(normalize_gather_mission(self.gather_mission_var.get()))
 
     def _script_args_from_vars(self) -> Dict[str, str]:
         return {key: var.get().strip() for key, var in self.script_arg_vars.items()}
@@ -592,6 +633,7 @@ class HostControlUI:
             robot_ids_arg(robot_ids),
             f"shape_type:={self.shape_type_var.get().strip()}",
             f"shape_scale:={shape_scale}",
+            f"mission:={normalize_gather_mission(self.gather_mission_var.get())}",
         ]
         if include_publish_goal:
             override_args.append("publish_goal:=true")
@@ -642,8 +684,18 @@ class HostControlUI:
         ttk.Label(config_frame, text="Scale").grid(row=0, column=6, sticky="w", padx=8, pady=8)
         ttk.Entry(config_frame, textvariable=self.shape_scale_var).grid(row=0, column=7, sticky="ew", padx=8, pady=8)
 
+        ttk.Label(config_frame, text="Gather Goal").grid(row=1, column=0, sticky="w", padx=8, pady=(0, 8))
+        mission_box = ttk.Combobox(
+            config_frame,
+            textvariable=self.gather_mission_var,
+            values=[label for label, _value in GATHER_MISSION_CHOICES],
+            state="readonly",
+        )
+        mission_box.grid(row=1, column=1, columnspan=3, sticky="ew", padx=8, pady=(0, 8))
+        self.gather_mission_var.set(gather_mission_label(self.gather_mission_var.get()))
+
         button_frame = ttk.Frame(config_frame)
-        button_frame.grid(row=1, column=0, columnspan=8, sticky="ew", padx=8, pady=(0, 8))
+        button_frame.grid(row=2, column=0, columnspan=8, sticky="ew", padx=8, pady=(0, 8))
         for idx in range(8):
             button_frame.columnconfigure(idx, weight=1)
 
@@ -891,16 +943,22 @@ class HostControlUI:
         if not robot_ids:
             messagebox.showwarning("No Robots", "Configured robot_ids is empty or invalid.")
             return
-        if not self.ros.apply_shape_params(self.shape_type_var.get(), shape_scale, robot_ids):
+        if not self.ros.apply_shape_params(
+            self.shape_type_var.get(),
+            shape_scale,
+            robot_ids,
+            self.gather_mission_var.get(),
+        ):
             messagebox.showwarning("ROS Offline", "ROS master or shape_task_supervisor is not ready.")
             return
         if not self.ros.publish_gather_signal():
             messagebox.showwarning("ROS Offline", "ROS master is not ready. Cannot publish /gather_signal.")
             return
         self._append_log(
-            "[ui] Applied shape params: type={} scale={:.3f}\n".format(
+            "[ui] Applied shape params: type={} scale={:.3f} mission={}\n".format(
                 self.shape_type_var.get().strip(),
                 shape_scale,
+                normalize_gather_mission(self.gather_mission_var.get()),
             )
         )
         self._append_log("[ui] Published /gather_signal = 2 (shape publish)\n")
@@ -915,16 +973,22 @@ class HostControlUI:
         if not robot_ids:
             messagebox.showwarning("No Robots", "Configured robot_ids is empty or invalid.")
             return
-        if not self.ros.apply_shape_params(self.shape_type_var.get(), shape_scale, robot_ids):
+        if not self.ros.apply_shape_params(
+            self.shape_type_var.get(),
+            shape_scale,
+            robot_ids,
+            self.gather_mission_var.get(),
+        ):
             messagebox.showwarning("ROS Offline", "ROS master or shape_task_supervisor is not ready.")
             return
         if not self.ros.publish_gather_signal(signal_value=3, repeat=1, wait_connections=2.0):
             messagebox.showwarning("ROS Offline", "ROS master is not ready. Cannot publish /gather_signal.")
             return
         self._append_log(
-            "[ui] Requested FM2 preview: type={} scale={:.3f}; no move_base goals will be sent.\n".format(
+            "[ui] Requested FM2 preview: type={} scale={:.3f} mission={}; no move_base goals will be sent.\n".format(
                 self.shape_type_var.get().strip(),
                 shape_scale,
+                normalize_gather_mission(self.gather_mission_var.get()),
             )
         )
         self._append_log(
@@ -943,16 +1007,22 @@ class HostControlUI:
         if not robot_ids:
             messagebox.showwarning("No Robots", "Configured robot_ids is empty or invalid.")
             return
-        if not self.ros.apply_shape_params(self.shape_type_var.get(), shape_scale, robot_ids):
+        if not self.ros.apply_shape_params(
+            self.shape_type_var.get(),
+            shape_scale,
+            robot_ids,
+            self.gather_mission_var.get(),
+        ):
             messagebox.showwarning("ROS Offline", "ROS master or shape_task_supervisor is not ready.")
             return
         if not self.ros.publish_gather_signal():
             messagebox.showwarning("ROS Offline", "ROS master is not ready. Cannot publish /gather_signal.")
             return
         self._append_log(
-            "[ui] Applied shape params: type={} scale={:.3f}\n".format(
+            "[ui] Applied shape params: type={} scale={:.3f} mission={}\n".format(
                 self.shape_type_var.get().strip(),
                 shape_scale,
+                normalize_gather_mission(self.gather_mission_var.get()),
             )
         )
         self._append_log("[ui] Published /gather_signal = 2\n")
@@ -1080,6 +1150,7 @@ class HostControlUI:
         self.robot_ids_var.set(host_args.get("robot_ids", fallback_defaults["robot_ids"]))
         self.shape_type_var.set(host_args.get("shape_type", fallback_defaults["shape_type"]))
         self.shape_scale_var.set(host_args.get("shape_scale", fallback_defaults["shape_scale"]))
+        self.gather_mission_var.set(gather_mission_label(host_args.get("mission", fallback_defaults["mission"])))
         self._init_param_vars_from_snapshot(self.config_snapshot)
         if self.param_window is not None and self.param_window.winfo_exists():
             self.param_window.destroy()
