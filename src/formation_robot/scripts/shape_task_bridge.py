@@ -276,14 +276,14 @@ class ShapeTaskBridge:
         self.min_staging_radius = max(0.0, float(rospy.get_param("~min_staging_radius", 0.8)))
         self.staging_margin = max(0.0, float(rospy.get_param("~staging_margin", 0.45)))
         self.radius_gain = max(0.0, float(rospy.get_param("~staging_radius_gain", 1.0)))
-        self.shape_source = rospy.get_param("~shape_source", "mat")
-        self.shape_resolution = int(rospy.get_param("~shape_resolution", 80))
-        self.ring_inner_ratio = float(rospy.get_param("~ring_inner_ratio", 0.25))
-        self.ring_outer_ratio = float(rospy.get_param("~ring_outer_ratio", 0.4))
-        self.gray_width = int(rospy.get_param("~gray_width", 4))
-        self.shape_mat_path = rospy.get_param("~shape_mat_path", "")
-        self.shape_library_root = os.path.expanduser(str(rospy.get_param("~shape_library_root", "")).strip() or _get_default_shape_dir())
-        self.r_avoid = float(rospy.get_param("~r_avoid", 0.60))
+        self.shape_source = rospy.get_param("~shape_source", rospy.get_param("/shape_source", "mat"))
+        self.shape_resolution = int(rospy.get_param("~shape_resolution", rospy.get_param("/shape_resolution", 80)))
+        self.ring_inner_ratio = float(rospy.get_param("~ring_inner_ratio", rospy.get_param("/ring_inner_ratio", 0.25)))
+        self.ring_outer_ratio = float(rospy.get_param("~ring_outer_ratio", rospy.get_param("/ring_outer_ratio", 0.4)))
+        self.gray_width = int(rospy.get_param("~gray_width", rospy.get_param("/gray_width", 4)))
+        self.shape_mat_path = rospy.get_param("~shape_mat_path", rospy.get_param("/shape_mat_path", ""))
+        self.shape_library_root = os.path.expanduser(str(rospy.get_param("~shape_library_root", rospy.get_param("/shape_library_root", ""))).strip() or _get_default_shape_dir())
+        self.r_avoid = float(rospy.get_param("~r_avoid", rospy.get_param("/r_avoid", 0.60)))
         self.shape_sample_stride = max(1, int(rospy.get_param("~shape_sample_stride", 2)))
         self.debug_log = bool(rospy.get_param("~debug_log", False))
         self._server_ready = False
@@ -444,6 +444,19 @@ class ShapeTaskBridge:
         return goal
 
     def _task_cb(self, task: ShapeTask) -> None:
+        # Re-read shape construction params from global param server on each task.
+        # This allows host-side param changes to propagate to already-running robots.
+        _new_source = str(rospy.get_param("~shape_source",
+            rospy.get_param("/shape_source", self.shape_source)))
+        if _new_source != self.shape_source:
+            self.shape_source = _new_source
+            self._shape_cache_key = None
+        _new_r_avoid = float(rospy.get_param("~r_avoid",
+            rospy.get_param("/r_avoid", self.r_avoid)))
+        if abs(_new_r_avoid - self.r_avoid) > 1e-9:
+            self.r_avoid = _new_r_avoid
+            self._shape_cache_key = None
+
         goal = self._compute_goal(task)
         goal_xy = (goal.target_pose.pose.position.x, goal.target_pose.pose.position.y)
         if (
