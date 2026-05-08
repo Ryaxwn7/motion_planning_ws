@@ -1393,7 +1393,7 @@ class ShapeAssemblySwarm:
         self.agent_number = int(rospy.get_param("~agent_number", 0))
         private_robot_ids = _parse_positive_int_list(rospy.get_param("~robot_ids", []))
         global_robot_ids = _parse_positive_int_list(rospy.get_param("/robot_ids", []))
-        self.robot_ids = private_robot_ids or global_robot_ids
+        self.robot_ids = global_robot_ids or private_robot_ids
         self.robot_namespaces = rospy.get_param("~robot_namespaces", [])
         if self.robot_ids and self.agent_number > 0 and self.agent_number != len(self.robot_ids):
             rospy.logwarn(
@@ -1431,6 +1431,7 @@ class ShapeAssemblySwarm:
         self.robot_status_topic = str(rospy.get_param("~robot_status_topic", "shape_assembly/status")).strip()
         self.active_task_id = int(rospy.get_param("~initial_task_id", 0))
         self.pending_shape_reload = False
+        self._loaded_shape_key: Optional[Tuple[object, ...]] = None
 
         self.reference_center = rospy.get_param("~reference_center", [])
         self.reference_heading = float(rospy.get_param("~reference_heading", 0.0))
@@ -1903,10 +1904,29 @@ class ShapeAssemblySwarm:
             self._dyn_ready = True
         return config
 
+    def _current_shape_key(self) -> Tuple[object, ...]:
+        return (
+            str(self.shape_source).strip().lower(),
+            _normalize_shape_type(self.shape_type),
+            round(float(self.shape_scale), 9),
+            int(self.shape_resolution),
+            round(float(self.ring_inner_ratio), 9),
+            round(float(self.ring_outer_ratio), 9),
+            int(self.gray_width),
+            str(self.shape_mat_path).strip(),
+            os.path.expanduser(str(self.shape_library_root).strip()),
+            round(float(self.sim_param.r_avoid), 9),
+            int(self.sim_param.swarm_size),
+        )
+
+    def _shape_model_needs_reload(self) -> bool:
+        return self._loaded_shape_key != self._current_shape_key()
+
     def _reload_shape_model(self) -> None:
         if self.sim_param.swarm_size <= 0:
             self.pending_shape_reload = True
             return
+        shape_key = self._current_shape_key()
         try:
             image_mtr, self._shape_desc = load_shape_matrix(
                 shape_source=self.shape_source,
@@ -1923,12 +1943,14 @@ class ShapeAssemblySwarm:
             image_mtr = generate_ring_shape(self.shape_resolution, self.ring_inner_ratio, self.ring_outer_ratio, self.gray_width)
             self._shape_desc = "fallback:analytic:ring"
         self.shape_mtr, self.shape_info = init_form_shape(self.sim_param, image_mtr, self.shape_scale)
+        self._loaded_shape_key = shape_key
         self.switch_reference_radius = self._compute_reference_switch_radius()
         self._build_shape_overlap_samples()
         self.marker_needs_clear = True
         self.pending_shape_reload = False
 
     def _formation_task_cb(self, msg: "ShapeTask") -> None:
+        self._sync_runtime_robot_config()
         changed_shape = False
         next_shape_type = str(msg.shape_type).strip()
         next_shape_scale = max(1.0e-3, float(msg.shape_scale))
@@ -1985,6 +2007,9 @@ class ShapeAssemblySwarm:
             self.pending_shape_reload = True
             self._reload_shape_model()
 
+        rospy.set_param("~shape_type", self.shape_type)
+        rospy.set_param("~shape_scale", self.shape_scale)
+        rospy.set_param("~active_task_id", self.active_task_id)
         self._converged_since = -1.0
         self._converged_reported = False
         if task_changed:
@@ -2012,6 +2037,55 @@ class ShapeAssemblySwarm:
         if had_active:
             rospy.loginfo("ShapeAssembly: reset shape-control latch on %s.", reason)
         self._update_takeover_state_param(self.shape_ctrl_active)
+
+    def _unregister_runtime_subscribers(self) -> None:
+        for sub in (
+            list(self.odom_subs)
+            + list(self.odom_velocity_subs)
+            + list(self.local_costmap_subs)
+            + list(self.local_costmap_update_subs)
+        ):
+            try:
+                sub.unregister()
+            except Exception:
+                pass
+
+    def _sync_runtime_robot_config(self, log_change: bool = True) -> bool:
+        global_robot_ids = _parse_positive_int_list(rospy.get_param("/robot_ids", []))
+        private_robot_ids = _parse_positive_int_list(rospy.get_param("~robot_ids", []))
+        robot_ids = global_robot_ids or private_robot_ids
+        if not robot_ids:
+            return False
+
+        if robot_ids == self.robot_ids and self.agent_number == len(robot_ids):
+            return False
+
+        previous_ids = list(self.robot_ids)
+        self.robot_ids = robot_ids
+        self.agent_number = len(robot_ids)
+        rospy.set_param("~robot_ids", list(self.robot_ids))
+        rospy.set_param("~agent_number", self.agent_number)
+        rospy.set_param("~resolved_robot_ids", list(self.robot_ids))
+        rospy.set_param("~resolved_agent_number", self.agent_number)
+
+        expected_ns = [f"{self.namespace_prefix}{robot_id}" for robot_id in self.robot_ids]
+        if self.ns_list and self.ns_list != expected_ns:
+            self._unregister_runtime_subscribers()
+            self.ns_list = []
+            self.shape_state = None
+            self.shape_mtr = None
+            self.shape_info = None
+            self.sim_param.swarm_size = 0
+            self.pending_shape_reload = True
+            self.marker_needs_clear = True
+            self._reset_shape_control_switch("robot_ids change")
+        if log_change:
+            rospy.loginfo(
+                "ShapeAssembly: runtime robot_ids changed %s -> %s",
+                str(previous_ids),
+                str(self.robot_ids),
+            )
+        return True
 
     def _topic_type_map(self) -> Dict[str, str]:
         result: Dict[str, str] = {}
@@ -4053,6 +4127,7 @@ class ShapeAssemblySwarm:
         self.marker_pub.publish(markers)
 
     def _on_timer(self, _event) -> None:
+        self._sync_runtime_robot_config(log_change=False)
         if not self.enabled:
             self._publish_zero()
             return
@@ -4078,7 +4153,7 @@ class ShapeAssemblySwarm:
         self._maybe_report_monitored_robots()
 
         self._maybe_init()
-        if self.pending_shape_reload and self.sim_param.swarm_size > 0:
+        if (self.pending_shape_reload or self._shape_model_needs_reload()) and self.sim_param.swarm_size > 0:
             self._reload_shape_model()
         if self.shape_state is None or self.shape_mtr is None or self.shape_info is None or self.refer_state is None:
             return

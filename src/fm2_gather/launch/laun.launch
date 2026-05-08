@@ -40,6 +40,9 @@
     <arg name="loop_hz" default="10.0" />
     <arg name="publish_estimated_gather_cost" default="true" />
     <arg name="estimated_arrival_times_topic" default="/fm2_gather/estimated_arrival_times" />
+    <arg name="preview_center_topic" default="/fm2_gather/preview_center" />
+    <arg name="preview_path_topic_prefix" default="/fm2_gather/preview_path" />
+    <arg name="publish_preview_paths" default="true" />
     <!-- 启动地图融合节点 -->
     <node if="$(arg enable_map_combine)" name="fm2_map_combine_node" pkg="fm2_gather" type="fm2_map_combine_node" output="screen" />
     <!-- 设置参数 -->
@@ -60,6 +63,9 @@
     <param name="publish_estimated_gather_cost" type="bool" value="$(arg publish_estimated_gather_cost)" />
     <param name="estimated_gather_cost_topic" value="$(arg estimated_gather_cost_topic)" />
     <param name="estimated_arrival_times_topic" value="$(arg estimated_arrival_times_topic)" />
+    <param name="preview_center_topic" value="$(arg preview_center_topic)" />
+    <param name="preview_path_topic_prefix" value="$(arg preview_path_topic_prefix)" />
+    <param name="publish_preview_paths" value="$(arg publish_preview_paths)" />
     <param name="reverse" type="bool" value="false" />
     <param name="pub_once" type="bool" value="false" />
     <param name="save_data" type="bool" value="true" />

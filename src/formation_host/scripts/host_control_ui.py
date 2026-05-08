@@ -18,8 +18,9 @@ import rospy
 import tkinter as tk
 from actionlib_msgs.msg import GoalID
 from formation_msgs.msg import RobotFormationStatus, ShapeTask
+from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Bool, UInt8
+from std_msgs.msg import Bool, Float64, UInt8
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 try:
@@ -263,6 +264,8 @@ class RosInterface:
             rospy.Subscriber("/shape_assembly/task", ShapeTask, self._task_cb, queue_size=2),
             rospy.Subscriber("/gather_started", UInt8, self._gather_started_cb, queue_size=2),
             rospy.Subscriber("/gather_signal", UInt8, self._gather_signal_cb, queue_size=10),
+            rospy.Subscriber("/fm2_gather/preview_center", PoseStamped, self._preview_center_cb, queue_size=2),
+            rospy.Subscriber("/fm2_gather/estimated_gather_cost", Float64, self._estimated_gather_cost_cb, queue_size=2),
         ]
         self.node_ready = True
         self.reconfigure_robot_subs(self.app.get_configured_robot_ids())
@@ -314,11 +317,17 @@ class RosInterface:
 
         self.current_ids = target_ids
 
-    def publish_gather_signal(self, repeat: int = 3, rate_hz: float = 5.0, wait_connections: float = 2.0) -> bool:
+    def publish_gather_signal(
+        self,
+        signal_value: int = 2,
+        repeat: int = 3,
+        rate_hz: float = 5.0,
+        wait_connections: float = 2.0,
+    ) -> bool:
         if not self.ensure_node():
             return False
         msg = UInt8()
-        msg.data = 2
+        msg.data = int(signal_value)
         deadline = time.time() + max(0.0, float(wait_connections))
         while self.gather_pub.get_num_connections() <= 0 and time.time() < deadline and not rospy.is_shutdown():
             rospy.sleep(0.05)
@@ -371,11 +380,22 @@ class RosInterface:
             self.app.on_force_move_base_feedback(errors)
         return any_success
 
-    def apply_shape_params(self, shape_type: str, shape_scale: float) -> bool:
+    def apply_shape_params(self, shape_type: str, shape_scale: float, robot_ids: List[int]) -> bool:
         if not self.ensure_node():
             return False
-        rospy.set_param("/shape_task_supervisor/shape_type", str(shape_type).strip())
-        rospy.set_param("/shape_task_supervisor/shape_scale", float(shape_scale))
+        normalized_ids = sorted(set(int(rid) for rid in robot_ids if int(rid) > 0))
+        agent_count = len(normalized_ids)
+        shape_type_value = str(shape_type).strip()
+        shape_scale_value = float(shape_scale)
+
+        rospy.set_param("/robot_ids", normalized_ids)
+        rospy.set_param("/num_robots", agent_count)
+        rospy.set_param("/shape_type", shape_type_value)
+        rospy.set_param("/shape_scale", shape_scale_value)
+        rospy.set_param("/shape_task_supervisor/robot_ids", normalized_ids)
+        rospy.set_param("/shape_task_supervisor/agent_count", agent_count)
+        rospy.set_param("/shape_task_supervisor/shape_type", shape_type_value)
+        rospy.set_param("/shape_task_supervisor/shape_scale", shape_scale_value)
         return True
 
     def set_force_move_base(self, robot_ids: List[int], enabled: bool) -> bool:
@@ -431,6 +451,12 @@ class RosInterface:
     def _gather_signal_cb(self, msg: UInt8) -> None:
         self.app.on_gather_signal(int(msg.data))
 
+    def _preview_center_cb(self, msg: PoseStamped) -> None:
+        self.app.on_preview_center(msg)
+
+    def _estimated_gather_cost_cb(self, msg: Float64) -> None:
+        self.app.on_estimated_gather_cost(float(msg.data))
+
     def _odom_cb(self, _msg: Odometry, robot_id: int) -> None:
         self.app.on_robot_heartbeat(robot_id)
 
@@ -465,6 +491,8 @@ class HostControlUI:
         self.host_output_queue: "queue.Queue[str]" = queue.Queue()
         self.robot_states: Dict[int, Dict[str, object]] = {}
         self.last_task: Optional[ShapeTask] = None
+        self.last_preview_center: Optional[PoseStamped] = None
+        self.last_estimated_gather_cost: Optional[float] = None
         self.last_gather_started: Optional[int] = None
         self.last_gather_signal: Optional[int] = None
         self.monitored_ids: List[int] = []
@@ -550,10 +578,43 @@ class HostControlUI:
             args.append(f"{key}:={value}")
         return args
 
+    def _merged_host_launch_args(
+        self,
+        robot_ids: List[int],
+        agent_number: int,
+        shape_scale: float,
+        include_empty: bool = False,
+        include_publish_goal: bool = False,
+    ) -> List[str]:
+        current_host_args = self._host_launch_args_from_vars(include_empty=include_empty)
+        override_args = [
+            f"agent_number:={agent_number}",
+            robot_ids_arg(robot_ids),
+            f"shape_type:={self.shape_type_var.get().strip()}",
+            f"shape_scale:={shape_scale}",
+        ]
+        if include_publish_goal:
+            override_args.append("publish_goal:=true")
+        return merge_launch_args(current_host_args, override_args)
+
     def _profile_data(self) -> Dict[str, object]:
+        try:
+            robot_ids = parse_robot_ids(self.robot_ids_var.get())
+            agent_number = len(robot_ids)
+            shape_scale = float(self.shape_scale_var.get())
+            host_launch_args = launch_args_to_dict(
+                self._merged_host_launch_args(
+                    robot_ids,
+                    agent_number,
+                    shape_scale,
+                    include_empty=True,
+                )
+            )
+        except Exception:
+            host_launch_args = launch_args_to_dict(self._host_launch_args_from_vars(include_empty=True))
         return {
             "script_args": self._script_args_from_vars(),
-            "host_launch_args": launch_args_to_dict(self._host_launch_args_from_vars(include_empty=True)),
+            "host_launch_args": host_launch_args,
         }
 
     def _build_ui(self) -> None:
@@ -589,14 +650,15 @@ class HostControlUI:
         ttk.Button(button_frame, text="Start Host", command=self._start_host).grid(row=0, column=0, sticky="ew", padx=4)
         ttk.Button(button_frame, text="Stop Host", command=self._stop_host).grid(row=0, column=1, sticky="ew", padx=4)
         ttk.Button(button_frame, text="Publish Shape", command=self._apply_shape).grid(row=0, column=2, sticky="ew", padx=4)
-        ttk.Button(button_frame, text="Send Gather=2", command=self._send_gather_signal).grid(row=0, column=3, sticky="ew", padx=4)
-        ttk.Button(button_frame, text="Refresh Monitors", command=self._refresh_monitor_ids).grid(row=0, column=4, sticky="ew", padx=4)
-        ttk.Button(button_frame, text="Force MoveBase ON", command=self._force_move_base_on).grid(row=0, column=5, sticky="ew", padx=4)
-        ttk.Button(button_frame, text="Force MoveBase OFF", command=self._force_move_base_off).grid(row=0, column=6, sticky="ew", padx=4)
-        ttk.Button(button_frame, text="Parameters", command=self._open_param_editor).grid(row=0, column=7, sticky="ew", padx=4)
-        ttk.Button(button_frame, text="Hot Reload Config", command=self._hot_reload_config).grid(row=1, column=0, columnspan=2, sticky="ew", padx=4, pady=(6, 0))
-        ttk.Button(button_frame, text="Load Profile", command=self._load_profile).grid(row=1, column=2, columnspan=2, sticky="ew", padx=4, pady=(6, 0))
-        ttk.Button(button_frame, text="Save Profile", command=self._save_profile).grid(row=1, column=4, columnspan=2, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(button_frame, text="Preview Gather", command=self._preview_gather).grid(row=0, column=3, sticky="ew", padx=4)
+        ttk.Button(button_frame, text="Send Gather=2", command=self._send_gather_signal).grid(row=0, column=4, sticky="ew", padx=4)
+        ttk.Button(button_frame, text="Refresh Monitors", command=self._refresh_monitor_ids).grid(row=0, column=5, sticky="ew", padx=4)
+        ttk.Button(button_frame, text="Force MoveBase ON", command=self._force_move_base_on).grid(row=0, column=6, sticky="ew", padx=4)
+        ttk.Button(button_frame, text="Force MoveBase OFF", command=self._force_move_base_off).grid(row=0, column=7, sticky="ew", padx=4)
+        ttk.Button(button_frame, text="Parameters", command=self._open_param_editor).grid(row=1, column=0, columnspan=2, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(button_frame, text="Hot Reload Config", command=self._hot_reload_config).grid(row=1, column=2, columnspan=2, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(button_frame, text="Load Profile", command=self._load_profile).grid(row=1, column=4, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(button_frame, text="Save Profile", command=self._save_profile).grid(row=1, column=5, sticky="ew", padx=4, pady=(6, 0))
         ttk.Button(button_frame, text="Save host_start.conf", command=self._save_host_start_config).grid(row=1, column=6, columnspan=2, sticky="ew", padx=4, pady=(6, 0))
 
         summary_frame = ttk.LabelFrame(self.root, text="Host Summary")
@@ -794,15 +856,12 @@ class HostControlUI:
         threading.Thread(target=self._read_host_output, daemon=True).start()
 
     def _build_start_host_command(self, robot_ids: List[int], agent_number: int, shape_scale: float) -> List[str]:
-        base_args = list(self.config_snapshot.get("host_launch_args", []))
-        override_args = [
-            f"agent_number:={agent_number}",
-            robot_ids_arg(robot_ids),
-            f"shape_type:={self.shape_type_var.get().strip()}",
-            f"shape_scale:={shape_scale}",
-            "publish_goal:=true",
-        ]
-        merged_host_args = merge_launch_args(base_args, override_args)
+        merged_host_args = self._merged_host_launch_args(
+            robot_ids,
+            agent_number,
+            shape_scale,
+            include_publish_goal=True,
+        )
 
         script_args = []
         for key in SCRIPT_ARG_KEYS:
@@ -811,7 +870,7 @@ class HostControlUI:
             if value:
                 script_args.append(f"{key}:={value}")
 
-        return [str(self.start_host_script)] + script_args + self._host_launch_args_from_vars()
+        return [str(self.start_host_script)] + script_args + merged_host_args
 
     def _stop_host(self) -> None:
         if self.host_process is None or self.host_process.poll() is not None:
@@ -828,7 +887,11 @@ class HostControlUI:
         except ValueError as exc:
             messagebox.showerror("Invalid Shape Scale", str(exc))
             return
-        if not self.ros.apply_shape_params(self.shape_type_var.get(), shape_scale):
+        robot_ids = self.get_configured_robot_ids()
+        if not robot_ids:
+            messagebox.showwarning("No Robots", "Configured robot_ids is empty or invalid.")
+            return
+        if not self.ros.apply_shape_params(self.shape_type_var.get(), shape_scale, robot_ids):
             messagebox.showwarning("ROS Offline", "ROS master or shape_task_supervisor is not ready.")
             return
         if not self.ros.publish_gather_signal():
@@ -842,13 +905,45 @@ class HostControlUI:
         )
         self._append_log("[ui] Published /gather_signal = 2 (shape publish)\n")
 
+    def _preview_gather(self) -> None:
+        try:
+            shape_scale = float(self.shape_scale_var.get())
+        except ValueError as exc:
+            messagebox.showerror("Invalid Shape Scale", str(exc))
+            return
+        robot_ids = self.get_configured_robot_ids()
+        if not robot_ids:
+            messagebox.showwarning("No Robots", "Configured robot_ids is empty or invalid.")
+            return
+        if not self.ros.apply_shape_params(self.shape_type_var.get(), shape_scale, robot_ids):
+            messagebox.showwarning("ROS Offline", "ROS master or shape_task_supervisor is not ready.")
+            return
+        if not self.ros.publish_gather_signal(signal_value=3, repeat=1, wait_connections=2.0):
+            messagebox.showwarning("ROS Offline", "ROS master is not ready. Cannot publish /gather_signal.")
+            return
+        self._append_log(
+            "[ui] Requested FM2 preview: type={} scale={:.3f}; no move_base goals will be sent.\n".format(
+                self.shape_type_var.get().strip(),
+                shape_scale,
+            )
+        )
+        self._append_log(
+            "[ui] Inspect preview topics in RViz: /fm2_gather/preview_center, "
+            "/fm2_gather/arrival_time/combined, /fm2_gather/preview_path/robot<N>. "
+            "After checking, click Send Gather=2 to start real gather.\n"
+        )
+
     def _send_gather_signal(self) -> None:
         try:
             shape_scale = float(self.shape_scale_var.get())
         except ValueError as exc:
             messagebox.showerror("Invalid Shape Scale", str(exc))
             return
-        if not self.ros.apply_shape_params(self.shape_type_var.get(), shape_scale):
+        robot_ids = self.get_configured_robot_ids()
+        if not robot_ids:
+            messagebox.showwarning("No Robots", "Configured robot_ids is empty or invalid.")
+            return
+        if not self.ros.apply_shape_params(self.shape_type_var.get(), shape_scale, robot_ids):
             messagebox.showwarning("ROS Offline", "ROS master or shape_task_supervisor is not ready.")
             return
         if not self.ros.publish_gather_signal():
@@ -955,10 +1050,19 @@ class HostControlUI:
 
     def _save_host_start_config(self) -> None:
         try:
+            robot_ids = parse_robot_ids(self.robot_ids_var.get())
+            agent_number = len(robot_ids)
+            self.agent_number_var.set(str(agent_number))
+            shape_scale = float(self.shape_scale_var.get())
             write_host_config(
                 self.config_file,
                 self._script_args_from_vars(),
-                self._host_launch_args_from_vars(include_empty=False),
+                self._merged_host_launch_args(
+                    robot_ids,
+                    agent_number,
+                    shape_scale,
+                    include_empty=False,
+                ),
             )
             self.config_snapshot = load_host_config_snapshot(self.config_file, self.ws_root)
             self.config_mtime = self.config_file.stat().st_mtime if self.config_file.exists() else None
@@ -1074,14 +1178,30 @@ class HostControlUI:
         if self.last_gather_started == 1:
             self.gather_status_var.set("Gather: started")
         elif self.last_gather_started == 0:
-            self.gather_status_var.set("Gather: idle")
+            if self.last_gather_signal == 3:
+                self.gather_status_var.set("Gather: preview requested")
+            else:
+                self.gather_status_var.set("Gather: idle")
         elif self.last_gather_signal == 2:
             self.gather_status_var.set("Gather: compute requested")
+        elif self.last_gather_signal == 3:
+            self.gather_status_var.set("Gather: preview requested")
         else:
             self.gather_status_var.set("Gather: unknown")
 
         if self.last_task is None:
-            self.task_status_var.set("Task: none")
+            if self.last_preview_center is not None:
+                center = self.last_preview_center.pose.position
+                cost = (
+                    " cost={:.3f}".format(self.last_estimated_gather_cost)
+                    if self.last_estimated_gather_cost is not None
+                    else ""
+                )
+                self.task_status_var.set(
+                    "Preview: center=({:.2f}, {:.2f}){}".format(center.x, center.y, cost)
+                )
+            else:
+                self.task_status_var.set("Task: none")
             return
 
         center = self.last_task.center.position
@@ -1106,6 +1226,20 @@ class HostControlUI:
 
     def on_gather_signal(self, value: int) -> None:
         self.last_gather_signal = value
+
+    def on_preview_center(self, msg: PoseStamped) -> None:
+        self.last_preview_center = msg
+        center = msg.pose.position
+        self._append_log(
+            "[ui] FM2 preview center: ({:.3f}, {:.3f}) frame={}\n".format(
+                center.x,
+                center.y,
+                msg.header.frame_id or "map",
+            )
+        )
+
+    def on_estimated_gather_cost(self, value: float) -> None:
+        self.last_estimated_gather_cost = value
 
     def on_robot_heartbeat(self, robot_id: int) -> None:
         state = self.robot_states.setdefault(robot_id, {})
