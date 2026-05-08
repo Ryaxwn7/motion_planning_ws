@@ -48,6 +48,7 @@
     <arg name="cancel_grace_period" value="0.35" />
     <arg name="use_local_costmap_avoid" value="true" />
     <arg name="local_costmap_topic_suffix" value="move_base/local_costmap/costmap" />
+    <arg name="local_costmap_update_topic_suffix" value="" />
     <arg name="publish_markers" value="$(arg publish_markers)" />
     <arg name="marker_topic" value="/shape_assembly/markers" />
     <arg name="debug_log" value="$(arg debug_log)" />

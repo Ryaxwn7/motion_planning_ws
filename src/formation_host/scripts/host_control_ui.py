@@ -529,6 +529,10 @@ class HostControlUI:
         self.last_gather_started: Optional[int] = None
         self.last_gather_signal: Optional[int] = None
         self.monitored_ids: List[int] = []
+        self.countdown_seconds_var = tk.StringVar(value="5")
+        self.countdown_status_var = tk.StringVar(value="Countdown: idle")
+        self.countdown_after_id: Optional[str] = None
+        self.countdown_target_time: Optional[float] = None
 
         self.ros = RosInterface(self)
 
@@ -694,6 +698,17 @@ class HostControlUI:
         mission_box.grid(row=1, column=1, columnspan=3, sticky="ew", padx=8, pady=(0, 8))
         self.gather_mission_var.set(gather_mission_label(self.gather_mission_var.get()))
 
+        ttk.Label(config_frame, text="Countdown(s)").grid(row=1, column=4, sticky="w", padx=8, pady=(0, 8))
+        ttk.Entry(config_frame, textvariable=self.countdown_seconds_var, width=8).grid(
+            row=1, column=5, sticky="ew", padx=8, pady=(0, 8)
+        )
+        ttk.Button(config_frame, text="Start Countdown", command=self._start_gather_countdown).grid(
+            row=1, column=6, sticky="ew", padx=8, pady=(0, 8)
+        )
+        ttk.Button(config_frame, text="Cancel", command=self._cancel_gather_countdown).grid(
+            row=1, column=7, sticky="ew", padx=8, pady=(0, 8)
+        )
+
         button_frame = ttk.Frame(config_frame)
         button_frame.grid(row=2, column=0, columnspan=8, sticky="ew", padx=8, pady=(0, 8))
         for idx in range(8):
@@ -723,10 +738,11 @@ class HostControlUI:
         ttk.Label(summary_frame, textvariable=self.task_status_var).grid(row=1, column=1, sticky="w", padx=8, pady=4)
         ttk.Label(summary_frame, textvariable=self.config_status_var).grid(row=2, column=0, sticky="w", padx=8, pady=4)
         ttk.Label(summary_frame, textvariable=self.force_move_base_status_var).grid(row=2, column=1, sticky="w", padx=8, pady=4)
+        ttk.Label(summary_frame, textvariable=self.countdown_status_var).grid(row=3, column=0, sticky="w", padx=8, pady=4)
         ttk.Label(
             summary_frame,
             text="start_host.sh -> shape_assembly_real_robot.sh -> shape_assembly_host.launch -> fm2_gather + shape_task_supervisor",
-        ).grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=(4, 8))
+        ).grid(row=4, column=0, columnspan=2, sticky="w", padx=8, pady=(4, 8))
 
         table_frame = ttk.LabelFrame(self.root, text="Robot Status")
         table_frame.grid(row=2, column=0, sticky="nsew", padx=12, pady=6)
@@ -1026,6 +1042,60 @@ class HostControlUI:
             )
         )
         self._append_log("[ui] Published /gather_signal = 2\n")
+
+    def _start_gather_countdown(self) -> None:
+        try:
+            seconds = float(self.countdown_seconds_var.get())
+        except ValueError as exc:
+            messagebox.showerror("Invalid Countdown", str(exc))
+            return
+        if seconds < 0.0:
+            messagebox.showerror("Invalid Countdown", "countdown seconds must be >= 0")
+            return
+
+        self._cancel_gather_countdown(log_cancel=False)
+        if seconds <= 0.0:
+            self.countdown_status_var.set("Countdown: sending now")
+            self._append_log("[ui] Countdown is 0s, sending /gather_signal = 2 now\n")
+            self._send_gather_signal()
+            self.countdown_status_var.set("Countdown: done")
+            return
+
+        self.countdown_target_time = time.monotonic() + seconds
+        self._append_log("[ui] Gather countdown started: {:.1f}s\n".format(seconds))
+        self._tick_gather_countdown()
+
+    def _cancel_gather_countdown(self, log_cancel: bool = True) -> None:
+        if self.countdown_after_id is not None:
+            try:
+                self.root.after_cancel(self.countdown_after_id)
+            except tk.TclError:
+                pass
+            self.countdown_after_id = None
+        was_active = self.countdown_target_time is not None
+        self.countdown_target_time = None
+        if was_active:
+            self.countdown_status_var.set("Countdown: cancelled")
+            if log_cancel:
+                self._append_log("[ui] Gather countdown cancelled\n")
+        elif log_cancel:
+            self.countdown_status_var.set("Countdown: idle")
+
+    def _tick_gather_countdown(self) -> None:
+        if self.countdown_target_time is None:
+            return
+        remaining = self.countdown_target_time - time.monotonic()
+        if remaining <= 0.0:
+            self.countdown_after_id = None
+            self.countdown_target_time = None
+            self.countdown_status_var.set("Countdown: sending gather=2")
+            self._append_log("[ui] Gather countdown reached zero, sending /gather_signal = 2\n")
+            self._send_gather_signal()
+            self.countdown_status_var.set("Countdown: done")
+            return
+
+        self.countdown_status_var.set("Countdown: {:.1f}s".format(remaining))
+        self.countdown_after_id = self.root.after(200, self._tick_gather_countdown)
 
     def _set_force_move_base(self, enabled: bool) -> None:
         robot_ids = self.get_configured_robot_ids()

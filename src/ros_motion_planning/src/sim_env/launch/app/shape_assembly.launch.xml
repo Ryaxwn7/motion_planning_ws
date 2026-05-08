@@ -68,6 +68,7 @@
 
   <arg name="use_local_costmap_avoid" default="USE_YAML_SENTINEL" />
   <arg name="local_costmap_topic_suffix" default="USE_YAML_SENTINEL" />
+  <arg name="local_costmap_update_topic_suffix" default="USE_YAML_SENTINEL" />
   <arg name="local_costmap_obstacle_threshold" default="USE_YAML_SENTINEL" />
   <arg name="local_costmap_unknown_is_obstacle" default="USE_YAML_SENTINEL" />
   <arg name="local_costmap_avoid_radius" default="USE_YAML_SENTINEL" />
@@ -123,6 +124,7 @@
       marker_topic: /shape_assembly/markers
       use_local_costmap_avoid: true
       local_costmap_topic_suffix: move_base/local_costmap/costmap
+      local_costmap_update_topic_suffix: ""
       local_costmap_obstacle_threshold: 80
       local_costmap_unknown_is_obstacle: false
       local_costmap_avoid_radius: 0.8
@@ -218,6 +220,7 @@
 
     <param if="$(eval arg('use_local_costmap_avoid') != 'USE_YAML_SENTINEL')" name="use_local_costmap_avoid" value="$(arg use_local_costmap_avoid)" />
     <param if="$(eval arg('local_costmap_topic_suffix') != 'USE_YAML_SENTINEL')" name="local_costmap_topic_suffix" value="$(arg local_costmap_topic_suffix)" />
+    <param if="$(eval arg('local_costmap_update_topic_suffix') != 'USE_YAML_SENTINEL')" name="local_costmap_update_topic_suffix" value="$(arg local_costmap_update_topic_suffix)" />
     <param if="$(eval arg('local_costmap_obstacle_threshold') != 'USE_YAML_SENTINEL')" name="local_costmap_obstacle_threshold" value="$(arg local_costmap_obstacle_threshold)" />
     <param if="$(eval arg('local_costmap_unknown_is_obstacle') != 'USE_YAML_SENTINEL')" name="local_costmap_unknown_is_obstacle" value="$(arg local_costmap_unknown_is_obstacle)" />
     <param if="$(eval arg('local_costmap_avoid_radius') != 'USE_YAML_SENTINEL')" name="local_costmap_avoid_radius" value="$(arg local_costmap_avoid_radius)" />

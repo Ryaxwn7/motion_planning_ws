@@ -200,6 +200,8 @@ switch_reference_radius_min: 0.0
 # Local costmap avoidance
 use_local_costmap_avoid: true
 local_costmap_topic_suffix: move_base/local_costmap/costmap
+# Leave empty to use "<local_costmap_topic_suffix>_updates".
+local_costmap_update_topic_suffix: ""
 local_costmap_obstacle_threshold: 80
 # false means unknown local costmap cells are ignored by this extra avoidance
 # layer. Set true only if unknown space should be treated as blocked.

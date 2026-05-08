@@ -1467,6 +1467,7 @@ class ShapeAssemblySwarm:
         self.switch_reference_radius = 0.0
         self.use_local_costmap_avoid = bool(rospy.get_param("~use_local_costmap_avoid", True))
         self.local_costmap_topic_suffix = str(rospy.get_param("~local_costmap_topic_suffix", "move_base/local_costmap/costmap"))
+        self.local_costmap_update_topic_suffix = str(rospy.get_param("~local_costmap_update_topic_suffix", "")).strip()
         self.local_costmap_obstacle_threshold = int(rospy.get_param("~local_costmap_obstacle_threshold", 80))
         self.local_costmap_unknown_is_obstacle = bool(rospy.get_param("~local_costmap_unknown_is_obstacle", False))
         self.local_costmap_avoid_radius = float(rospy.get_param("~local_costmap_avoid_radius", max(self.sim_param.r_avoid, self.sim_param.r_safe)))
@@ -2212,7 +2213,11 @@ class ShapeAssemblySwarm:
             cmd_topic = f"/{ns}/cmd_vel" if ns else "/cmd_vel"
             cancel_topic = f"/{ns}/move_base/cancel" if ns else "/move_base/cancel"
             costmap_topic = f"/{ns}/{costmap_suffix}" if ns else f"/{costmap_suffix}"
-            update_topic = f"{costmap_topic}_updates"
+            if self.local_costmap_update_topic_suffix:
+                update_suffix = self.local_costmap_update_topic_suffix.lstrip("/")
+                update_topic = f"/{ns}/{update_suffix}" if ns else f"/{update_suffix}"
+            else:
+                update_topic = f"{costmap_topic}_updates"
             self.local_costmap_topics.append(costmap_topic)
             self.local_costmap_update_topics.append(update_topic)
             odom_msg_type = self._resolve_odom_msg_type(odom_topic, topic_type_map)
@@ -2482,6 +2487,21 @@ class ShapeAssemblySwarm:
             return
         base_msg = self.local_costmap_msgs[idx]
         if base_msg is None:
+            ns = self.ns_list[idx] if idx < len(self.ns_list) else f"robot{idx+1}"
+            full_topic = self.local_costmap_topics[idx] if idx < len(self.local_costmap_topics) else self.local_costmap_topic_suffix
+            update_topic = (
+                self.local_costmap_update_topics[idx]
+                if idx < len(self.local_costmap_update_topics)
+                else self.local_costmap_update_topic_suffix
+            )
+            rospy.logwarn_throttle(
+                3.0,
+                "ShapeAssembly[%s]: received local costmap update from %s before full costmap %s; "
+                "cannot use update-only data for obstacle avoidance.",
+                ns,
+                update_topic,
+                full_topic,
+            )
             return
 
         base_width = int(base_msg.info.width)

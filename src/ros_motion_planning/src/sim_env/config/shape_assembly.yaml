@@ -133,6 +133,7 @@ switch_reference_radius_margin: 0.25 # extra radius added outside reference shap
 switch_reference_radius_min: 0.0     # minimum radius, 0 uses auto shape bound + margin
 use_local_costmap_avoid: true
 local_costmap_topic_suffix: move_base/local_costmap/costmap
+local_costmap_update_topic_suffix: ""
 local_costmap_obstacle_threshold: 80
 local_costmap_unknown_is_obstacle: false
 local_costmap_avoid_radius: 0.30

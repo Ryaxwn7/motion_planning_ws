@@ -41,7 +41,7 @@ for arg in "$@"; do
   esac
 done
 
-server="192.168.1.117"
+server="192.168.1.102"
 parent_frame="world"
 child_frame="map"
 x="0.0"

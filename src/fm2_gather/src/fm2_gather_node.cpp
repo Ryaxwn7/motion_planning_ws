@@ -23,6 +23,8 @@
 #include <cstdlib>
 #include <cstdint>
 #include <limits>
+#include <functional>
+#include <queue>
 #include <filesystem>
 #include <boost/bind.hpp>
 #include <costmap_2d/costmap_2d_ros.h>
@@ -79,6 +81,59 @@ std::string makeDebugFilepath(const std::string& filename)
     return (fs::path(getDebugOutputDir()) / filename).string();
 }
 
+std::string sanitizePathToken(const std::string& token)
+{
+    std::string result;
+    result.reserve(token.size());
+    for (const char c : token) {
+        if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-') {
+            result.push_back(c);
+        } else {
+            result.push_back('_');
+        }
+    }
+    return result.empty() ? "run" : result;
+}
+
+std::string makeTimestamp()
+{
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+    const std::tm now_tm = *std::localtime(&now_time);
+    std::ostringstream oss;
+    oss << std::put_time(&now_tm, "%Y%m%d_%H%M%S");
+    return oss.str();
+}
+
+std::string makeRunFilepath(const std::string& run_dir, const std::string& filename)
+{
+    namespace fs = std::filesystem;
+    if (run_dir.empty()) {
+        return makeDebugFilepath(filename);
+    }
+    return (fs::path(run_dir) / filename).string();
+}
+
+void saveVectorGridValues(
+    const std::string& filepath,
+    const std::string& label,
+    const std::vector<double>& values,
+    const float grid_resolution,
+    const int grid_size_x,
+    const int grid_size_y)
+{
+    std::ofstream ofs(filepath.c_str(), std::ofstream::out | std::ofstream::trunc);
+    if (!ofs.is_open()) {
+        ROS_WARN("[FM2 Gather] Failed to open vector grid save file: %s", filepath.c_str());
+        return;
+    }
+    ofs << "# " << label << "\n";
+    ofs << grid_resolution << "\n2\n" << grid_size_x << "\t\n" << grid_size_y << "\t";
+    for (const double value : values) {
+        ofs << "\n" << value;
+    }
+}
+
 std::string normalizeMission(const std::string& mission)
 {
     if (mission == "fastest" || mission == "energy" || mission == "space") {
@@ -92,6 +147,7 @@ std::string normalizeMission(const std::string& mission)
 fm2_gather::map occ;
 int Min_idx;
 std::array<int ,2> C_coord;
+int gather_run_seq = 0;
 int num_robots; // 机器人数量
 std::string robot_namespace_prefix = "robot";
 int size_x_;
@@ -133,6 +189,7 @@ int velocity_mode = 1;
 double velocity_sigmoid_k = 1.5;
 double velocity_sigmoid_b = 0.0;
 double space_inflation_radius = 0.02;
+double space_min_obstacle_distance = 0.7;
 double gather_radius = -1.0;
 double goal_occupied_staging_radius = -1.0;
 double goal_occupied_staging_margin = 0.25;
@@ -428,6 +485,94 @@ void getDominantVelocity(nDGridMap<FMCell, 2> grid, std::vector<int>& velocity_i
     {
         velocity_idxs.push_back(max_heap.top().idx);
         max_heap.pop();
+    }
+}
+
+void getObstacleDistanceConstrainedIdxs(nDGridMap<FMCell, 2>& grid,
+                                        const std::vector<int>& obstacle_idxs,
+                                        double min_obstacle_distance,
+                                        std::vector<int>& candidate_idxs)
+{
+    candidate_idxs.clear();
+    if (grid.size() == 0) {
+        ROS_ERROR("Grid is empty, Cant get obstacle-distance constrained cells");
+        return;
+    }
+    if (resolution <= 0.0 || size_x_ <= 0 || size_y_ <= 0) {
+        ROS_ERROR("Invalid map geometry, Cant get obstacle-distance constrained cells");
+        return;
+    }
+
+    const int grid_size = static_cast<int>(grid.size());
+    if (min_obstacle_distance <= 0.0) {
+        for (int i = 0; i < grid_size; ++i) {
+            if (grid.getCell(i).getOccupancy()) {
+                candidate_idxs.push_back(i);
+            }
+        }
+        ROS_WARN("[FM2 Gather] space_min_obstacle_distance <= 0, all free cells are allowed");
+        return;
+    }
+
+    std::vector<double> obstacle_dist(grid_size, std::numeric_limits<double>::infinity());
+    using QueueNode = std::pair<double, int>;
+    std::priority_queue<QueueNode, std::vector<QueueNode>, std::greater<QueueNode>> open;
+
+    for (const int idx : obstacle_idxs) {
+        if (idx < 0 || idx >= grid_size) {
+            continue;
+        }
+        if (obstacle_dist[idx] > 0.0) {
+            obstacle_dist[idx] = 0.0;
+            open.emplace(0.0, idx);
+        }
+    }
+
+    if (open.empty()) {
+        ROS_WARN("[FM2 Gather] No obstacle cells found, all free cells are allowed for space mission");
+        for (int i = 0; i < grid_size; ++i) {
+            if (grid.getCell(i).getOccupancy()) {
+                candidate_idxs.push_back(i);
+            }
+        }
+        return;
+    }
+
+    const int dx[8] = {-1, 1, 0, 0, -1, -1, 1, 1};
+    const int dy[8] = {0, 0, -1, 1, -1, 1, -1, 1};
+    while (!open.empty()) {
+        const double dist = open.top().first;
+        const int idx = open.top().second;
+        open.pop();
+        if (dist > obstacle_dist[idx]) {
+            continue;
+        }
+
+        const int x = idx % size_x_;
+        const int y = idx / size_x_;
+        for (int n = 0; n < 8; ++n) {
+            const int nx = x + dx[n];
+            const int ny = y + dy[n];
+            if (nx < 0 || nx >= size_x_ || ny < 0 || ny >= size_y_) {
+                continue;
+            }
+            const int nidx = ny * size_x_ + nx;
+            if (nidx < 0 || nidx >= grid_size) {
+                continue;
+            }
+            const double step = resolution * std::hypot(static_cast<double>(dx[n]), static_cast<double>(dy[n]));
+            const double next_dist = dist + step;
+            if (next_dist < obstacle_dist[nidx]) {
+                obstacle_dist[nidx] = next_dist;
+                open.emplace(next_dist, nidx);
+            }
+        }
+    }
+
+    for (int i = 0; i < grid_size; ++i) {
+        if (grid.getCell(i).getOccupancy() && obstacle_dist[i] >= min_obstacle_distance) {
+            candidate_idxs.push_back(i);
+        }
     }
 }
 
@@ -1427,6 +1572,41 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
                   num_robots);
         return false;
     }
+    std::string run_output_dir;
+    const bool save_run_data = save_data || debug_on;
+    if (save_run_data) {
+        namespace fs = std::filesystem;
+        const int run_seq = ++gather_run_seq;
+        const std::string run_kind = preview_compute ? "preview" : "gather";
+        std::ostringstream run_name;
+        run_name << "run_" << makeTimestamp() << "_" << std::setw(4) << std::setfill('0') << run_seq
+                 << "_" << run_kind << "_" << sanitizePathToken(mission);
+        run_output_dir = (fs::path(getDebugOutputDir()) / run_name.str()).string();
+        std::error_code ec;
+        fs::create_directories(run_output_dir, ec);
+        if (ec) {
+            ROS_WARN("[FM2 Gather] Failed to create run output dir %s: %s",
+                     run_output_dir.c_str(),
+                     ec.message().c_str());
+            run_output_dir.clear();
+        } else {
+            std::ofstream meta(makeRunFilepath(run_output_dir, "metadata.txt").c_str(),
+                               std::ofstream::out | std::ofstream::trunc);
+            meta << "mission: " << mission << "\n";
+            meta << "run_kind: " << run_kind << "\n";
+            meta << "num_robots: " << num_robots << "\n";
+            meta << "robot_ids:";
+            for (const int robot_id : robot_ids) {
+                meta << " " << robot_id;
+            }
+            meta << "\n";
+            meta << "resolution: " << resolution << "\n";
+            meta << "map_origin: " << occ.origin.position.x << " " << occ.origin.position.y << "\n";
+            meta << "map_size: " << size_x_ << " " << size_y_ << "\n";
+            meta << "space_min_obstacle_distance: " << space_min_obstacle_distance << "\n";
+            ROS_INFO("[FM2 Gather] Saving run data to %s", run_output_dir.c_str());
+        }
+    }
 
     // 订阅合并地图话题combined_map
     std::vector<std::vector<int>> init_points;
@@ -1501,7 +1681,9 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
     std::tm now_init_tm = *std::localtime(&now_init_time);
     std::ostringstream init_oss;
     init_oss << std::put_time(&now_init_tm, "%Y%m%d_%H%M%S");
-    std::string init_filepath = makeDebugFilepath("FM2_init_points_" + init_oss.str() + ".txt");
+    std::string init_filepath = save_run_data && !run_output_dir.empty()
+                                    ? makeRunFilepath(run_output_dir, "init_points.txt")
+                                    : makeDebugFilepath("FM2_init_points_" + init_oss.str() + ".txt");
     std::ofstream init_out(init_filepath.c_str());
     if(!init_out.is_open())
     {
@@ -1593,6 +1775,18 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
             fm2_solver->computeFM2_gather(init_points[i], saturate_distance);
             base_velocity_map = fm2_solver->getVelocityMap();
             publish_velocity_map_msg(base_velocity_map, planning_occupancy, velocity_map_base_pub);
+            if (save_run_data && !run_output_dir.empty()) {
+                GridWriter::saveVelocityValues(
+                    makeRunFilepath(run_output_dir, "velocity_field_base.csv").c_str(),
+                    *grid_ptrs.front());
+                saveVectorGridValues(
+                    makeRunFilepath(run_output_dir, "velocity_vector_base.csv"),
+                    "base_velocity_vector",
+                    base_velocity_map,
+                    resolution,
+                    size_x_,
+                    size_y_);
+            }
 
             if(debug_on)
             {
@@ -1614,6 +1808,16 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
             std::vector<double> robot_velocity_map = base_velocity_map;
             // Gather-point computation only considers dynamic obstacles, not swarm robots.
             apply_dynamic_obstacle_layer_to_velocity_map(i, robot_poses_, robot_velocity_map, tf_listener);
+            if (save_run_data && !run_output_dir.empty()) {
+                const int robot_id = (i < static_cast<int>(robot_ids.size())) ? robot_ids[i] : i + 1;
+                saveVectorGridValues(
+                    makeRunFilepath(run_output_dir, "velocity_vector_robot" + std::to_string(robot_id) + ".csv"),
+                    "robot_velocity_vector",
+                    robot_velocity_map,
+                    resolution,
+                    size_x_,
+                    size_y_);
+            }
             if (i >= 0 && i < static_cast<int>(velocity_map_robot_pubs.size())) {
                 publish_velocity_map_msg(robot_velocity_map, planning_occupancy, velocity_map_robot_pubs[i]);
             }
@@ -1629,6 +1833,12 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
         }
         if (i >= 0 && i < static_cast<int>(arrival_time_robot_pubs.size())) {
             publish_arrival_time_map_msg(*grid_ptrs[i], arrival_time_robot_pubs[i]);
+        }
+        if (save_run_data && !run_output_dir.empty()) {
+            const int robot_id = (i < static_cast<int>(robot_ids.size())) ? robot_ids[i] : i + 1;
+            GridWriter::saveGridValues(
+                makeRunFilepath(run_output_dir, "arrival_time_robot" + std::to_string(robot_id) + ".csv").c_str(),
+                *grid_ptrs[i]);
         }
         if(debug_on)
         {
@@ -1704,7 +1914,13 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
         fm2_solver->setInitialAndGoalPoints(init_points[0], fm2_sources, -1);
         fm2_solver->computeFM2_velocity(); //计算不饱和的速度图，用于获取最大空间
         
-        getDominantVelocity(*grid_sum_ptr, max_space_idxs);
+        getObstacleDistanceConstrainedIdxs(
+            *grid_sum_ptr, fm2_sources, space_min_obstacle_distance, max_space_idxs);
+        if (save_run_data && !run_output_dir.empty()) {
+            GridWriter::saveVelocityValues(
+                makeRunFilepath(run_output_dir, "space_velocity_field.csv").c_str(),
+                *grid_sum_ptr);
+        }
         if (max_space_idxs.empty()) {
             ROS_ERROR("No valid space-constrained candidate cells found");
             return false;
@@ -1719,8 +1935,9 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
             }
             grid_sum_ptr->getCell(i).setValue(max_arrival_time);
         }
-        ROS_INFO("[FM2 Gather] Space mission uses %zu high-clearance candidate cells",
-                 max_space_idxs.size());
+        ROS_INFO("[FM2 Gather] Space mission uses %zu candidate cells with obstacle distance >= %.3fm",
+                 max_space_idxs.size(),
+                 space_min_obstacle_distance);
         if(debug_on)
         {
             if(plot_on)
@@ -1733,7 +1950,9 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
         std::tm now_tm = *std::localtime(&now_time);
         std::ostringstream oss;
         oss << std::put_time(&now_tm, "%Y%m%d_%H%M%S");
-        std::string filepath = makeDebugFilepath("SumVelocityMap_" + oss.str() + ".csv");
+        std::string filepath = save_run_data && !run_output_dir.empty()
+                                   ? makeRunFilepath(run_output_dir, "space_velocity_field.csv")
+                                   : makeDebugFilepath("SumVelocityMap_" + oss.str() + ".csv");
             GridWriter::saveVelocityValues(filepath.c_str(), *grid_sum_ptr);
         }
         
@@ -1746,6 +1965,12 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
     }
     // GridPlotterCV::plotMap(*grid_sum_ptr); // 绘制聚集点占据情况
     // GridPlotterCV::plotArrivalTimes(*grid_sum_ptr); // 绘制聚集信息场
+    if(save_run_data && !run_output_dir.empty())
+    {
+        GridWriter::saveGridValues(
+            makeRunFilepath(run_output_dir, "fused_cost_field_raw.csv").c_str(),
+            *grid_sum_ptr);
+    }
     if(debug_on)
     {
         
@@ -1767,6 +1992,12 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
     const double gather_inflation_radius =
         (gather_radius > 0.0) ? gather_radius : (gatherer_.getHypotenus() + 0.1);
     SpaceInflation(grid_sum_ptr, fm2_sources, gather_inflation_radius);
+    if(save_run_data && !run_output_dir.empty())
+    {
+        GridWriter::saveGridValues(
+            makeRunFilepath(run_output_dir, "total_cost_field.csv").c_str(),
+            *grid_sum_ptr);
+    }
     if(debug_on)
     {
         std::string Map_name = "Inflated_map";
@@ -1793,6 +2024,19 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
     if (min_idx >= 0 && min_idx < grid_sum_ptr->size()) {
         estimated_gather_cost = grid_sum_ptr->getCell(min_idx).getValue();
     }
+    if(save_run_data && !run_output_dir.empty())
+    {
+        std::ofstream summary(makeRunFilepath(run_output_dir, "summary.txt").c_str(),
+                              std::ofstream::out | std::ofstream::trunc);
+        summary << "mission: " << mission << "\n";
+        summary << "min_idx: " << min_idx << "\n";
+        summary << "estimated_gather_cost: " << estimated_gather_cost << "\n";
+        summary << "robot_arrival_times:";
+        for (const double arrival_time : estimated_arrival_times) {
+            summary << " " << arrival_time;
+        }
+        summary << "\n";
+    }
     publish_estimated_gather_cost_msg(estimated_gather_cost, estimated_arrival_times);
     ROS_INFO("[FM2 Gather] Estimated gather cost (%s)=%.3f at idx=%d",
              mission.c_str(),
@@ -1813,6 +2057,13 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
     C_coord = c_coord;
     float gx, gy;
     m2world(c_coord[0], c_coord[1], gx, gy, resolution);//聚集中心世界坐标
+    if(save_run_data && !run_output_dir.empty())
+    {
+        std::ofstream summary(makeRunFilepath(run_output_dir, "summary.txt").c_str(),
+                              std::ofstream::out | std::ofstream::app);
+        summary << "center_grid: " << c_coord[0] << " " << c_coord[1] << "\n";
+        summary << "center_world: " << gx << " " << gy << "\n";
+    }
     //分别计算各个机器人目标坐标（不同队形）
     goal_centre_[0] = gx;
     goal_centre_[1] = gy;
@@ -1831,7 +2082,7 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
     //聚集队形中各个机器人目标位置生成函数
     // gatherer_.GenerateGoals(robot_poses_, goal_centre_, goals_);
 
-    if(debug_on || (preview_compute && publish_preview_paths))
+    if(debug_on || save_run_data || (preview_compute && publish_preview_paths))
     {
         std::vector<int> goals_idx;
         if (publish_center_goal_only) {
@@ -1876,6 +2127,18 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
                 ROS_WARN("Robot%d debug path was truncated to %zu points",
                          robot_id,
                          fmpaths[i]->size());
+            }
+            if(save_run_data && !run_output_dir.empty())
+            {
+                GridWriter::savePath(
+                    makeRunFilepath(run_output_dir, "path_robot" + std::to_string(robot_id) + ".csv").c_str(),
+                    *grid_ptrs[i],
+                    *fmpaths[i]);
+                GridWriter::savePathVelocity(
+                    makeRunFilepath(run_output_dir, "path_velocity_robot" + std::to_string(robot_id) + ".csv").c_str(),
+                    *grid_ptrs[i],
+                    *fmpaths[i],
+                    *fmpaths_v[i]);
             }
             if(debug_on)
             {
@@ -2130,6 +2393,8 @@ int main(int argc, char** argv)
     nh.param("velocity_sigmoid_k", velocity_sigmoid_k, velocity_sigmoid_k);
     nh.param("velocity_sigmoid_b", velocity_sigmoid_b, velocity_sigmoid_b);
     nh.param("space_inflation_radius", space_inflation_radius, space_inflation_radius);
+    nh.param("space_min_obstacle_distance", space_min_obstacle_distance, space_min_obstacle_distance);
+    space_min_obstacle_distance = std::max(0.0, space_min_obstacle_distance);
     nh.param("gather_radius", gather_radius, gather_radius);
     nh.param("goal_occupied_staging_radius",
              goal_occupied_staging_radius,
