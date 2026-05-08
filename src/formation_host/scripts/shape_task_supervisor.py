@@ -260,18 +260,8 @@ class ShapeTaskSupervisor:
         self.gather_center_topic = rospy.get_param("~gather_center_topic", "/gather_center")
         self.frame_id = rospy.get_param("~frame_id", "map")
         self.agent_count = int(rospy.get_param("~agent_count", 0))
-        self.robot_ids = _parse_positive_int_list(
-            rospy.get_param("~robot_ids", rospy.get_param("/robot_ids", []))
-        )
-        if self.robot_ids:
-            if self.agent_count > 0 and self.agent_count != len(self.robot_ids):
-                rospy.logwarn(
-                    "ShapeTaskSupervisor: agent_count=%d mismatches robot_ids=%s, override agent_count with len(robot_ids)=%d",
-                    self.agent_count,
-                    str(self.robot_ids),
-                    len(self.robot_ids),
-                )
-            self.agent_count = len(self.robot_ids)
+        self.robot_ids: List[int] = []
+        self._sync_robot_config(log_change=False)
         self.source = rospy.get_param("~source", "fm2_gather")
         self.center_min_delta = max(0.0, float(rospy.get_param("~center_min_delta", 0.05)))
         self.heading_min_delta = max(0.0, float(rospy.get_param("~heading_min_delta", math.radians(5.0))))
@@ -339,6 +329,33 @@ class ShapeTaskSupervisor:
         shape_heading = float(rospy.get_param("~shape_heading", 0.0))
         shape_scale = max(1.0e-3, float(rospy.get_param("~shape_scale", 1.0)))
         return shape_type, shape_heading, shape_scale
+
+    def _sync_robot_config(self, log_change: bool = True) -> None:
+        previous_ids = list(self.robot_ids)
+        previous_count = int(self.agent_count)
+        robot_ids = _parse_positive_int_list(
+            rospy.get_param("/robot_ids", rospy.get_param("~robot_ids", []))
+        )
+        agent_count = int(rospy.get_param("~agent_count", rospy.get_param("/num_robots", self.agent_count)))
+        if robot_ids:
+            if agent_count > 0 and agent_count != len(robot_ids):
+                rospy.logwarn(
+                    "ShapeTaskSupervisor: agent_count=%d mismatches robot_ids=%s, override agent_count with len(robot_ids)=%d",
+                    agent_count,
+                    str(robot_ids),
+                    len(robot_ids),
+                )
+            agent_count = len(robot_ids)
+        self.robot_ids = robot_ids
+        self.agent_count = max(0, agent_count)
+        rospy.set_param("~resolved_robot_ids", list(self.robot_ids))
+        rospy.set_param("~resolved_agent_count", self.agent_count)
+        if log_change and (previous_ids != self.robot_ids or previous_count != self.agent_count):
+            rospy.loginfo(
+                "ShapeTaskSupervisor: runtime robot config robot_ids=%s agent_count=%d",
+                str(self.robot_ids),
+                self.agent_count,
+            )
 
     def _resolve_staging_radius(self) -> float:
         explicit_radius = float(rospy.get_param("~staging_radius", 0.0))
@@ -575,6 +592,7 @@ class ShapeTaskSupervisor:
         self.target_marker_pub.publish(MarkerArray(markers=[marker]))
 
     def _publish_task(self, center_msg: PoseStamped, replan: bool) -> None:
+        self._sync_robot_config()
         shape_type, manual_heading, shape_scale = self._read_shape_config()
         shape_heading_seed = manual_heading
         if self._last_shape_type == shape_type and self._last_shape_heading is not None:

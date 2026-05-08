@@ -21,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   actionlib
   move_base_msgs
+  nav_msgs
 )
 find_package(X11 REQUIRED)
 find_package(PNG REQUIRED)
@@ -123,7 +124,7 @@ generate_messages(
 catkin_package(
  INCLUDE_DIRS include
 #  LIBRARIES fm2_gather
- CATKIN_DEPENDS costmap_2d genmsg geometry_msgs roscpp rospy std_msgs tf2_geometry_msgs tf2_ros actionlib move_base_msgs
+ CATKIN_DEPENDS costmap_2d genmsg geometry_msgs roscpp rospy std_msgs tf2_geometry_msgs tf2_ros actionlib move_base_msgs nav_msgs
 #  DEPENDS system_lib
 )
 

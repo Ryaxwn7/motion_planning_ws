@@ -249,18 +249,10 @@ class ShapeTaskBridge:
         self.robot_namespace = str(rospy.get_param("~robot_namespace", rospy.get_namespace().strip("/"))).strip("/")
         self.robot_id = int(rospy.get_param("~robot_id", _extract_robot_id(self.robot_namespace)))
         self.robot_ids = _parse_positive_int_list(
-            rospy.get_param("~robot_ids", rospy.get_param("/robot_ids", []))
+            rospy.get_param("/robot_ids", rospy.get_param("~robot_ids", []))
         )
         self.agent_count = int(rospy.get_param("~agent_count", 0))
-        if self.robot_ids and self.agent_count > 0 and self.agent_count != len(self.robot_ids):
-            rospy.logwarn(
-                "ShapeTaskBridge[%s]: agent_count=%d mismatches robot_ids=%s, override agent_count with len(robot_ids)=%d",
-                self.robot_namespace or "(no-ns)",
-                self.agent_count,
-                str(self.robot_ids),
-                len(self.robot_ids),
-            )
-            self.agent_count = len(self.robot_ids)
+        self._sync_robot_config(log_change=False)
         self.task_topic = rospy.get_param("~task_topic", "/shape_assembly/task")
         self.goal_topic = rospy.get_param("~goal_topic", "shape_assembly/staging_goal")
         self.move_base_action = rospy.get_param("~move_base_action", f"/{self.robot_namespace}/move_base")
@@ -320,6 +312,33 @@ class ShapeTaskBridge:
             str(self.robot_ids) if self.robot_ids else "auto",
             str(self.use_center_as_goal),
         )
+
+    def _sync_robot_config(self, log_change: bool = True) -> None:
+        previous_ids = list(self.robot_ids)
+        robot_ids = _parse_positive_int_list(
+            rospy.get_param("/robot_ids", rospy.get_param("~robot_ids", self.robot_ids))
+        )
+        agent_count = int(rospy.get_param("~agent_count", rospy.get_param("/num_robots", self.agent_count)))
+        if robot_ids:
+            if agent_count > 0 and agent_count != len(robot_ids):
+                rospy.logwarn(
+                    "ShapeTaskBridge[%s]: agent_count=%d mismatches robot_ids=%s, override agent_count with len(robot_ids)=%d",
+                    self.robot_namespace or "(no-ns)",
+                    agent_count,
+                    str(robot_ids),
+                    len(robot_ids),
+                )
+            agent_count = len(robot_ids)
+        self.robot_ids = robot_ids
+        self.agent_count = max(0, agent_count)
+        rospy.set_param("~robot_ids", list(self.robot_ids))
+        rospy.set_param("~agent_count", self.agent_count)
+        if log_change and previous_ids != self.robot_ids:
+            rospy.loginfo(
+                "ShapeTaskBridge[%s]: runtime robot_ids=%s",
+                self.robot_namespace or "(no-ns)",
+                str(self.robot_ids),
+            )
 
     def _ensure_server(self) -> bool:
         if self._server_ready:
@@ -444,6 +463,7 @@ class ShapeTaskBridge:
         return goal
 
     def _task_cb(self, task: ShapeTask) -> None:
+        self._sync_robot_config()
         # Re-read shape construction params from global param server on each task.
         # This allows host-side param changes to propagate to already-running robots.
         _new_source = str(rospy.get_param("~shape_source",

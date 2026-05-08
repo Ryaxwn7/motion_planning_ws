@@ -2,6 +2,7 @@
 #include <ros/master.h>
 #include <tf/transform_listener.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <nav_msgs/Path.h>
 #include <std_msgs/Float64.h>
 #include <std_msgs/Float64MultiArray.h>
 #include <std_msgs/UInt8.h>
@@ -90,6 +91,7 @@ int ndims;
 float resolution = -1;
 std::array<int, 2> dimsize;
 bool start_compute=false;
+bool preview_compute=false;
 bool Map_init=false;
 std::vector<int> robot_ids;
 std::vector<double> robot_weights;
@@ -150,6 +152,9 @@ std::string arrival_time_topic_prefix = "/fm2_gather/arrival_time";
 bool publish_estimated_gather_cost = true;
 std::string estimated_gather_cost_topic = "/fm2_gather/estimated_gather_cost";
 std::string estimated_arrival_times_topic = "/fm2_gather/estimated_arrival_times";
+std::string preview_center_topic = "/fm2_gather/preview_center";
+std::string preview_path_topic_prefix = "/fm2_gather/preview_path";
+bool publish_preview_paths = true;
 std::vector<nav_msgs::OccupancyGrid> dynamic_obstacle_maps;
 std::vector<bool> dynamic_obstacle_ready;
 std::vector<ros::Time> dynamic_obstacle_stamp;
@@ -162,6 +167,8 @@ ros::Publisher arrival_time_sum_pub;
 std::vector<ros::Publisher> arrival_time_robot_pubs;
 ros::Publisher estimated_gather_cost_pub;
 ros::Publisher estimated_arrival_times_pub;
+ros::Publisher preview_center_pub;
+std::vector<ros::Publisher> preview_path_pubs;
 
 std::string makeRobotNamespace(const int robot_id)
 {
@@ -747,9 +754,17 @@ int apply_uncertainty_kernel_at(
 
 void signal_callback(const std_msgs::UInt8::ConstPtr &msg)
 {
+    if(msg->data == 3)
+    {
+        preview_compute = true;
+        start_compute = false;
+        ROS_INFO("[FM2 Gather] Preview gather computation requested.");
+        return;
+    }
     if(msg->data == 2)
     {
         start_compute=true;
+        preview_compute = false;
         return;
     }
     if((msg->data - 10) > 0) // 路径重规划信号，将会给对应机器人发送一个随机扰动目标位置
@@ -817,6 +832,8 @@ bool m2world(int mx, int my, float& wx, float& wy, float resolution_)
     wy = occ.origin.position.y + (my+0.5) * resolution_;
     return true;
 }
+
+void publish_preview_paths_msg(const std::vector<std::shared_ptr<Path>>& fmpaths_);
 
 bool world2m_no_log(const double wx, const double wy, int& mx, int& my)
 {
@@ -1807,7 +1824,7 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
     //聚集队形中各个机器人目标位置生成函数
     // gatherer_.GenerateGoals(robot_poses_, goal_centre_, goals_);
 
-    if(debug_on)
+    if(debug_on || (preview_compute && publish_preview_paths))
     {
         std::vector<int> goals_idx;
         if (publish_center_goal_only) {
@@ -1853,21 +1870,24 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
                          robot_id,
                          fmpaths[i]->size());
             }
-            auto now = std::chrono::system_clock::now();
-            std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-            std::tm now_tm = *std::localtime(&now_time);
-            std::ostringstream oss;
-            oss << std::put_time(&now_tm, "%Y%m%d_%H%M%S");
-            std::string filepath = makeDebugFilepath("robot" + std::to_string(robot_id) + "_path" + oss.str() + ".csv");
-            GridWriter::savePath(filepath.c_str(), *grid_ptrs[i], *fmpaths[i]);
-            if(plot_on)
+            if(debug_on)
             {
-                try {
-                    GridPlotter::plotArrivalTimesPath(*grid_ptrs[i], *fmpaths[i]);
-                } catch (const cimg_library::CImgException& ex) {
-                    ROS_WARN("Skip robot%d path plot due to CImg exception: %s",
-                             robot_id,
-                             ex.what());
+                auto now = std::chrono::system_clock::now();
+                std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+                std::tm now_tm = *std::localtime(&now_time);
+                std::ostringstream oss;
+                oss << std::put_time(&now_tm, "%Y%m%d_%H%M%S");
+                std::string filepath = makeDebugFilepath("robot" + std::to_string(robot_id) + "_path" + oss.str() + ".csv");
+                GridWriter::savePath(filepath.c_str(), *grid_ptrs[i], *fmpaths[i]);
+                if(plot_on)
+                {
+                    try {
+                        GridPlotter::plotArrivalTimesPath(*grid_ptrs[i], *fmpaths[i]);
+                    } catch (const cimg_library::CImgException& ex) {
+                        ROS_WARN("Skip robot%d path plot due to CImg exception: %s",
+                                 robot_id,
+                                 ex.what());
+                    }
                 }
             }
         }
@@ -1875,6 +1895,9 @@ bool gather(int num_robots, std::vector<geometry_msgs::PoseStamped>& robot_poses
             ROS_WARN("Skip %zu debug paths because robot/path/grid vector count is smaller than goal count",
                      goals_idx.size() - debug_count);
         }
+    }
+    if (preview_compute) {
+        publish_preview_paths_msg(fmpaths_);
     }
 
     //返回true表示成功，false表示失败
@@ -1894,6 +1917,37 @@ geometry_msgs::PoseStamped make_goal_pose(const std::array<float,2>& goal_, cons
     goal_pose.pose.orientation.z = 0.0;
     goal_pose.pose.orientation.w = 1.0;
     return goal_pose;
+}
+
+void publish_preview_paths_msg(const std::vector<std::shared_ptr<Path>>& fmpaths_)
+{
+    if (!preview_compute || !publish_preview_paths || preview_path_pubs.empty() || resolution <= 0.0f) {
+        return;
+    }
+
+    const ros::Time stamp = ros::Time::now();
+    const std::size_t count = std::min(fmpaths_.size(), preview_path_pubs.size());
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto& path = fmpaths_[i];
+        if (!path || path->empty()) {
+            continue;
+        }
+
+        nav_msgs::Path msg;
+        msg.header.frame_id = "map";
+        msg.header.stamp = stamp;
+        msg.poses.reserve(path->size());
+        for (const auto& point : *path) {
+            geometry_msgs::PoseStamped pose;
+            pose.header = msg.header;
+            pose.pose.position.x = occ.origin.position.x + (point[0] + 0.5) * resolution;
+            pose.pose.position.y = occ.origin.position.y + (point[1] + 0.5) * resolution;
+            pose.pose.position.z = 0.0;
+            pose.pose.orientation.w = 1.0;
+            msg.poses.push_back(pose);
+        }
+        preview_path_pubs[i].publish(msg);
+    }
 }
 
 double resolve_goal_occupied_staging_radius(float hypotenuse)
@@ -2159,6 +2213,15 @@ int main(int argc, char** argv)
     nh.param("estimated_arrival_times_topic",
              estimated_arrival_times_topic,
              estimated_arrival_times_topic);
+    nh.param("preview_center_topic",
+             preview_center_topic,
+             preview_center_topic);
+    nh.param("preview_path_topic_prefix",
+             preview_path_topic_prefix,
+             preview_path_topic_prefix);
+    nh.param("publish_preview_paths",
+             publish_preview_paths,
+             publish_preview_paths);
 
     if (!dynamic_obstacle_topic_suffix.empty() &&
         dynamic_obstacle_topic_suffix.front() == '/') {
@@ -2205,6 +2268,16 @@ int main(int argc, char** argv)
     }
     if (estimated_arrival_times_topic.empty()) {
         estimated_arrival_times_topic = "/fm2_gather/estimated_arrival_times";
+    }
+    if (preview_center_topic.empty()) {
+        preview_center_topic = "/fm2_gather/preview_center";
+    }
+    if (preview_path_topic_prefix.empty()) {
+        preview_path_topic_prefix = "/fm2_gather/preview_path";
+    }
+    while (!preview_path_topic_prefix.empty() &&
+           preview_path_topic_prefix.back() == '/') {
+        preview_path_topic_prefix.pop_back();
     }
     if (use_peer_robot_uncertainty_layer) {
         ROS_WARN("[FM2 Gather] use_peer_robot_uncertainty_layer is enabled, but gather-point computation ignores swarm robots in velocity maps.");
@@ -2304,6 +2377,7 @@ int main(int argc, char** argv)
     //聚集开始信号话题发布者
     ros::Publisher pub_start = nh.advertise<std_msgs::UInt8>("/gather_started", 1, true);
     ros::Publisher pub_center = nh.advertise<geometry_msgs::PoseStamped>(gather_center_topic, 1, true);
+    preview_center_pub = nh.advertise<geometry_msgs::PoseStamped>(preview_center_topic, 1, true);
     std_msgs::UInt8 gather_state_msg;
     gather_state_msg.data = 0;
     pub_start.publish(gather_state_msg);
@@ -2349,6 +2423,20 @@ int main(int argc, char** argv)
         ROS_INFO("Publishing estimated gather cost topic: %s", estimated_gather_cost_topic.c_str());
         ROS_INFO("Publishing estimated arrival times topic: %s", estimated_arrival_times_topic.c_str());
     }
+    if (publish_preview_paths) {
+        preview_path_pubs.clear();
+        preview_path_pubs.reserve(num_robots);
+        for (int i = 0; i < num_robots; ++i) {
+            const int robot_id = (i < static_cast<int>(robot_ids.size())) ? robot_ids[i] : (i + 1);
+            const std::string topic =
+                preview_path_topic_prefix + "/robot" + std::to_string(robot_id);
+            preview_path_pubs.push_back(nh.advertise<nav_msgs::Path>(topic, 1, true));
+            ROS_INFO("Publishing preview path topic: %s", topic.c_str());
+        }
+    } else {
+        preview_path_pubs.clear();
+    }
+    ROS_INFO("Publishing preview center topic: %s", preview_center_topic.c_str());
 
     // 设置循环频率
     ros::Rate rate(3); // 3Hz
@@ -2381,7 +2469,7 @@ int main(int argc, char** argv)
             got_position = get_position(num_robots, robot_poses, tf_listener);
             if (got_position && Map_init)
             {
-                if (stop_path_planning && !external_center_pending) {
+                if (stop_path_planning && !external_center_pending && !preview_compute) {
                     if (start_compute || replan_flag) {
                         start_compute = false;
                         replan_flag = false;
@@ -2440,6 +2528,33 @@ int main(int argc, char** argv)
                     std::array<float,2> goal_centre;
                     gather(num_robots, robot_poses, fmpaths, goal_centre, mission,
                            gatherer, test_mode, goals, tf_listener);
+                }
+
+                if(preview_compute) // 只计算和发布预览结果，不下发真实聚集目标
+                {
+                    gather_state_msg.data = 0;
+                    pub_start.publish(gather_state_msg);
+                    ROS_INFO("[FM2 Gather] Start preview mission: %s", mission.c_str());
+                    std::array<float,2> preview_centre;
+                    auto start = std::chrono::high_resolution_clock::now();
+                    bool succ = gather(num_robots, robot_poses, fmpaths, preview_centre, mission,
+                                       gatherer, test_mode, goals, tf_listener);
+                    auto end = std::chrono::high_resolution_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+                    ROS_INFO("[FM2 Gather] Preview compute time: %ld ms", duration.count());
+                    if(succ)
+                    {
+                        const geometry_msgs::PoseStamped preview_center_pose =
+                            make_goal_pose(preview_centre, ros::Time::now());
+                        preview_center_pub.publish(preview_center_pose);
+                        ROS_INFO("[FM2 Gather] Preview center=(%.3f, %.3f). Inspect %s, %s/combined and %s/robot<N>; send gather_signal=2 to start real gather.",
+                                 preview_centre[0],
+                                 preview_centre[1],
+                                 preview_center_topic.c_str(),
+                                 arrival_time_topic_prefix.c_str(),
+                                 preview_path_topic_prefix.c_str());
+                    }
+                    preview_compute = false;
                 }
 
                 if(start_compute) //开始计算聚集点
