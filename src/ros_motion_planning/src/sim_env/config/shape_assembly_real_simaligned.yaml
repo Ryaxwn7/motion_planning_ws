@@ -69,7 +69,7 @@ hard_safety_dist: 0.30
 # r_avoid sets the nominal robot spacing and also affects the shape grid size.
 # Keep it above the practical center spacing needed by the real chassis;
 # otherwise rectangle targets can be too tight for every robot to enter.
-r_avoid: 0.40
+r_avoid: 0.45
 # r_sense is neighbor sensing/interaction range. Too small can fragment the
 # swarm; too large can make distant robots influence each other unnecessarily.
 r_sense: 1.5
