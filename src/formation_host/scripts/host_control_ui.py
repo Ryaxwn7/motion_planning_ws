@@ -47,6 +47,7 @@ SHAPE_CHOICES = [
     "letter_o",
     "letter_r",
     "letter_b",
+    "letter_y",
     "starfish",
     "snowflake",
 ]
