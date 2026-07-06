@@ -78,6 +78,15 @@ SCRIPT_ARG_DEFS: List[Tuple[str, str, str]] = [
 ]
 
 SCRIPT_ARG_KEYS = [item[0] for item in SCRIPT_ARG_DEFS]
+
+HOST_ROS_NODES_TO_KILL = [
+    "/fm2_gather_node",
+    "/fm2_map_combine_node",
+    "/c_plan_monitor",
+    "/shape_task_supervisor",
+    "/map_server_for_test",
+]
+HOST_LOCK_FILE = Path("/tmp/shape_assembly_real_robot.lock")
 SCRIPT_ARG_VAR_MAP = {item[1]: item[0] for item in SCRIPT_ARG_DEFS}
 SCRIPT_ARG_DEFAULTS = {item[0]: item[2] for item in SCRIPT_ARG_DEFS}
 COMMON_HOST_ARG_KEYS = ("agent_number", "robot_ids", "shape_type", "shape_scale", "mission")
@@ -941,13 +950,74 @@ class HostControlUI:
         return [str(self.start_host_script)] + script_args + merged_host_args
 
     def _stop_host(self) -> None:
-        if self.host_process is None or self.host_process.poll() is not None:
+        self._stop_host_ros_nodes()
+        if self.host_process is None:
+            self._cleanup_host_lock_if_stale()
+            return
+        if self.host_process.poll() is not None:
+            self.host_process = None
+            self._cleanup_host_lock_if_stale()
             return
         try:
-            os.killpg(self.host_process.pid, signal.SIGTERM)
+            os.killpg(os.getpgid(self.host_process.pid), signal.SIGTERM)
             self._append_log("[ui] Sent SIGTERM to start_host.sh process group\n")
         except ProcessLookupError:
+            self.host_process = None
+            self._cleanup_host_lock_if_stale()
+            return
+        self.root.after(3000, self._force_kill_host_if_running)
+
+    def _stop_host_ros_nodes(self) -> None:
+        for node_name in HOST_ROS_NODES_TO_KILL:
+            try:
+                proc = subprocess.run(
+                    ["rosnode", "kill", node_name],
+                    cwd=str(self.ws_root),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=2.0,
+                )
+            except (subprocess.TimeoutExpired, OSError) as exc:
+                self._append_log(f"[ui] rosnode kill {node_name} failed: {exc}\n")
+                continue
+            output = proc.stdout.strip()
+            if output:
+                self._append_log(f"[ui] rosnode kill {node_name}: {output}\n")
+
+    def _force_kill_host_if_running(self) -> None:
+        if self.host_process is None or self.host_process.poll() is not None:
+            self.host_process = None
+            return
+        try:
+            os.killpg(os.getpgid(self.host_process.pid), signal.SIGKILL)
+            self._append_log("[ui] Sent SIGKILL to lingering start_host.sh process group\n")
+        except ProcessLookupError:
             pass
+        self.host_process = None
+        self._cleanup_host_lock_if_stale()
+
+    def _cleanup_host_lock_if_stale(self) -> None:
+        if not HOST_LOCK_FILE.exists():
+            return
+        try:
+            pid_text = HOST_LOCK_FILE.read_text(encoding="utf-8").strip()
+            pid = int(pid_text)
+        except (OSError, ValueError):
+            pid = -1
+        if pid > 0:
+            try:
+                os.kill(pid, 0)
+                return
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                return
+        try:
+            HOST_LOCK_FILE.unlink()
+            self._append_log(f"[ui] Removed stale host lock {HOST_LOCK_FILE}\n")
+        except OSError as exc:
+            self._append_log(f"[ui] Failed to remove stale host lock {HOST_LOCK_FILE}: {exc}\n")
 
     def _apply_shape(self) -> None:
         try:

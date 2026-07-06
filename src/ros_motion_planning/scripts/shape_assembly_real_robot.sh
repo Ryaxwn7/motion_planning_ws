@@ -7,6 +7,7 @@ WS_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 source "${SCRIPT_DIR}/env.sh"
 
 LOCK_FILE="/tmp/shape_assembly_real_robot.lock"
+SCRIPT_BASENAME="$(basename "$0")"
 MAP_PID=""
 HOST_PID=""
 
@@ -24,8 +25,12 @@ _acquire_lock() {
   if [[ -f "${LOCK_FILE}" ]]; then
     old_pid="$(cat "${LOCK_FILE}" 2>/dev/null || true)"
     if [[ -n "${old_pid}" ]] && kill -0 "${old_pid}" 2>/dev/null; then
-      echo "shape_assembly_real_robot.sh is already running (pid=${old_pid})."
-      exit 1
+      old_cmd="$(tr '\0' ' ' < "/proc/${old_pid}/cmdline" 2>/dev/null || true)"
+      if [[ "${old_cmd}" == *"${SCRIPT_BASENAME}"* ]]; then
+        echo "shape_assembly_real_robot.sh is already running (pid=${old_pid})."
+        exit 1
+      fi
+      echo "[shape_assembly_real_robot] Removing stale lock with reused pid=${old_pid}: ${old_cmd}" >&2
     fi
     rm -f "${LOCK_FILE}" || true
   fi

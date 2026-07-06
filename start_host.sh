@@ -20,6 +20,7 @@ _start_gather_rate=5.0
 _roscore_wait=8.0
 _ros_master_uri="${ROS_MASTER_URI:-http://192.168.1.104:11311}"
 _ros_ip="${ROS_IP:-}"
+_use_sim_time="${USE_SIM_TIME:-false}"
 _map_file=""
 host_args=(
   "agent_number:=2"
@@ -50,6 +51,7 @@ Script args:
   roscore_wait:=8.0
   ros_master_uri:=http://<HOST_IP>:11311
   ros_ip:=<HOST_IP>
+  use_sim_time:=true|false
 
 All other args are forwarded to shape_assembly_real_robot.sh.
 Default gather behavior is manual: keep auto_start_gather:=false and publish /gather_signal yourself.
@@ -155,6 +157,9 @@ fi
 if [[ ${ROS_IP_VALUE+x} ]]; then
   _ros_ip="$ROS_IP_VALUE"
 fi
+if [[ ${USE_SIM_TIME_VALUE+x} ]]; then
+  _use_sim_time="$USE_SIM_TIME_VALUE"
+fi
 if [[ ${MAP_FILE_VALUE+x} ]]; then
   _map_file="$MAP_FILE_VALUE"
 fi
@@ -216,6 +221,9 @@ for arg in "$@"; do
       ;;
     ros_ip:=*)
       _ros_ip="${arg#*=}"
+      ;;
+    use_sim_time:=*)
+      _use_sim_time="${arg#*=}"
       ;;
     *)
       merge_arg "$arg"
@@ -281,6 +289,9 @@ else
     exit 1
   fi
 fi
+
+rosparam set /use_sim_time "${_use_sim_time}"
+echo "[start_host] Set /use_sim_time=${_use_sim_time}"
 
 echo "[start_host] Using config file: ${_config_file}"
 printf '[start_host] Forward args:'

@@ -9,6 +9,7 @@ source "${ROOT_DIR}/src/ros_motion_planning/scripts/env.sh"
 _config_file="${ROOT_DIR}/config/robot_start.conf"
 _ros_master_uri="${ROS_MASTER_URI:-http://127.0.0.1:11311}"
 _ros_ip="${ROS_IP:-}"
+_use_sim_time="${USE_SIM_TIME:-false}"
 robot_args=(
   "map_started:=true"
   "agent_number:=4"
@@ -33,6 +34,7 @@ Script args:
   config:=/abs/or/relative/path.conf
   ros_master_uri:=http://<HOST_IP>:11311
   ros_ip:=<ROBOT_IP>
+  use_sim_time:=true|false
 
 All other args are forwarded to motion_navigate_multi4.launch.
 Command-line args override config file values.
@@ -125,6 +127,9 @@ fi
 if [[ ${ROS_IP_VALUE+x} ]]; then
   _ros_ip="$ROS_IP_VALUE"
 fi
+if [[ ${USE_SIM_TIME_VALUE+x} ]]; then
+  _use_sim_time="$USE_SIM_TIME_VALUE"
+fi
 if declare -p ROBOT_LAUNCH_ARGS >/dev/null 2>&1; then
   robot_args=("${ROBOT_LAUNCH_ARGS[@]}")
 fi
@@ -138,6 +143,9 @@ for arg in "$@"; do
       ;;
     ros_ip:=*)
       _ros_ip="${arg#*=}"
+      ;;
+    use_sim_time:=*)
+      _use_sim_time="${arg#*=}"
       ;;
     *)
       merge_arg "$arg"
@@ -169,6 +177,8 @@ _pull_host_param() {
 }
 
 if rosnode list >/dev/null 2>&1; then
+  rosparam set /use_sim_time "${_use_sim_time}"
+  echo "[start_robot] Set /use_sim_time=${_use_sim_time}"
   _pulled=0
   _pull_host_param /robot_ids robot_ids && _pulled=1
   _pull_host_param /shape_type shape_type && _pulled=1

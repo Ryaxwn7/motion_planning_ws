@@ -1,0 +1,23 @@
+<launch>
+    <arg name="robot_ids" default="[3,4,5,6]" />
+    <arg name="vrpn_prefix" default="/vrpn_client_node" />
+    <arg name="input_suffix" default="pose" />
+    <arg name="output_suffix" default="traj" />
+    <arg name="fixed_frame" default="world" />
+    <arg name="use_msg_frame" default="true" />
+    <arg name="min_distance" default="0.01" />
+    <arg name="max_poses" default="0" />
+    <arg name="save_dir" default="/tmp/vrpn_traj" />
+
+    <node name="vrpn_traj_publisher" pkg="move_base_client" type="vrpn_traj_publisher" output="screen">
+        <rosparam param="robot_ids" subst_value="true">$(arg robot_ids)</rosparam>
+        <param name="vrpn_prefix" value="$(arg vrpn_prefix)" />
+        <param name="input_suffix" value="$(arg input_suffix)" />
+        <param name="output_suffix" value="$(arg output_suffix)" />
+        <param name="fixed_frame" value="$(arg fixed_frame)" />
+        <param name="use_msg_frame" value="$(arg use_msg_frame)" />
+        <param name="min_distance" value="$(arg min_distance)" />
+        <param name="max_poses" value="$(arg max_poses)" />
+        <param name="save_dir" value="$(arg save_dir)" />
+    </node>
+</launch>

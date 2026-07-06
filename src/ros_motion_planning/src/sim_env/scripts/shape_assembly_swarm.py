@@ -1765,12 +1765,13 @@ class ShapeAssemblySwarm:
 
         self.sim_param.r_body = max(0.0, float(config.r_body))
         self.sim_param.r_safe = max(self.sim_param.r_body, float(config.r_safe))
-        self.sim_param.hard_safety_dist = max(0.0, float(config.hard_safety_dist))
+        self.sim_param.hard_safety_dist = max(0.0, float(getattr(config, "hard_safety_dist", self.sim_param.hard_safety_dist)))
         self.sim_param.r_avoid = max(get_hard_safety_dist(self.sim_param), float(config.r_avoid))
         self.sim_param.r_sense = max(self.sim_param.r_avoid, float(config.r_sense))
         config.r_body = self.sim_param.r_body
         config.r_safe = self.sim_param.r_safe
-        config.hard_safety_dist = self.sim_param.hard_safety_dist
+        if hasattr(config, "hard_safety_dist"):
+            config.hard_safety_dist = self.sim_param.hard_safety_dist
         config.r_avoid = self.sim_param.r_avoid
         config.r_sense = self.sim_param.r_sense
 

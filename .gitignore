@@ -9,6 +9,7 @@
 /devel_isolated/
 /install_isolated/
 /src/CMakeLists.txt
+/okbags/
 
 # Nested catkin or CMake outputs inside package trees
 **/.catkin_workspace

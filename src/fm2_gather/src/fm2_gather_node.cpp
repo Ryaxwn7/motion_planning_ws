@@ -167,6 +167,7 @@ bool debug_on=true;
 bool reverse =false;
 bool pub_once=false;
 bool publish_goal=true;
+bool use_move_base_controllers=true;
 bool plot_on=true;
 bool save_data=false;
 std::vector<bool> robot_replan_flags; //用于指定需要重新规划路径的机器人id
@@ -2345,6 +2346,9 @@ bool publish_goal_occupied_staging_goal(std::shared_ptr<MoveBaseController>& con
 
 bool controllers_check(std::vector<std::shared_ptr<MoveBaseController>> &controllers_)
 {
+    if (!use_move_base_controllers || controllers_.size() < robot_ids.size()) {
+        return true;
+    }
     bool all_succ = true;
     for(int i = 0; i < robot_ids.size(); i++)
     {
@@ -2578,6 +2582,7 @@ int main(int argc, char** argv)
     nh.param("test_mode", test_mode, false);
     nh.param("debug_on", debug_on, true);
     nh.param("publish_goal",publish_goal, true);
+    nh.param("use_move_base_controllers", use_move_base_controllers, use_move_base_controllers);
     nh.param("plot_on", plot_on, true);
     nh.param("save_data", save_data, false);
     nh.param("external_center_goal_topic", external_center_goal_topic, external_center_goal_topic);
@@ -2640,12 +2645,16 @@ int main(int argc, char** argv)
     }
     // MOVE_BASE控制器
     
-    for (auto i: robot_ids)
-    {
-        std::string action_server_namespace = makeRobotNamespace(i);
-        ROS_INFO("Subscribing to %s/move_base", action_server_namespace.c_str());
-        auto controller = std::make_shared<MoveBaseController>(action_server_namespace);
-        controllers.push_back(controller);
+    if (use_move_base_controllers) {
+        for (auto i: robot_ids)
+        {
+            std::string action_server_namespace = makeRobotNamespace(i);
+            ROS_INFO("Subscribing to %s/move_base", action_server_namespace.c_str());
+            auto controller = std::make_shared<MoveBaseController>(action_server_namespace);
+            controllers.push_back(controller);
+        }
+    } else {
+        ROS_WARN("[FM2 Gather] use_move_base_controllers=false, offline compute-only mode enabled.");
     }
     //聚集开始信号话题发布者
     ros::Publisher pub_start = nh.advertise<std_msgs::UInt8>("/gather_started", 1, true);
@@ -2842,7 +2851,7 @@ int main(int argc, char** argv)
                     std_msgs::UInt8 msg;
                     msg.data = 0;
                     pub_start.publish(msg);
-                    for(int i=0;i<robot_ids.size();i++)
+                    for(int i=0;i<robot_ids.size() && i<controllers.size();i++)
                     {
                         // controllers[i]->cancelGoal();
                         controllers[i]->emergencyStop();

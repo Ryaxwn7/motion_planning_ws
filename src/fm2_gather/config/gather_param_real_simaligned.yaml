@@ -17,7 +17,7 @@ velocity_mode: 1
 velocity_sigmoid_k: 1.5
 velocity_sigmoid_b: 0.0
 space_inflation_radius: 0.02
-space_min_obstacle_distance: 1.8
+space_min_obstacle_distance: 0.7
 gather_radius: 0.7
 goal_occupied_staging_radius: -1.0
 goal_occupied_staging_margin: 0.25
