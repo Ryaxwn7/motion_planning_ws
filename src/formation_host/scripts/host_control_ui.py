@@ -88,6 +88,7 @@ HOST_ROS_NODES_TO_KILL = [
     "/map_server_for_test",
 ]
 HOST_LOCK_FILE = Path("/tmp/shape_assembly_real_robot.lock")
+HOST_PROCESS_KILL_TIMEOUT_MS = 3000
 SCRIPT_ARG_VAR_MAP = {item[1]: item[0] for item in SCRIPT_ARG_DEFS}
 SCRIPT_ARG_DEFAULTS = {item[0]: item[2] for item in SCRIPT_ARG_DEFS}
 COMMON_HOST_ARG_KEYS = ("agent_number", "robot_ids", "shape_type", "shape_scale", "mission")
@@ -952,21 +953,11 @@ class HostControlUI:
 
     def _stop_host(self) -> None:
         self._stop_host_ros_nodes()
-        if self.host_process is None:
-            self._cleanup_host_lock_if_stale()
-            return
-        if self.host_process.poll() is not None:
+        self._terminate_host_process_group(signal.SIGTERM)
+        self._kill_matching_host_processes(signal.SIGTERM)
+        if self.host_process is None or self.host_process.poll() is not None:
             self.host_process = None
-            self._cleanup_host_lock_if_stale()
-            return
-        try:
-            os.killpg(os.getpgid(self.host_process.pid), signal.SIGTERM)
-            self._append_log("[ui] Sent SIGTERM to start_host.sh process group\n")
-        except ProcessLookupError:
-            self.host_process = None
-            self._cleanup_host_lock_if_stale()
-            return
-        self.root.after(3000, self._force_kill_host_if_running)
+        self.root.after(HOST_PROCESS_KILL_TIMEOUT_MS, self._force_kill_host_if_running)
 
     def _stop_host_ros_nodes(self) -> None:
         for node_name in HOST_ROS_NODES_TO_KILL:
@@ -987,16 +978,91 @@ class HostControlUI:
                 self._append_log(f"[ui] rosnode kill {node_name}: {output}\n")
 
     def _force_kill_host_if_running(self) -> None:
+        self._terminate_host_process_group(signal.SIGKILL)
+        self._kill_matching_host_processes(signal.SIGKILL)
+        self.host_process = None
+        self._cleanup_ros_master_nodes()
+        self._cleanup_host_lock_if_stale()
+        self.root.after(1000, self._cleanup_host_lock_if_stale)
+
+    def _terminate_host_process_group(self, sig: signal.Signals) -> None:
         if self.host_process is None or self.host_process.poll() is not None:
-            self.host_process = None
             return
         try:
-            os.killpg(os.getpgid(self.host_process.pid), signal.SIGKILL)
-            self._append_log("[ui] Sent SIGKILL to lingering start_host.sh process group\n")
+            os.killpg(os.getpgid(self.host_process.pid), sig)
+            self._append_log(f"[ui] Sent {sig.name} to start_host.sh process group\n")
         except ProcessLookupError:
-            pass
-        self.host_process = None
-        self._cleanup_host_lock_if_stale()
+            self.host_process = None
+
+    def _iter_host_process_candidates(self) -> List[Tuple[int, str]]:
+        current_pid = os.getpid()
+        ws_text = str(self.ws_root)
+        result: List[Tuple[int, str]] = []
+        proc_root = Path("/proc")
+        for proc_dir in proc_root.iterdir():
+            if not proc_dir.name.isdigit():
+                continue
+            pid = int(proc_dir.name)
+            if pid == current_pid:
+                continue
+            try:
+                raw = (proc_dir / "cmdline").read_bytes()
+            except (FileNotFoundError, ProcessLookupError, PermissionError, OSError):
+                continue
+            if not raw:
+                continue
+            cmdline = raw.replace(b"\0", b" ").decode("utf-8", errors="replace").strip()
+            if not self._is_host_process_cmdline(cmdline, ws_text):
+                continue
+            result.append((pid, cmdline))
+        return result
+
+    @staticmethod
+    def _is_host_process_cmdline(cmdline: str, ws_text: str) -> bool:
+        if "host_control_ui.py" in cmdline:
+            return False
+        if ws_text in cmdline and (
+            "start_host.sh" in cmdline
+            or "shape_assembly_real_robot.sh" in cmdline
+            or "shape_assembly_host.launch" in cmdline
+        ):
+            return True
+        if "/map_server/map_server" in cmdline and ws_text in cmdline and "/map/" in cmdline:
+            return True
+        return False
+
+    def _kill_matching_host_processes(self, sig: signal.Signals) -> None:
+        candidates = self._iter_host_process_candidates()
+        if not candidates:
+            return
+        for pid, cmdline in candidates:
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
+                continue
+            except PermissionError as exc:
+                self._append_log(f"[ui] Failed to send {sig.name} to pid={pid}: {exc}\n")
+                continue
+            short_cmd = shlex.split(cmdline)[0] if cmdline else "unknown"
+            self._append_log(f"[ui] Sent {sig.name} to lingering host pid={pid} ({short_cmd})\n")
+
+    def _cleanup_ros_master_nodes(self) -> None:
+        try:
+            proc = subprocess.run(
+                ["rosnode", "cleanup"],
+                cwd=str(self.ws_root),
+                input="y\n",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=5.0,
+            )
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            self._append_log(f"[ui] rosnode cleanup failed: {exc}\n")
+            return
+        output = proc.stdout.strip()
+        if output:
+            self._append_log(f"[ui] rosnode cleanup: {output}\n")
 
     def _cleanup_host_lock_if_stale(self) -> None:
         if not HOST_LOCK_FILE.exists():
