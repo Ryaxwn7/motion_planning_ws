@@ -71,6 +71,11 @@ roslaunch turn_on_wheeltec_robot motion_navigate_multi4.launch
 - 主机配置：`config/host_start.conf`
 - 机器人配置：`config/robot_start.conf`、`config/robot_start.robot3.conf` 到 `config/robot_start.robot6.conf`
 
+更完整的实机流程和 VRPN 动捕说明见：
+
+- `docs/real_robot_experiment_flow.md`
+- `docs/vrpn_motion_capture.md`
+
 ### 1. 编译
 
 主机只需要构建 host 侧包：

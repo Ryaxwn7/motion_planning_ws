@@ -39,7 +39,6 @@ class PathPublisher:
             
             # 初始化路径
             self.paths[robot_id] = Path()
-            self.paths[robot_id].header.frame_id = "map"  # 使用map作为参考坐标系
             
         rospy.loginfo("Multi-Robot Path Publisher Node Started!")
         rospy.loginfo("Monitoring %d robots: %s", self.robot_num, str(robot_ids))
@@ -47,10 +46,21 @@ class PathPublisher:
     def odom_callback(self, msg, robot_id):
         """ 处理里程计信息，提取位姿并添加到对应机器人的路径 """
         pose_stamped = PoseStamped()
+        frame_id = msg.header.frame_id.strip().lstrip("/")
+        if not frame_id:
+            frame_id = "robot{0}/odom_combined".format(robot_id) if robot_id != 0 else "odom_combined"
+
+        current_frame = self.paths[robot_id].header.frame_id
+        if current_frame and current_frame != frame_id:
+            rospy.logwarn("Robot %s odom frame changed from %s to %s; clearing path",
+                          robot_id, current_frame, frame_id)
+            self.paths[robot_id].poses = []
 
         # 设定时间戳
-        pose_stamped.header.stamp = rospy.Time.now()
-        pose_stamped.header.frame_id = "odom_combined"
+        pose_stamped.header.stamp = msg.header.stamp
+        if pose_stamped.header.stamp == rospy.Time():
+            pose_stamped.header.stamp = rospy.Time.now()
+        pose_stamped.header.frame_id = frame_id
 
         # 设定机器人的位姿
         pose_stamped.pose = msg.pose.pose
@@ -64,7 +74,8 @@ class PathPublisher:
             self.paths[robot_id].poses.pop(0)
 
         # 更新路径时间戳
-        self.paths[robot_id].header.stamp = rospy.Time.now()
+        self.paths[robot_id].header.stamp = pose_stamped.header.stamp
+        self.paths[robot_id].header.frame_id = frame_id
 
         # 发布路径
         self.path_pubs[robot_id].publish(self.paths[robot_id])
